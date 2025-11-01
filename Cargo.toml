@@ -1,0 +1,19 @@
+[package]
+authors = [""]
+# build = "build.rs"
+description = "Open source Firecracker accelerator for high-speed forwarding & resource-efficient network"
+edition = "2024"
+homepage = "https://github.com/fahren-stack/fahren"
+license = "Apache-2.0 AND BSD-3-Clause"
+name = "fahren"
+
+[workspace]
+members = [
+  "net_gen",
+  "net_util",
+  "option_parser",
+  "rate_limiter",
+  "vhost_user_net",
+  "vm_virtio",
+]
+package.edition = "2025"
