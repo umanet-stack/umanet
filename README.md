@@ -4,5 +4,5 @@
 
 ## Setup
 ```bash
-./init.sh
+./setup/init.sh
 ```
