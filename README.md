@@ -84,3 +84,11 @@ sudo cloud-hypervisor \
   --disk path=/tmp/noble-server-cloudimg-amd64.raw path=/tmp/cloudinit-vm0-dpdk.img \
   --net mac=52:54:00:02:d9:01,vhost_user=true,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=2048
 ```
+
+## Visualizing code
+```bash
+doxygen -g
+doxygen Doxyfile
+
+
+```

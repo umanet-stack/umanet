@@ -1,0 +1,104 @@
+\chapter{fahren}
+\hypertarget{md_README}{}\label{md_README}\index{fahren@{fahren}}
+\label{md_README_autotoc_md0}%
+\Hypertarget{md_README_autotoc_md0}%
+\hypertarget{md_README_autotoc_md1}{}\doxysection{\texorpdfstring{Prerequisites}{Prerequisites}}\label{md_README_autotoc_md1}
+
+\begin{DoxyItemize}
+\item use Linux (some syscalls in code are Linux-\/only)
+\end{DoxyItemize}\hypertarget{md_README_autotoc_md2}{}\doxysection{\texorpdfstring{What vhost-\/switch does}{What vhost-switch does}}\label{md_README_autotoc_md2}
+{\bfseries{vhost-\/switch}} is a DPDK-\/based vhost-\/user backend that acts as a {\bfseries{high-\/performance network switch}} for VMs\+:
+
+
+\begin{DoxyEnumerate}
+\item {\bfseries{VM-\/to-\/\+VM communication}}\+: Forwards packets between VMs based on MAC addresses (software switching)
+\item {\bfseries{VM-\/to-\/\+Physical NIC}}\+: Forwards packets from VMs to the physical network interface
+\item {\bfseries{Physical NIC-\/to-\/\+VM}}\+: Receives packets from the physical NIC and delivers them to the appropriate VM
+\item {\bfseries{MAC learning}}\+: Learns VM MAC addresses from the first packet and maintains a forwarding table
+\item {\bfseries{High performance}}\+: Uses DPDK for zero-\/copy, low-\/latency packet processing
+\end{DoxyEnumerate}
+
+{\bfseries{Packet flow\+:}}
+\begin{DoxyItemize}
+\item {\bfseries{VM → VM}}\+: Packet from VM1\textquotesingle{}s virtio TX queue → vhost-\/switch → VM2\textquotesingle{}s virtio RX queue
+\item {\bfseries{VM → Physical}}\+: Packet from VM\textquotesingle{}s virtio TX queue → vhost-\/switch → Physical NIC TX
+\item {\bfseries{Physical → VM}}\+: Packet from Physical NIC RX → vhost-\/switch → VM\textquotesingle{}s virtio RX queue
+\end{DoxyItemize}
+
+The switch worker loop continuously\+:
+\begin{DoxyItemize}
+\item Drains packets from physical NIC RX queues and delivers to VMs
+\item Drains packets from VM virtio TX queues and routes them (to other VMs or physical NIC)
+\end{DoxyItemize}\hypertarget{md_README_autotoc_md3}{}\doxysection{\texorpdfstring{Setup}{Setup}}\label{md_README_autotoc_md3}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{./setup/init.sh}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ reserve\ hugepages}
+\DoxyCodeLine{\#\ 1024\ ×\ 2\ MB\ =\ 2\ GB\ mem\ for\ hugepages}
+\DoxyCodeLine{sudo\ sysctl\ -\/w\ vm.nr\_hugepages=1024}
+\DoxyCodeLine{grep\ Huge\ /proc/meminfo}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ mount\ hugepage\ FS}
+\DoxyCodeLine{sudo\ mkdir\ -\/p\ /mnt/huge}
+\DoxyCodeLine{sudo\ mount\ -\/t\ hugetlbfs\ nodev\ /mnt/huge}
+\DoxyCodeLine{\#\ /dev/hugepages\ is\ default,\ we\ use\ /mnt/huge}
+\DoxyCodeLine{mount\ |\ grep\ huge}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ load\ VFIO\ kernel\ modules}
+\DoxyCodeLine{sudo\ modprobe\ vfio}
+\DoxyCodeLine{sudo\ modprobe\ vfio-\/pci}
+\DoxyCodeLine{lsmod\ |\ grep\ vfio}
+\DoxyCodeLine{sudo\ dmesg\ |\ grep\ -\/e\ DMAR\ -\/e\ IOMMU}
+\DoxyCodeLine{}
+\DoxyCodeLine{sudo\ dpdk-\/devbind.py\ -\/-\/status}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Clean\ up\ any\ leftover\ hugepage\ files\ from\ previous\ runs}
+\DoxyCodeLine{sudo\ umount\ -\/l\ /mnt/huge}
+\DoxyCodeLine{sudo\ rm\ -\/f\ /mnt/huge/*}
+\DoxyCodeLine{sudo\ rm\ -\/rf\ /dev/shm/rte\_*\ \#\ remove\ shm}
+
+\end{DoxyCode}
+\hypertarget{md_README_autotoc_md4}{}\doxysection{\texorpdfstring{Building}{Building}}\label{md_README_autotoc_md4}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{meson\ setup\ build}
+\DoxyCodeLine{ninja\ -\/C\ build}
+
+\end{DoxyCode}
+
+
+The executable will be at {\ttfamily build/vhost-\/switch}.\hypertarget{md_README_autotoc_md5}{}\doxysection{\texorpdfstring{Running}{Running}}\label{md_README_autotoc_md5}
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\#\ Run\ vhost-\/switch\ (vhost-\/user\ networking\ switch)}
+\DoxyCodeLine{\#\ EAL\ options\ (before\ -\/-\/):\ -\/l\ cores,\ -\/n\ memory\ channels}
+\DoxyCodeLine{\#\ Application\ options\ (after\ -\/-\/):\ -\/p\ portmask,\ -\/-\/socket-\/file\ path,\ -\/-\/stats\ interval}
+\DoxyCodeLine{sudo\ ./build/vhost-\/switch\ \(\backslash\)}
+\DoxyCodeLine{\ \ -\/l\ 2-\/3\ -\/n\ 4\ \(\backslash\)}
+\DoxyCodeLine{\ \ -\/-\/file-\/prefix=vhost\ \(\backslash\)}
+\DoxyCodeLine{\ \ -\/-\/\ -\/p\ 0x1\ -\/-\/socket-\/file\ /mnt/huge/sock0\ -\/-\/stats\ 1}
+\DoxyCodeLine{}
+\DoxyCodeLine{\#\ Or\ install\ and\ run\ from\ PATH}
+\DoxyCodeLine{sudo\ ninja\ -\/C\ build\ install}
+\DoxyCodeLine{sudo\ vhost-\/switch\ -\/l\ 2-\/3\ -\/n\ 4\ -\/-\/\ -\/p\ 0x1\ -\/-\/socket-\/file\ /mnt/huge/sock0\ -\/-\/stats\ 1}
+
+\end{DoxyCode}
+
+\begin{DoxyItemize}
+\item {\bfseries{EAL options}} (before {\ttfamily -\/-\/})\+: {\ttfamily -\/l} cores, {\ttfamily -\/n} memory channels, {\ttfamily -\/-\/huge-\/dir}, {\ttfamily -\/-\/file-\/prefix}, etc.
+\item {\bfseries{Application options}} (after {\ttfamily -\/-\/})\+: {\ttfamily -\/p} portmask, {\ttfamily -\/-\/socket-\/file} path, {\ttfamily -\/-\/stats} interval, etc.
+\end{DoxyItemize}
+
+
+\begin{DoxyCode}{0}
+\DoxyCodeLine{sudo\ cloud-\/hypervisor\ \(\backslash\)}
+\DoxyCodeLine{\ \ -\/-\/cpus\ boot=1\ \(\backslash\)}
+\DoxyCodeLine{\ \ -\/-\/memory\ size=512M,hugepages=on,shared=true\ \(\backslash\)}
+\DoxyCodeLine{\ \ -\/-\/kernel\ /tmp/vmlinux.bin\ \(\backslash\)}
+\DoxyCodeLine{\ \ -\/-\/cmdline\ "{}console=ttyS0\ console=hvc0\ root=/dev/vda1\ rw\ systemd.mask=systemd-\/networkd-\/wait-\/online.service\ systemd.mask=snapd.service\ systemd.mask=snapd.seeded.service\ systemd.mask=snapd.socket"{}\ \(\backslash\)}
+\DoxyCodeLine{\ \ -\/-\/disk\ path=/tmp/noble-\/server-\/cloudimg-\/amd64.raw\ path=/tmp/cloudinit-\/vm0-\/dpdk.img\ \(\backslash\)}
+\DoxyCodeLine{\ \ -\/-\/net\ mac=52:54:00:02:d9:01,vhost\_user=true,socket=/mnt/huge/sock0,num\_queues=2,vhost\_mode=client,queue\_size=2048}
+
+\end{DoxyCode}
+ 
