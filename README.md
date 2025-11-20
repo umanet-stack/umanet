@@ -2,6 +2,24 @@
 ## Prerequisites
 - use Linux (some syscalls in code are Linux-only)
 
+## What vhost-switch does
+**vhost-switch** is a DPDK-based vhost-user backend that acts as a **high-performance network switch** for VMs:
+
+1. **VM-to-VM communication**: Forwards packets between VMs based on MAC addresses (software switching)
+2. **VM-to-Physical NIC**: Forwards packets from VMs to the physical network interface
+3. **Physical NIC-to-VM**: Receives packets from the physical NIC and delivers them to the appropriate VM
+4. **MAC learning**: Learns VM MAC addresses from the first packet and maintains a forwarding table
+5. **High performance**: Uses DPDK for zero-copy, low-latency packet processing
+
+**Packet flow:**
+- **VM → VM**: Packet from VM1's virtio TX queue → vhost-switch → VM2's virtio RX queue
+- **VM → Physical**: Packet from VM's virtio TX queue → vhost-switch → Physical NIC TX
+- **Physical → VM**: Packet from Physical NIC RX → vhost-switch → VM's virtio RX queue
+
+The switch worker loop continuously:
+- Drains packets from physical NIC RX queues and delivers to VMs
+- Drains packets from VM virtio TX queues and routes them (to other VMs or physical NIC)
+
 ## Setup
 ```bash
 ./setup/init.sh
