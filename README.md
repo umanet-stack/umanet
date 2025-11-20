@@ -44,17 +44,17 @@ The executable will be at `build/vhost-switch`.
 
 ```bash
 # Run vhost-switch (vhost-user networking switch)
-# EAL options: -l cores, -n memory channels, --socket-file for vhost socket
+# EAL options (before --): -l cores, -n memory channels
+# Application options (after --): -p portmask, --socket-file path, --stats interval
 sudo ./build/vhost-switch \
   -l 2-3 -n 4 \
-  --socket-file /mnt/huge/sock0 \
-  -- -p 0x1 --stats 1
+  -- -p 0x1 --socket-file /mnt/huge/sock0 --stats 1
 
 # Or install and run from PATH
 sudo ninja -C build install
-sudo vhost-switch -l 2-3 -n 4 --socket-file /mnt/huge/sock0 -- -p 0x1 --stats 1
+sudo vhost-switch -l 2-3 -n 4 -- -p 0x1 --socket-file /mnt/huge/sock0 --stats 1
 ```
 
 **Command format:**
-- EAL options (before `--`): `-l` cores, `-n` memory channels, `--socket-file` path
-- Application options (after `--`): `-p` portmask, `--stats` interval, etc.
+- **EAL options** (before `--`): `-l` cores, `-n` memory channels, `--huge-dir`, `--file-prefix`, etc.
+- **Application options** (after `--`): `-p` portmask, `--socket-file` path, `--stats` interval, etc.
