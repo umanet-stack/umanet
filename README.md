@@ -14,6 +14,7 @@ grep Huge /proc/meminfo
 # mount hugepage FS
 sudo mkdir -p /mnt/huge
 sudo mount -t hugetlbfs nodev /mnt/huge
+# /dev/hugepages is default, we use /mnt/huge
 mount | grep huge
 
 # load VFIO kernel modules
@@ -25,7 +26,9 @@ sudo dmesg | grep -e DMAR -e IOMMU
 sudo dpdk-devbind.py --status
 
 # Clean up any leftover hugepage files from previous runs
-sudo rm -f /dev/hugepages/tas_memory
+sudo umount -l /mnt/huge
+sudo rm -f /mnt/huge/*
+sudo rm -rf /dev/shm/rte_* # remove shm
 ```
 
 ## Running DPDK testpmd
