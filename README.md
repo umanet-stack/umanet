@@ -31,16 +31,30 @@ sudo rm -f /mnt/huge/*
 sudo rm -rf /dev/shm/rte_* # remove shm
 ```
 
-## Running DPDK testpmd
+## Building
+
 ```bash
 meson setup build
 ninja -C build
-
-dpdk-testpmd -v # 19.11.14
-
-sudo ~/dpdk-inst/build/app/dpdk-testpmd -l 2-3 -n 4 \
-  --pci-whitelist=0000:03:00.1 \
-  --vdev 'net_vhost0,iface=/mnt/huge/sock0,queues=1,client=0' \
-  --huge-dir=/mnt/huge --file-prefix=vhost -- -i
-
 ```
+
+The executable will be at `build/vhost-switch`.
+
+## Running
+
+```bash
+# Run vhost-switch (vhost-user networking switch)
+# EAL options: -l cores, -n memory channels, --socket-file for vhost socket
+sudo ./build/vhost-switch \
+  -l 2-3 -n 4 \
+  --socket-file /mnt/huge/sock0 \
+  -- -p 0x1 --stats 1
+
+# Or install and run from PATH
+sudo ninja -C build install
+sudo vhost-switch -l 2-3 -n 4 --socket-file /mnt/huge/sock0 -- -p 0x1 --stats 1
+```
+
+**Command format:**
+- EAL options (before `--`): `-l` cores, `-n` memory channels, `--socket-file` path
+- Application options (after `--`): `-p` portmask, `--stats` interval, etc.

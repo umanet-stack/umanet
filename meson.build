@@ -4,9 +4,8 @@
 project('fahren', 'c',
 	version: '1.0.0',
 	license: 'BSD-3-Clause',
-	default_options: ['buildtype=release', 'c_std=c11'])
+	default_options: ['buildtype=release', 'c_std=c17'])
 
-# Check for Linux
 if host_machine.system() != 'linux'
 	error('This application can only be built on Linux')
 endif
@@ -14,10 +13,11 @@ endif
 # Find DPDK using pkg-config
 dpdk = dependency('libdpdk', required: true)
 
-# Source files
+include_dirs = include_directories('include')
+
 sources = files(
-	'main.c',
-	'virtio_net.c'
+	'src/main.c',
+	'src/virtio_net.c'
 )
 
 # Compiler flags
@@ -32,6 +32,7 @@ c_args = [
 executable('vhost-switch',
 	sources,
 	c_args: c_args,
+	include_directories: include_dirs,
 	dependencies: [dpdk],
 	install: true,
 	install_dir: get_option('bindir')
