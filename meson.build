@@ -1,17 +1,38 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright(c) 2017 Intel Corporation
 
-project('fahren', 'c')
-# meson file, for building this example as part of a main DPDK build.
-#
-# To build this example as a standalone application with an already-installed
-# DPDK instance, use 'make'
+project('fahren', 'c',
+	version: '1.0.0',
+	license: 'BSD-3-Clause',
+	default_options: ['buildtype=release', 'c_std=c11'])
 
-if not is_linux
-	build = false
+# Check for Linux
+if host_machine.system() != 'linux'
+	error('This application can only be built on Linux')
 endif
-deps += 'vhost'
-allow_experimental_apis = true
+
+# Find DPDK using pkg-config
+dpdk = dependency('libdpdk', required: true)
+
+# Source files
 sources = files(
-	'main.c', 'virtio_net.c'
+	'main.c',
+	'virtio_net.c'
+)
+
+# Compiler flags
+c_args = [
+	'-DALLOW_EXPERIMENTAL_API',
+	'-D_FILE_OFFSET_BITS=64',
+	'-D_GNU_SOURCE',  # For ssize_t and other POSIX extensions
+	'-O3'
+]
+
+# Build executable
+executable('vhost-switch',
+	sources,
+	c_args: c_args,
+	dependencies: [dpdk],
+	install: true,
+	install_dir: get_option('bindir')
 )

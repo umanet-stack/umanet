@@ -33,6 +33,9 @@ sudo rm -rf /dev/shm/rte_* # remove shm
 
 ## Running DPDK testpmd
 ```bash
+meson setup build
+ninja -C build
+
 dpdk-testpmd -v # 19.11.14
 
 sudo ~/dpdk-inst/build/app/dpdk-testpmd -l 2-3 -n 4 \
