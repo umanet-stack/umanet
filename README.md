@@ -41,20 +41,28 @@ ninja -C build
 The executable will be at `build/vhost-switch`.
 
 ## Running
-
 ```bash
 # Run vhost-switch (vhost-user networking switch)
 # EAL options (before --): -l cores, -n memory channels
 # Application options (after --): -p portmask, --socket-file path, --stats interval
 sudo ./build/vhost-switch \
   -l 2-3 -n 4 \
+  --file-prefix=vhost \
   -- -p 0x1 --socket-file /mnt/huge/sock0 --stats 1
 
 # Or install and run from PATH
 sudo ninja -C build install
 sudo vhost-switch -l 2-3 -n 4 -- -p 0x1 --socket-file /mnt/huge/sock0 --stats 1
 ```
-
-**Command format:**
 - **EAL options** (before `--`): `-l` cores, `-n` memory channels, `--huge-dir`, `--file-prefix`, etc.
 - **Application options** (after `--`): `-p` portmask, `--socket-file` path, `--stats` interval, etc.
+
+```bash
+sudo cloud-hypervisor \
+  --cpus boot=1 \
+  --memory size=512M,hugepages=on,shared=true \
+  --kernel /tmp/vmlinux.bin \
+  --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
+  --disk path=/tmp/noble-server-cloudimg-amd64.raw path=/tmp/cloudinit-vm0-dpdk.img \
+  --net mac=52:54:00:02:d9:01,vhost_user=true,socket=/tmp/vhost-user1,num_queues=4,vhost_mode=server,queue_size=2048
+```
