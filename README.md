@@ -35,7 +35,7 @@ sudo rm -rf /dev/shm/rte_* # remove shm
 ```bash
 dpdk-testpmd -v # 19.11.14
 
-sudo dpdk-testpmd -l 2-3 -n 4 \
+sudo ~/dpdk-inst/build/app/dpdk-testpmd -l 2-3 -n 4 \
   --pci-whitelist=0000:03:00.1 \
   --vdev 'net_vhost0,iface=/mnt/huge/sock0,queues=1,client=0' \
   --huge-dir=/mnt/huge --file-prefix=vhost -- -i
