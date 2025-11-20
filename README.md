@@ -88,7 +88,9 @@ sudo cloud-hypervisor \
 ## Visualizing code
 ```bash
 doxygen -g
+
+# update html
 doxygen Doxyfile
 
-
+open ./html/index.html
 ```
