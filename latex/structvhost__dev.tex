@@ -1,0 +1,161 @@
+\doxysection{vhost\+\_\+dev Struct Reference}
+\hypertarget{structvhost__dev}{}\label{structvhost__dev}\index{vhost\_dev@{vhost\_dev}}
+
+
+{\ttfamily \#include $<$main.\+h$>$}
+
+
+
+Collaboration diagram for vhost\+\_\+dev\+:
+\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=276pt]{structvhost__dev__coll__graph}
+\end{center}
+\end{figure}
+\doxysubsubsection*{Public Member Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{structvhost__dev_ae8ec22e39b956af53db40b9d3a08a7ae}{TAILQ\+\_\+\+ENTRY}} (\mbox{\hyperlink{structvhost__dev}{vhost\+\_\+dev}}) global\+\_\+vdev\+\_\+entry
+\item 
+\mbox{\hyperlink{structvhost__dev_a467ea67fa0818f2d37aa2da2e11dcd5b}{TAILQ\+\_\+\+ENTRY}} (\mbox{\hyperlink{structvhost__dev}{vhost\+\_\+dev}}) lcore\+\_\+vdev\+\_\+entry
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+uint32\+\_\+t \mbox{\hyperlink{structvhost__dev_a6d4af82b0af480f1fd4a21f6dda3ef5a}{nregions\+\_\+hpa}}
+\item 
+struct rte\+\_\+ether\+\_\+addr \mbox{\hyperlink{structvhost__dev_a211955c41397ca0ff2bc597fcd3f692f}{mac\+\_\+address}}
+\item 
+uint16\+\_\+t \mbox{\hyperlink{structvhost__dev_a19fd1c05dc6d08fd2adda4d9df2a042b}{vmdq\+\_\+rx\+\_\+q}}
+\item 
+uint32\+\_\+t \mbox{\hyperlink{structvhost__dev_a45ebb6ef61988847c4ca0bfd975c76cf}{vlan\+\_\+tag}}
+\item 
+uint16\+\_\+t \mbox{\hyperlink{structvhost__dev_a15a55c51391a4a23adccf1c2322e83c7}{coreid}}
+\item 
+volatile uint8\+\_\+t \mbox{\hyperlink{structvhost__dev_ae264248ff47629ae3b82b892ab31fe44}{ready}}
+\item 
+volatile uint8\+\_\+t \mbox{\hyperlink{structvhost__dev_ad4426f08156cbc4c5c172f636e7feb57}{remove}}
+\item 
+int \mbox{\hyperlink{structvhost__dev_ad7397a94d3950eec265c8ac9337e0cfd}{vid}}
+\item 
+uint64\+\_\+t \mbox{\hyperlink{structvhost__dev_adf819f98fd9fa10befb9b96ea740d2c0}{features}}
+\item 
+size\+\_\+t \mbox{\hyperlink{structvhost__dev_a20aa1d0aba94e6e53e6f6e6bc8ae68ef}{hdr\+\_\+len}}
+\item 
+uint16\+\_\+t \mbox{\hyperlink{structvhost__dev_ac3a150bad0ae1881b2865154110cc37b}{nr\+\_\+vrings}}
+\item 
+struct rte\+\_\+vhost\+\_\+memory \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{structvhost__dev_ac3b9ac65b21bb5cc8088e65ec1ce73bb}{mem}}
+\item 
+struct \mbox{\hyperlink{structdevice__statistics}{device\+\_\+statistics}} \mbox{\hyperlink{structvhost__dev_aac1c48b378abe41df94c572a582a2831}{stats}}
+\item 
+struct \mbox{\hyperlink{structvhost__queue}{vhost\+\_\+queue}} \mbox{\hyperlink{structvhost__dev_aad20c3776bff8f707c2204c926b09ac2}{queues}} \mbox{[}\mbox{\hyperlink{main_8h_a5983e126c74fd0a5dca5c28862f521ee}{MAX\+\_\+\+QUEUE\+\_\+\+PAIRS}} \texorpdfstring{$\ast$}{*}2\mbox{]}
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Member Function Documentation}
+\Hypertarget{structvhost__dev_ae8ec22e39b956af53db40b9d3a08a7ae}\label{structvhost__dev_ae8ec22e39b956af53db40b9d3a08a7ae} 
+\index{vhost\_dev@{vhost\_dev}!TAILQ\_ENTRY@{TAILQ\_ENTRY}}
+\index{TAILQ\_ENTRY@{TAILQ\_ENTRY}!vhost\_dev@{vhost\_dev}}
+\doxysubsubsection{\texorpdfstring{TAILQ\_ENTRY()}{TAILQ\_ENTRY()}\hspace{0.1cm}{\footnotesize\ttfamily [1/2]}}
+{\footnotesize\ttfamily vhost\+\_\+dev\+::\+TAILQ\+\_\+\+ENTRY (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{structvhost__dev}{vhost\+\_\+dev}}}]{ }\end{DoxyParamCaption})}
+
+\Hypertarget{structvhost__dev_a467ea67fa0818f2d37aa2da2e11dcd5b}\label{structvhost__dev_a467ea67fa0818f2d37aa2da2e11dcd5b} 
+\index{vhost\_dev@{vhost\_dev}!TAILQ\_ENTRY@{TAILQ\_ENTRY}}
+\index{TAILQ\_ENTRY@{TAILQ\_ENTRY}!vhost\_dev@{vhost\_dev}}
+\doxysubsubsection{\texorpdfstring{TAILQ\_ENTRY()}{TAILQ\_ENTRY()}\hspace{0.1cm}{\footnotesize\ttfamily [2/2]}}
+{\footnotesize\ttfamily vhost\+\_\+dev\+::\+TAILQ\+\_\+\+ENTRY (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{structvhost__dev}{vhost\+\_\+dev}}}]{ }\end{DoxyParamCaption})}
+
+
+
+\doxysubsection{Member Data Documentation}
+\Hypertarget{structvhost__dev_a15a55c51391a4a23adccf1c2322e83c7}\label{structvhost__dev_a15a55c51391a4a23adccf1c2322e83c7} 
+\index{vhost\_dev@{vhost\_dev}!coreid@{coreid}}
+\index{coreid@{coreid}!vhost\_dev@{vhost\_dev}}
+\doxysubsubsection{\texorpdfstring{coreid}{coreid}}
+{\footnotesize\ttfamily uint16\+\_\+t vhost\+\_\+dev\+::coreid}
+
+A device is set as ready if the MAC address has been set. \Hypertarget{structvhost__dev_adf819f98fd9fa10befb9b96ea740d2c0}\label{structvhost__dev_adf819f98fd9fa10befb9b96ea740d2c0} 
+\index{vhost\_dev@{vhost\_dev}!features@{features}}
+\index{features@{features}!vhost\_dev@{vhost\_dev}}
+\doxysubsubsection{\texorpdfstring{features}{features}}
+{\footnotesize\ttfamily uint64\+\_\+t vhost\+\_\+dev\+::features}
+
+\Hypertarget{structvhost__dev_a20aa1d0aba94e6e53e6f6e6bc8ae68ef}\label{structvhost__dev_a20aa1d0aba94e6e53e6f6e6bc8ae68ef} 
+\index{vhost\_dev@{vhost\_dev}!hdr\_len@{hdr\_len}}
+\index{hdr\_len@{hdr\_len}!vhost\_dev@{vhost\_dev}}
+\doxysubsubsection{\texorpdfstring{hdr\_len}{hdr\_len}}
+{\footnotesize\ttfamily size\+\_\+t vhost\+\_\+dev\+::hdr\+\_\+len}
+
+\Hypertarget{structvhost__dev_a211955c41397ca0ff2bc597fcd3f692f}\label{structvhost__dev_a211955c41397ca0ff2bc597fcd3f692f} 
+\index{vhost\_dev@{vhost\_dev}!mac\_address@{mac\_address}}
+\index{mac\_address@{mac\_address}!vhost\_dev@{vhost\_dev}}
+\doxysubsubsection{\texorpdfstring{mac\_address}{mac\_address}}
+{\footnotesize\ttfamily struct rte\+\_\+ether\+\_\+addr vhost\+\_\+dev\+::mac\+\_\+address}
+
+RX VMDQ queue number. \Hypertarget{structvhost__dev_ac3b9ac65b21bb5cc8088e65ec1ce73bb}\label{structvhost__dev_ac3b9ac65b21bb5cc8088e65ec1ce73bb} 
+\index{vhost\_dev@{vhost\_dev}!mem@{mem}}
+\index{mem@{mem}!vhost\_dev@{vhost\_dev}}
+\doxysubsubsection{\texorpdfstring{mem}{mem}}
+{\footnotesize\ttfamily struct rte\+\_\+vhost\+\_\+memory\texorpdfstring{$\ast$}{*} vhost\+\_\+dev\+::mem}
+
+\Hypertarget{structvhost__dev_ac3a150bad0ae1881b2865154110cc37b}\label{structvhost__dev_ac3a150bad0ae1881b2865154110cc37b} 
+\index{vhost\_dev@{vhost\_dev}!nr\_vrings@{nr\_vrings}}
+\index{nr\_vrings@{nr\_vrings}!vhost\_dev@{vhost\_dev}}
+\doxysubsubsection{\texorpdfstring{nr\_vrings}{nr\_vrings}}
+{\footnotesize\ttfamily uint16\+\_\+t vhost\+\_\+dev\+::nr\+\_\+vrings}
+
+\Hypertarget{structvhost__dev_a6d4af82b0af480f1fd4a21f6dda3ef5a}\label{structvhost__dev_a6d4af82b0af480f1fd4a21f6dda3ef5a} 
+\index{vhost\_dev@{vhost\_dev}!nregions\_hpa@{nregions\_hpa}}
+\index{nregions\_hpa@{nregions\_hpa}!vhost\_dev@{vhost\_dev}}
+\doxysubsubsection{\texorpdfstring{nregions\_hpa}{nregions\_hpa}}
+{\footnotesize\ttfamily uint32\+\_\+t vhost\+\_\+dev\+::nregions\+\_\+hpa}
+
+\texorpdfstring{$<$}{<} Number of memory regions for gpa to hpa translation. Device MAC address (Obtained on first TX packet). \Hypertarget{structvhost__dev_aad20c3776bff8f707c2204c926b09ac2}\label{structvhost__dev_aad20c3776bff8f707c2204c926b09ac2} 
+\index{vhost\_dev@{vhost\_dev}!queues@{queues}}
+\index{queues@{queues}!vhost\_dev@{vhost\_dev}}
+\doxysubsubsection{\texorpdfstring{queues}{queues}}
+{\footnotesize\ttfamily struct \mbox{\hyperlink{structvhost__queue}{vhost\+\_\+queue}} vhost\+\_\+dev\+::queues\mbox{[}\mbox{\hyperlink{main_8h_a5983e126c74fd0a5dca5c28862f521ee}{MAX\+\_\+\+QUEUE\+\_\+\+PAIRS}} \texorpdfstring{$\ast$}{*}2\mbox{]}}
+
+\Hypertarget{structvhost__dev_ae264248ff47629ae3b82b892ab31fe44}\label{structvhost__dev_ae264248ff47629ae3b82b892ab31fe44} 
+\index{vhost\_dev@{vhost\_dev}!ready@{ready}}
+\index{ready@{ready}!vhost\_dev@{vhost\_dev}}
+\doxysubsubsection{\texorpdfstring{ready}{ready}}
+{\footnotesize\ttfamily volatile uint8\+\_\+t vhost\+\_\+dev\+::ready}
+
+Device is marked for removal from the data core. \Hypertarget{structvhost__dev_ad4426f08156cbc4c5c172f636e7feb57}\label{structvhost__dev_ad4426f08156cbc4c5c172f636e7feb57} 
+\index{vhost\_dev@{vhost\_dev}!remove@{remove}}
+\index{remove@{remove}!vhost\_dev@{vhost\_dev}}
+\doxysubsubsection{\texorpdfstring{remove}{remove}}
+{\footnotesize\ttfamily volatile uint8\+\_\+t vhost\+\_\+dev\+::remove}
+
+\Hypertarget{structvhost__dev_aac1c48b378abe41df94c572a582a2831}\label{structvhost__dev_aac1c48b378abe41df94c572a582a2831} 
+\index{vhost\_dev@{vhost\_dev}!stats@{stats}}
+\index{stats@{stats}!vhost\_dev@{vhost\_dev}}
+\doxysubsubsection{\texorpdfstring{stats}{stats}}
+{\footnotesize\ttfamily struct \mbox{\hyperlink{structdevice__statistics}{device\+\_\+statistics}} vhost\+\_\+dev\+::stats}
+
+\Hypertarget{structvhost__dev_ad7397a94d3950eec265c8ac9337e0cfd}\label{structvhost__dev_ad7397a94d3950eec265c8ac9337e0cfd} 
+\index{vhost\_dev@{vhost\_dev}!vid@{vid}}
+\index{vid@{vid}!vhost\_dev@{vhost\_dev}}
+\doxysubsubsection{\texorpdfstring{vid}{vid}}
+{\footnotesize\ttfamily int vhost\+\_\+dev\+::vid}
+
+\Hypertarget{structvhost__dev_a45ebb6ef61988847c4ca0bfd975c76cf}\label{structvhost__dev_a45ebb6ef61988847c4ca0bfd975c76cf} 
+\index{vhost\_dev@{vhost\_dev}!vlan\_tag@{vlan\_tag}}
+\index{vlan\_tag@{vlan\_tag}!vhost\_dev@{vhost\_dev}}
+\doxysubsubsection{\texorpdfstring{vlan\_tag}{vlan\_tag}}
+{\footnotesize\ttfamily uint32\+\_\+t vhost\+\_\+dev\+::vlan\+\_\+tag}
+
+Data core that the device is added to. \Hypertarget{structvhost__dev_a19fd1c05dc6d08fd2adda4d9df2a042b}\label{structvhost__dev_a19fd1c05dc6d08fd2adda4d9df2a042b} 
+\index{vhost\_dev@{vhost\_dev}!vmdq\_rx\_q@{vmdq\_rx\_q}}
+\index{vmdq\_rx\_q@{vmdq\_rx\_q}!vhost\_dev@{vhost\_dev}}
+\doxysubsubsection{\texorpdfstring{vmdq\_rx\_q}{vmdq\_rx\_q}}
+{\footnotesize\ttfamily uint16\+\_\+t vhost\+\_\+dev\+::vmdq\+\_\+rx\+\_\+q}
+
+Vlan tag assigned to the pool 
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+include/\mbox{\hyperlink{main_8h}{main.\+h}}\end{DoxyCompactItemize}

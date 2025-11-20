@@ -1,5 +1,5 @@
 var searchData=
 [
-  ['setup_0',['Setup',['../md_README.html#autotoc_md3',1,'']]],
-  ['switch_20does_1',['What vhost-switch does',['../md_README.html#autotoc_md2',1,'']]]
+  ['fahren_0',['fahren',['../md_README.html',1,'']]],
+  ['features_1',['features',['../structvhost__dev.html#adf819f98fd9fa10befb9b96ea740d2c0',1,'vhost_dev']]]
 ];

@@ -1,0 +1,7 @@
+var searchData=
+[
+  ['vs_5fdequeue_5fpkts_0',['vs_dequeue_pkts',['../main_8h.html#a2355c482c15a8a00cd8afadc0298283e',1,'vs_dequeue_pkts(struct vhost_dev *dev, uint16_t queue_id, struct rte_mempool *mbuf_pool, struct rte_mbuf **pkts, uint16_t count):&#160;virtio_net.c'],['../virtio__net_8c.html#a2355c482c15a8a00cd8afadc0298283e',1,'vs_dequeue_pkts(struct vhost_dev *dev, uint16_t queue_id, struct rte_mempool *mbuf_pool, struct rte_mbuf **pkts, uint16_t count):&#160;virtio_net.c']]],
+  ['vs_5fenqueue_5fpkts_1',['vs_enqueue_pkts',['../main_8h.html#af2f41063c60e0db129e02c07a3425962',1,'vs_enqueue_pkts(struct vhost_dev *dev, uint16_t queue_id, struct rte_mbuf **pkts, uint32_t count):&#160;virtio_net.c'],['../virtio__net_8c.html#af2f41063c60e0db129e02c07a3425962',1,'vs_enqueue_pkts(struct vhost_dev *dev, uint16_t queue_id, struct rte_mbuf **pkts, uint32_t count):&#160;virtio_net.c']]],
+  ['vs_5fvhost_5fnet_5fremove_2',['vs_vhost_net_remove',['../main_8h.html#afb543b6340845a1fc446d536af5ba510',1,'vs_vhost_net_remove(struct vhost_dev *dev):&#160;virtio_net.c'],['../virtio__net_8c.html#afb543b6340845a1fc446d536af5ba510',1,'vs_vhost_net_remove(struct vhost_dev *dev):&#160;virtio_net.c']]],
+  ['vs_5fvhost_5fnet_5fsetup_3',['vs_vhost_net_setup',['../main_8h.html#a481bf7e5b6816f6f714b6dde32bfc7be',1,'vs_vhost_net_setup(struct vhost_dev *dev):&#160;virtio_net.c'],['../virtio__net_8c.html#a481bf7e5b6816f6f714b6dde32bfc7be',1,'vs_vhost_net_setup(struct vhost_dev *dev):&#160;virtio_net.c']]]
+];

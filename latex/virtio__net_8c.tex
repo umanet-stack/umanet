@@ -1,0 +1,55 @@
+\doxysection{src/virtio\+\_\+net.c File Reference}
+\hypertarget{virtio__net_8c}{}\label{virtio__net_8c}\index{src/virtio\_net.c@{src/virtio\_net.c}}
+{\ttfamily \#include $<$stdint.\+h$>$}\newline
+{\ttfamily \#include $<$stdbool.\+h$>$}\newline
+{\ttfamily \#include $<$linux/virtio\+\_\+net.\+h$>$}\newline
+{\ttfamily \#include $<$rte\+\_\+mbuf.\+h$>$}\newline
+{\ttfamily \#include $<$rte\+\_\+memcpy.\+h$>$}\newline
+{\ttfamily \#include $<$rte\+\_\+vhost.\+h$>$}\newline
+{\ttfamily \#include "{}main.\+h"{}}\newline
+Include dependency graph for virtio\+\_\+net.\+c\+:
+\nopagebreak
+\begin{figure}[H]
+\begin{center}
+\leavevmode
+\includegraphics[width=350pt]{virtio__net_8c__incl}
+\end{center}
+\end{figure}
+\doxysubsubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+void \mbox{\hyperlink{virtio__net_8c_a481bf7e5b6816f6f714b6dde32bfc7be}{vs\+\_\+vhost\+\_\+net\+\_\+setup}} (struct \mbox{\hyperlink{structvhost__dev}{vhost\+\_\+dev}} \texorpdfstring{$\ast$}{*}dev)
+\item 
+void \mbox{\hyperlink{virtio__net_8c_afb543b6340845a1fc446d536af5ba510}{vs\+\_\+vhost\+\_\+net\+\_\+remove}} (struct \mbox{\hyperlink{structvhost__dev}{vhost\+\_\+dev}} \texorpdfstring{$\ast$}{*}dev)
+\item 
+uint16\+\_\+t \mbox{\hyperlink{virtio__net_8c_af2f41063c60e0db129e02c07a3425962}{vs\+\_\+enqueue\+\_\+pkts}} (struct \mbox{\hyperlink{structvhost__dev}{vhost\+\_\+dev}} \texorpdfstring{$\ast$}{*}dev, uint16\+\_\+t queue\+\_\+id, struct rte\+\_\+mbuf \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}pkts, uint32\+\_\+t count)
+\item 
+uint16\+\_\+t \mbox{\hyperlink{virtio__net_8c_a2355c482c15a8a00cd8afadc0298283e}{vs\+\_\+dequeue\+\_\+pkts}} (struct \mbox{\hyperlink{structvhost__dev}{vhost\+\_\+dev}} \texorpdfstring{$\ast$}{*}dev, uint16\+\_\+t queue\+\_\+id, struct rte\+\_\+mempool \texorpdfstring{$\ast$}{*}mbuf\+\_\+pool, struct rte\+\_\+mbuf \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}pkts, uint16\+\_\+t count)
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Function Documentation}
+\Hypertarget{virtio__net_8c_a2355c482c15a8a00cd8afadc0298283e}\label{virtio__net_8c_a2355c482c15a8a00cd8afadc0298283e} 
+\index{virtio\_net.c@{virtio\_net.c}!vs\_dequeue\_pkts@{vs\_dequeue\_pkts}}
+\index{vs\_dequeue\_pkts@{vs\_dequeue\_pkts}!virtio\_net.c@{virtio\_net.c}}
+\doxysubsubsection{\texorpdfstring{vs\_dequeue\_pkts()}{vs\_dequeue\_pkts()}}
+{\footnotesize\ttfamily uint16\+\_\+t vs\+\_\+dequeue\+\_\+pkts (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structvhost__dev}{vhost\+\_\+dev}} \texorpdfstring{$\ast$}{*}}]{dev,  }\item[{uint16\+\_\+t}]{queue\+\_\+id,  }\item[{struct rte\+\_\+mempool \texorpdfstring{$\ast$}{*}}]{mbuf\+\_\+pool,  }\item[{struct rte\+\_\+mbuf \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}}]{pkts,  }\item[{uint16\+\_\+t}]{count }\end{DoxyParamCaption})}
+
+\Hypertarget{virtio__net_8c_af2f41063c60e0db129e02c07a3425962}\label{virtio__net_8c_af2f41063c60e0db129e02c07a3425962} 
+\index{virtio\_net.c@{virtio\_net.c}!vs\_enqueue\_pkts@{vs\_enqueue\_pkts}}
+\index{vs\_enqueue\_pkts@{vs\_enqueue\_pkts}!virtio\_net.c@{virtio\_net.c}}
+\doxysubsubsection{\texorpdfstring{vs\_enqueue\_pkts()}{vs\_enqueue\_pkts()}}
+{\footnotesize\ttfamily uint16\+\_\+t vs\+\_\+enqueue\+\_\+pkts (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structvhost__dev}{vhost\+\_\+dev}} \texorpdfstring{$\ast$}{*}}]{dev,  }\item[{uint16\+\_\+t}]{queue\+\_\+id,  }\item[{struct rte\+\_\+mbuf \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}}]{pkts,  }\item[{uint32\+\_\+t}]{count }\end{DoxyParamCaption})}
+
+\Hypertarget{virtio__net_8c_afb543b6340845a1fc446d536af5ba510}\label{virtio__net_8c_afb543b6340845a1fc446d536af5ba510} 
+\index{virtio\_net.c@{virtio\_net.c}!vs\_vhost\_net\_remove@{vs\_vhost\_net\_remove}}
+\index{vs\_vhost\_net\_remove@{vs\_vhost\_net\_remove}!virtio\_net.c@{virtio\_net.c}}
+\doxysubsubsection{\texorpdfstring{vs\_vhost\_net\_remove()}{vs\_vhost\_net\_remove()}}
+{\footnotesize\ttfamily void vs\+\_\+vhost\+\_\+net\+\_\+remove (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structvhost__dev}{vhost\+\_\+dev}} \texorpdfstring{$\ast$}{*}}]{dev }\end{DoxyParamCaption})}
+
+\Hypertarget{virtio__net_8c_a481bf7e5b6816f6f714b6dde32bfc7be}\label{virtio__net_8c_a481bf7e5b6816f6f714b6dde32bfc7be} 
+\index{virtio\_net.c@{virtio\_net.c}!vs\_vhost\_net\_setup@{vs\_vhost\_net\_setup}}
+\index{vs\_vhost\_net\_setup@{vs\_vhost\_net\_setup}!virtio\_net.c@{virtio\_net.c}}
+\doxysubsubsection{\texorpdfstring{vs\_vhost\_net\_setup()}{vs\_vhost\_net\_setup()}}
+{\footnotesize\ttfamily void vs\+\_\+vhost\+\_\+net\+\_\+setup (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structvhost__dev}{vhost\+\_\+dev}} \texorpdfstring{$\ast$}{*}}]{dev }\end{DoxyParamCaption})}
+
