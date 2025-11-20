@@ -30,7 +30,9 @@ sudo rm -f /dev/hugepages/tas_memory
 
 ## Running DPDK testpmd
 ```bash
-sudo dpdk-testpmd -l 2-3 -n 4 -a 0000:03:00.1 \
+sudo dpdk-testpmd -l 2-3 -n 4 \
+  --pci-whitelist=0000:03:00.1 \
   --vdev 'net_vhost0,iface=/mnt/huge/sock0,queues=1,client=0' \
   --huge-dir=/mnt/huge --file-prefix=vhost -- -i
+
 ```
