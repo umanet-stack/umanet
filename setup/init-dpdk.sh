@@ -1,6 +1,6 @@
 #! /bin/bash
 
-meson is new Makefile/CMake
+# meson is new Makefile/CMake
 # ninja is new make
 sudo apt install -y meson-1.5 build-essential libnuma-dev ninja-build nasm libibverbs-dev ibverbs-providers rdma-core
 
