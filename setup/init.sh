@@ -2,6 +2,7 @@
 
 sudo apt update
 sudo apt install -y flex bison libelf-dev mtools libguestfs-tools
+sudo apt install -y dpdk dpdk-dev cpuset virtiofsd
 
 # kernel
 cd ~
