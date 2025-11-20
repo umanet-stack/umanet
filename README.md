@@ -33,6 +33,8 @@ sudo rm -rf /dev/shm/rte_* # remove shm
 
 ## Running DPDK testpmd
 ```bash
+dpdk-testpmd -v # 19.11.14
+
 sudo dpdk-testpmd -l 2-3 -n 4 \
   --pci-whitelist=0000:03:00.1 \
   --vdev 'net_vhost0,iface=/mnt/huge/sock0,queues=1,client=0' \
