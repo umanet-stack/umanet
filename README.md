@@ -23,6 +23,7 @@ The switch worker loop continuously:
 ## Setup
 ```bash
 ./setup/init.sh
+./setup/create-cloud-init.sh
 ./setup/init-dpdk.sh
 
 # reserve hugepages
