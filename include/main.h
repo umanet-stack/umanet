@@ -36,7 +36,7 @@ struct vhost_queue {
   uint16_t last_used_idx;    // last processed used descriptor index
 };
 
-struct vhost_dev {
+struct vhost_dev { // vhost device
   /**< Number of memory regions for gpa to hpa translation. */
   uint32_t nregions_hpa;
   /**< Device MAC address (Obtained on first TX packet). */

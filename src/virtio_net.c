@@ -21,19 +21,22 @@ void
 vs_vhost_net_setup(struct vhost_dev *dev)
 {
 	uint16_t i;
-	int vid = dev->vid;
+	int vid = dev->vid; // vhost device ID
 	struct vhost_queue *queue;
 	int ret;
 
 	RTE_LOG(INFO, VHOST_CONFIG,
 		"setting builtin vhost-user net driver\n");
 
+	// get negotiated features
 	rte_vhost_get_negotiated_features(vid, &dev->features);
-	if (dev->features & (1 << VIRTIO_NET_F_MRG_RXBUF))
+	if (dev->features & (1 << VIRTIO_NET_F_MRG_RXBUF)) {
 		dev->hdr_len = sizeof(struct virtio_net_hdr_mrg_rxbuf);
-	else
+	} else {
 		dev->hdr_len = sizeof(struct virtio_net_hdr);
+	}
 
+	// get memory table
 	ret = rte_vhost_get_mem_table(vid, &dev->mem);
 	if (ret < 0) {
 		RTE_LOG(ERR, VHOST_CONFIG, "Failed to get "
@@ -41,6 +44,7 @@ vs_vhost_net_setup(struct vhost_dev *dev)
 		return;
 	}
 
+	// 1 vring for 1 queue (e.g. 2 rings for 1 RX/TX pair)
 	dev->nr_vrings = rte_vhost_get_vring_num(vid);
 	for (i = 0; i < dev->nr_vrings; i++) {
 		queue = &dev->queues[i];
@@ -57,6 +61,7 @@ vs_vhost_net_remove(struct vhost_dev *dev)
 	free(dev->mem);
 }
 
+// Copy a packet from a DPDK mbuf into guest memory via virtio descriptors
 static __rte_always_inline int
 enqueue_pkt(struct vhost_dev *dev, struct rte_vhost_vring *vr,
 	    struct rte_mbuf *m, uint16_t desc_idx)
@@ -73,8 +78,8 @@ enqueue_pkt(struct vhost_dev *dev, struct rte_vhost_vring *vr,
 
 	desc = &vr->desc[desc_idx];
 	desc_chunck_len = desc->len;
-	desc_gaddr = desc->addr;
-	desc_addr = rte_vhost_va_from_guest_pa(
+	desc_gaddr = desc->addr; // guest physical addr
+	desc_addr = rte_vhost_va_from_guest_pa( // translate to host virtual addr
 			dev->mem, desc_gaddr, &desc_chunck_len);
 	/*
 	 * Checking of 'desc_addr' placed outside of 'unlikely' macro to avoid
@@ -230,12 +235,12 @@ vs_enqueue_pkts(struct vhost_dev *dev, uint16_t queue_id,
 			rte_prefetch0(&vr->desc[desc_indexes[i+1]]);
 	}
 
-	rte_smp_wmb();
+	rte_smp_wmb(); // Write memory barrier
 
 	*(volatile uint16_t *)&vr->used->idx += count;
 	queue->last_used_idx += count;
 
-	rte_vhost_vring_call(dev->vid, queue_id);
+	rte_vhost_vring_call(dev->vid, queue_id); // notify guest
 
 	return count;
 }
