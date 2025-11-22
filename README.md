@@ -23,6 +23,7 @@ The switch worker loop continuously:
 ## Setup
 ```bash
 ./setup/init.sh
+./setup/init-dpdk.sh
 
 # reserve hugepages
 # 1024 × 2 MB = 2 GB mem for hugepages
