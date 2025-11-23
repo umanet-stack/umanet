@@ -455,11 +455,12 @@ vs_dequeue_pkts(struct vhost_dev *dev, uint16_t queue_id,
 
 	queue->last_avail_idx += i;
 	queue->last_used_idx += i;
-	rte_smp_wmb();
-	rte_smp_rmb();
+	rte_smp_wmb(); // Write memory barrier: ensures all writes to used ring are visible
+	rte_smp_rmb(); // Read memory barrier: ensures we see consistent state before updating index
 
 	vr->used->idx += i;
 
+	// Notify guest (interrupt/KICK) that descriptors have been consumed
 	rte_vhost_vring_call(dev->vid, queue_id);
 
 	return i;
