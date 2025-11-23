@@ -200,7 +200,7 @@ vs_enqueue_pkts(struct vhost_dev *dev, uint16_t queue_id,
 		struct rte_mbuf **pkts, uint32_t count)
 {
 	struct vhost_queue *queue;
-	struct rte_vhost_vring *vr;
+	struct rte_vhost_vring *vr; // vring
 	uint16_t avail_idx, free_entries, start_idx;
 	uint16_t desc_indexes[MAX_PKT_BURST];
 	uint16_t used_idx;
@@ -209,8 +209,8 @@ vs_enqueue_pkts(struct vhost_dev *dev, uint16_t queue_id,
 	queue = &dev->queues[queue_id];
 	vr    = &queue->vr;
 
-	avail_idx = *((volatile uint16_t *)&vr->avail->idx);
-	start_idx = queue->last_used_idx;
+	avail_idx = *((volatile uint16_t *)&vr->avail->idx); // Current index in the available ring
+	start_idx = queue->last_used_idx; // Starting index for processing (where we left off last time)
 	free_entries = avail_idx - start_idx;
 	count = RTE_MIN(count, free_entries);
 	count = RTE_MIN(count, (uint32_t)MAX_PKT_BURST);
@@ -218,11 +218,12 @@ vs_enqueue_pkts(struct vhost_dev *dev, uint16_t queue_id,
 		return 0;
 
 	/* Retrieve all of the desc indexes first to avoid caching issues. */
+	// & (vr->size - 1) is a fast modulo for power-of-2 ring sizes
 	rte_prefetch0(&vr->avail->ring[start_idx & (vr->size - 1)]);
 	for (i = 0; i < count; i++) {
 		used_idx = (start_idx + i) & (vr->size - 1);
-		desc_indexes[i] = vr->avail->ring[used_idx];
-		vr->used->ring[used_idx].id = desc_indexes[i];
+		desc_indexes[i] = vr->avail->ring[used_idx]; // these desc are ready to be written
+		vr->used->ring[used_idx].id = desc_indexes[i]; // mark as used
 		vr->used->ring[used_idx].len = pkts[i]->pkt_len +
 					       dev->hdr_len;
 	}
@@ -232,6 +233,7 @@ vs_enqueue_pkts(struct vhost_dev *dev, uint16_t queue_id,
 		uint16_t desc_idx = desc_indexes[i];
 		int err;
 
+		// write pkts[i] to desc
 		err = enqueue_pkt(dev, vr, pkts[i], desc_idx);
 		if (unlikely(err)) {
 			used_idx = (start_idx + i) & (vr->size - 1);
@@ -242,12 +244,15 @@ vs_enqueue_pkts(struct vhost_dev *dev, uint16_t queue_id,
 			rte_prefetch0(&vr->desc[desc_indexes[i+1]]);
 	}
 
+	// ensures all writes to used ring are visible before updating the used ring index
 	rte_smp_wmb(); // Write memory barrier
 
+	// Atomically update the used ring index (guest polls this)
+	// Volatile prevents compiler reordering
 	*(volatile uint16_t *)&vr->used->idx += count;
 	queue->last_used_idx += count;
 
-	rte_vhost_vring_call(dev->vid, queue_id); // notify guest
+	rte_vhost_vring_call(dev->vid, queue_id); // notify guest to process the new packets
 
 	return count;
 }
