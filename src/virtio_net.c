@@ -108,6 +108,7 @@ enqueue_pkt(
 
 		while (remain) {
 			len = remain;
+			// rte_vhost_va_from_guest_pa may reduce len if the current GPA span is smaller than requested
 			dst = rte_vhost_va_from_guest_pa(dev->mem,
 					guest_addr, &len);
 			if (unlikely(!dst || !len))
@@ -166,6 +167,7 @@ enqueue_pkt(
 
 			desc_offset = 0;
 			desc_avail  = desc->len;
+		// if descriptor spans memory regions
 		} else if (unlikely(desc_chunck_len == 0)) {
 			desc_chunck_len = desc_avail;
 			desc_gaddr += desc_offset;
