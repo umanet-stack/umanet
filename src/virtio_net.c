@@ -257,6 +257,7 @@ vs_enqueue_pkts(struct vhost_dev *dev, uint16_t queue_id,
 	return count;
 }
 
+// copy pkt from guest vring buffer to DPDK mbuf
 static __rte_always_inline int
 dequeue_pkt(struct vhost_dev *dev, struct rte_vhost_vring *vr,
 	    struct rte_mbuf *m, uint16_t desc_idx,
@@ -293,6 +294,7 @@ dequeue_pkt(struct vhost_dev *dev, struct rte_vhost_vring *vr,
 	 * And since we don't support TSO, we could simply skip the
 	 * header.
 	 */
+	// 2nd desc (data desc)
 	desc = &vr->desc[desc->next];
 	desc_chunck_len = desc->len;
 	desc_gaddr = desc->addr;
@@ -304,7 +306,7 @@ dequeue_pkt(struct vhost_dev *dev, struct rte_vhost_vring *vr,
 
 	desc_offset = 0;
 	desc_avail  = desc->len;
-	nr_desc    += 1;
+	nr_desc    += 1; // no. desc
 
 	mbuf_offset = 0;
 	mbuf_avail  = m->buf_len - RTE_PKTMBUF_HEADROOM;
@@ -342,6 +344,7 @@ dequeue_pkt(struct vhost_dev *dev, struct rte_vhost_vring *vr,
 			desc_offset = 0;
 			desc_avail  = desc->len;
 		} else if (unlikely(desc_chunck_len == 0)) {
+			// Handle descriptor spanning memory regions (chunk exhausted but descriptor not)
 			desc_chunck_len = desc_avail;
 			desc_gaddr += desc_offset;
 			desc_addr = rte_vhost_va_from_guest_pa(dev->mem,
