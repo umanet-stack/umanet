@@ -62,9 +62,13 @@ vs_vhost_net_remove(struct vhost_dev *dev)
 }
 
 // Copy a packet from a DPDK mbuf into guest memory via virtio descriptors
+// DPDK mbuf (rte_mbuf) lives in host userspace memory, allocated from a DPDK mempool (hugepages).
+// Copy packet from DPDK mbuf → guest vring buffer
 static __rte_always_inline int
-enqueue_pkt(struct vhost_dev *dev, struct rte_vhost_vring *vr,
-	    struct rte_mbuf *m, uint16_t desc_idx)
+enqueue_pkt(
+	struct vhost_dev *dev, 
+	struct rte_vhost_vring *vr, // destination: vring buffer
+	struct rte_mbuf *m, uint16_t desc_idx)
 {
 	uint32_t desc_avail, desc_offset;
 	uint64_t desc_chunck_len;
@@ -89,13 +93,14 @@ enqueue_pkt(struct vhost_dev *dev, struct rte_vhost_vring *vr,
 	if (unlikely(desc->len < dev->hdr_len) || !desc_addr)
 		return -1;
 
+	// Prefetch the descriptor buffer to L1 cache to reduce latency
 	rte_prefetch0((void *)(uintptr_t)desc_addr);
 
 	/* write virtio-net header */
-	if (likely(desc_chunck_len >= dev->hdr_len)) {
+	if (likely(desc_chunck_len >= dev->hdr_len)) { // Fast path: header fits in the first contiguous chunk
 		*(struct virtio_net_hdr *)(uintptr_t)desc_addr = virtio_hdr;
 		desc_offset = dev->hdr_len;
-	} else {
+	} else { // Slow path: header spans memory regions
 		uint64_t len;
 		uint64_t remain = dev->hdr_len;
 		uint64_t src = (uint64_t)(uintptr_t)&virtio_hdr, dst;
