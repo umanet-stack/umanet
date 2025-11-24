@@ -185,15 +185,16 @@ static inline int
 get_eth_conf(struct rte_eth_conf *eth_conf, uint32_t num_devices)
 {
 	struct rte_eth_vmdq_rx_conf conf;
-	struct rte_eth_vmdq_rx_conf *def_conf =
+	struct rte_eth_vmdq_rx_conf *def_conf = // default config
 		&vmdq_conf_default.rx_adv_conf.vmdq_rx_conf;
 	unsigned i;
 
-	memset(&conf, 0, sizeof(conf));
-	conf.nb_queue_pools = (enum rte_eth_nb_pools)num_devices;
-	conf.nb_pool_maps = num_devices;
+	memset(&conf, 0, sizeof(conf)); // Zero-initializes conf
+	conf.nb_queue_pools = (enum rte_eth_nb_pools)num_devices; // Each pool serves one virtio device
+	// queue pool = shared pool of queues
+	conf.nb_pool_maps = num_devices; // One mapping per device
 	conf.enable_loop_back = def_conf->enable_loop_back;
-	conf.rx_mode = def_conf->rx_mode;
+	conf.rx_mode = def_conf->rx_mode; // accept/broadcast/multicast
 
 	for (i = 0; i < conf.nb_pool_maps; i++) {
 		conf.pool_map[i].vlan_id = vlan_tags[ i ];
@@ -238,6 +239,7 @@ port_init(uint16_t port)
 		/* Use a reasonable default number of devices when VMDq is not available */
 		num_devices = 64;  /* Default to 64 devices */
 	} else {
+		// real run on xl170, VMDq is supported
 		vmdq_enabled = 1;
 		/*configure the number of supported virtio devices based on VMDQ limits */
 		num_devices = dev_info.max_vmdq_pools;
