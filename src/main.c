@@ -751,10 +751,12 @@ link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m)
 		return -1;
 	}
 
+	// copy MAC from pkt to dev
 	for (i = 0; i < RTE_ETHER_ADDR_LEN; i++)
 		vdev->mac_address.addr_bytes[i] = pkt_hdr->s_addr.addr_bytes[i];
 
 	/* vlan_tag currently uses the device_id. */
+	// device 0 → VLAN 1000
 	vdev->vlan_tag = vlan_tags[vdev->vid];
 
 	/* Print out VMDQ registration info. */
@@ -785,6 +787,7 @@ link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m)
 	}
 
 	/* Set device as ready for RX. */
+	// Changes state from DEVICE_MAC_LEARNING to DEVICE_RX
 	vdev->ready = DEVICE_RX;
 
 	return 0;
@@ -813,10 +816,11 @@ unlink_vmdq(struct vhost_dev *vdev)
 		rx_count = rte_eth_rx_burst(ports[0],
 					(uint16_t)vdev->vmdq_rx_q, pkts_burst, MAX_PKT_BURST);
 
-		while (rx_count) {
-			for (i = 0; i < rx_count; i++)
+		while (rx_count) { // until queue is empty
+			for (i = 0; i < rx_count; i++) // Frees each packet buffer back to mbuf pool
 				rte_pktmbuf_free(pkts_burst[i]);
 
+			// Receives next batch of packets from queue
 			rx_count = rte_eth_rx_burst(ports[0],
 					(uint16_t)vdev->vmdq_rx_q, pkts_burst, MAX_PKT_BURST);
 		}
@@ -825,6 +829,7 @@ unlink_vmdq(struct vhost_dev *vdev)
 	}
 }
 
+// Transmits a packet from one vhost device to another via virtqueue.
 static __rte_always_inline void
 virtio_xmit(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev,
 	    struct rte_mbuf *m)
@@ -832,11 +837,14 @@ virtio_xmit(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev,
 	uint16_t ret;
 
 	if (builtin_net_driver) {
+		// dpdk to vm
 		ret = vs_enqueue_pkts(dst_vdev, VIRTIO_RXQ, &m, 1);
 	} else {
 		ret = rte_vhost_enqueue_burst(dst_vdev->vid, VIRTIO_RXQ, &m, 1);
 	}
 
+	// dest stats use atomic operations (multiple cores may write)
+	// source stats don't (single core writes)
 	if (enable_stats) {
 		rte_atomic64_inc(&dst_vdev->stats.rx_total_atomic);
 		rte_atomic64_add(&dst_vdev->stats.rx_atomic, ret);
@@ -1137,6 +1145,7 @@ drain_virtio_tx(struct vhost_dev *vdev)
 	uint16_t i;
 
 	if (builtin_net_driver) {
+		// send pkt to guest virtio TX ring
 		count = vs_dequeue_pkts(vdev, VIRTIO_TXQ, mbuf_pool,
 					pkts, MAX_PKT_BURST);
 	} else {
