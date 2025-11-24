@@ -237,12 +237,12 @@ port_init(uint16_t port)
 	}
 	/* Check if VMDq is supported */
 	if (dev_info.max_vmdq_pools == 0) {
+		// real run on xl170, VMDq is not supported
 		RTE_LOG(INFO, VHOST_PORT, "VMDq not supported, using non-VMDq mode.\n");
 		vmdq_enabled = 0;
 		/* Use a reasonable default number of devices when VMDq is not available */
 		num_devices = 64;  /* Default to 64 devices */
 	} else {
-		// real run on xl170, VMDq is supported
 		vmdq_enabled = 1;
 		/*configure the number of supported virtio devices based on VMDQ limits */
 		num_devices = dev_info.max_vmdq_pools;
@@ -250,7 +250,7 @@ port_init(uint16_t port)
 
 	rxconf = &dev_info.default_rxconf;
 	txconf = &dev_info.default_txconf;
-	rxconf->rx_drop_en = 1;
+	rxconf->rx_drop_en = 1; // Enables RX drop when no buffers available (prevents blocking)
 
 	rx_ring_size = RTE_TEST_RX_DESC_DEFAULT;
 	tx_ring_size = RTE_TEST_TX_DESC_DEFAULT;
@@ -265,14 +265,14 @@ port_init(uint16_t port)
 	if (dequeue_zero_copy)
 		tx_ring_size = 64;
 
-	tx_rings = (uint16_t)rte_lcore_count();
+	tx_rings = (uint16_t)rte_lcore_count(); // one TX queue per core
 
 	/* Get port configuration. */
 	if (vmdq_enabled) {
 		retval = get_eth_conf(&port_conf, num_devices);
 		if (retval < 0)
 			return retval;
-		/* NIC queues are divided into pf queues and vmdq queues.  */
+		/* NIC queues are divided into pf (physical function) queues and vmdq queues.  */
 		num_pf_queues = dev_info.max_rx_queues - dev_info.vmdq_queue_num;
 		queues_per_pool = dev_info.vmdq_queue_num / dev_info.max_vmdq_pools;
 		num_vmdq_queues = num_devices * queues_per_pool;
@@ -321,6 +321,7 @@ port_init(uint16_t port)
 		return retval;
 	}
 
+	// Adjusts descriptor counts to NIC-supported values (may be reduced)
 	retval = rte_eth_dev_adjust_nb_rx_tx_desc(port, &rx_ring_size,
 		&tx_ring_size);
 	if (retval != 0) {
@@ -335,6 +336,7 @@ port_init(uint16_t port)
 	}
 
 	/* Setup the queues. */
+	// NIC hardware queues (RX/TX rings on the physical NIC), not virtqueues
 	rxconf->offloads = port_conf.rxmode.offloads;
 	for (q = 0; q < rx_rings; q ++) {
 		retval = rte_eth_rx_queue_setup(port, q, rx_ring_size,
@@ -405,22 +407,23 @@ port_init(uint16_t port)
  * Set socket file path.
  */
 static int
-us_vhost_parse_socket_path(const char *q_arg)
+us_vhost_parse_socket_path(const char *q_arg) // path e.g. /tmp/vhost-user.sock
 {
 	char *old;
 
 	/* parse number string */
-	if (strnlen(q_arg, PATH_MAX) == PATH_MAX)
+	if (strnlen(q_arg, PATH_MAX) == PATH_MAX) // check if path is too long
 		return -1;
 
 	old = socket_files;
+	// Reallocates socket_files to fit one more socket path
 	socket_files = realloc(socket_files, PATH_MAX * (nb_sockets + 1));
-	if (socket_files == NULL) {
+	if (socket_files == NULL) { // check if realloc failed
 		free(old);
 		return -1;
 	}
 
-	strlcpy(socket_files + nb_sockets * PATH_MAX, q_arg, PATH_MAX);
+	strlcpy(socket_files + nb_sockets * PATH_MAX, q_arg, PATH_MAX); // copies path to socket_files' new slot
 	nb_sockets++;
 
 	return 0;
@@ -430,7 +433,7 @@ us_vhost_parse_socket_path(const char *q_arg)
  * Parse the portmask provided at run time.
  */
 static int
-parse_portmask(const char *portmask)
+parse_portmask(const char *portmask) // portmask e.g. 0x1
 {
 	char *end = NULL;
 	unsigned long pm;
@@ -438,7 +441,7 @@ parse_portmask(const char *portmask)
 	errno = 0;
 
 	/* parse hexadecimal string */
-	pm = strtoul(portmask, &end, 16);
+	pm = strtoul(portmask, &end, 16); // converts hexadecimal string to unsigned long
 	if ((portmask[0] == '\0') || (end == NULL) || (*end != '\0') || (errno != 0))
 		return -1;
 
@@ -452,6 +455,7 @@ parse_portmask(const char *portmask)
 /*
  * Parse num options at run time.
  */
+// Generic parser for numeric options with range validation.
 static int
 parse_num_opt(const char *q_arg, uint32_t max_valid_value)
 {
