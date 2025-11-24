@@ -197,11 +197,14 @@ get_eth_conf(struct rte_eth_conf *eth_conf, uint32_t num_devices)
 	conf.rx_mode = def_conf->rx_mode; // accept/broadcast/multicast
 
 	for (i = 0; i < conf.nb_pool_maps; i++) {
-		conf.pool_map[i].vlan_id = vlan_tags[ i ];
-		conf.pool_map[i].pools = (1UL << i);
+		conf.pool_map[i].vlan_id = vlan_tags[ i ]; // (1000, 1001, ...) 
+		conf.pool_map[i].pools = (1UL << i); // each pool accepts from 1 vlan tag
 	}
 
+	// Copies base config
+	// (void) suppresses unused return value warning
 	(void)(rte_memcpy(eth_conf, &vmdq_conf_default, sizeof(*eth_conf)));
+	// Overwrites the VMDq section with the computed conf
 	(void)(rte_memcpy(&eth_conf->rx_adv_conf.vmdq_rx_conf, &conf,
 		   sizeof(eth_conf->rx_adv_conf.vmdq_rx_conf)));
 	return 0;
