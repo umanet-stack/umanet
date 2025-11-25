@@ -928,6 +928,7 @@ find_local_dest(struct vhost_dev *vdev, struct rte_mbuf *m,
 }
 
 static uint16_t
+// pseudo header checksum
 get_psd_sum(void *l3_hdr, uint64_t ol_flags)
 {
 	if (ol_flags & PKT_TX_IPV4)
