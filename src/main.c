@@ -1150,9 +1150,12 @@ static void destroy_device(int vid) {
     if (builtin_net_driver)
         vs_vhost_net_remove(vdev);
 
+    // Remove device from its assigned lcore's device list
     TAILQ_REMOVE(&lcore_info[vdev->coreid].vdev_list, vdev, lcore_vdev_entry);
+    // Remove device from global device list
     TAILQ_REMOVE(&vhost_dev_list, vdev, global_vdev_entry);
 
+    // tells worker cores to acknowledge they've seen the removal at their next safe point
     /* Set the dev_removal_flag on each lcore. */
     RTE_LCORE_FOREACH_SLAVE(lcore)
     lcore_info[lcore].dev_removal_flag = REQUEST_DEV_REMOVAL;
@@ -1163,6 +1166,7 @@ static void destroy_device(int vid) {
      * from the linked lists and that the devices are no longer in use.
      */
     RTE_LCORE_FOREACH_SLAVE(lcore) {
+        // busy-wait until it acknowledges removal
         while (lcore_info[lcore].dev_removal_flag != ACK_DEV_REMOVAL)
             rte_pause();
     }
@@ -1183,6 +1187,7 @@ static int new_device(int vid) {
     uint32_t device_num_min = num_devices;
     struct vhost_dev *vdev;
 
+    // RTE_CACHE_LINE_SIZE: Align to cache line (64 bytes typically) to avoid false sharing between cores
     vdev = rte_zmalloc("vhost device", sizeof(*vdev), RTE_CACHE_LINE_SIZE);
     if (vdev == NULL) {
         RTE_LOG(INFO, VHOST_DATA, "(%d) couldn't allocate memory for vhost dev\n", vid);
@@ -1194,6 +1199,8 @@ static int new_device(int vid) {
         vs_vhost_net_setup(vdev);
 
     TAILQ_INSERT_TAIL(&vhost_dev_list, vdev, global_vdev_entry);
+    // Calculate VMDq RX queue number for this device
+    // Each device gets queues_per_pool queues
     vdev->vmdq_rx_q = vid * queues_per_pool + vmdq_queue_base;
 
     /*reset ready flag*/
@@ -1213,6 +1220,9 @@ static int new_device(int vid) {
     lcore_info[vdev->coreid].device_num++;
 
     /* Disable notifications. */
+    // Normally, guest would send interrupt when it adds packets to TX queue or consumes packets from RX queue
+    // In poll mode, we don't need these interrupts (we constantly poll)
+    // This is critical for performance, avoids expensive VM exits
     rte_vhost_enable_guest_notification(vid, VIRTIO_RXQ, 0);
     rte_vhost_enable_guest_notification(vid, VIRTIO_TXQ, 0);
 
