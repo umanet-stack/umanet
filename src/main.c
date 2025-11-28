@@ -861,11 +861,13 @@ static void virtio_tx_offload(struct rte_mbuf *m) {
 
     if (m->ol_flags & PKT_TX_IPV4) {
         ipv4_hdr = l3_hdr;
-        ipv4_hdr->hdr_checksum = 0;
-        m->ol_flags |= PKT_TX_IP_CKSUM;
+        ipv4_hdr->hdr_checksum = 0;     // hw will calculate checksum
+        m->ol_flags |= PKT_TX_IP_CKSUM; // tell NIC hw to compute checksum
     }
 
+    // l4 header position
     tcp_hdr = (struct rte_tcp_hdr *)((char *)l3_hdr + m->l3_len);
+    // hardware will complete the full TCP checksum calculation
     tcp_hdr->cksum = get_psd_sum(l3_hdr, m->ol_flags);
 }
 
@@ -874,14 +876,15 @@ static inline void free_pkts(struct rte_mbuf **pkts, uint16_t n) {
         rte_pktmbuf_free(pkts[n]);
 }
 
+// moves packets from a software staging buffer (tx_q->m_table) to the NIC's hardware TX queue/ring
 static __rte_always_inline void do_drain_mbuf_table(struct mbuf_table *tx_q) {
     uint16_t count;
 
     count = rte_eth_tx_burst(ports[0], tx_q->txq_id, tx_q->m_table, tx_q->len);
-    if (unlikely(count < tx_q->len))
-        free_pkts(&tx_q->m_table[count], tx_q->len - count);
+    if (unlikely(count < tx_q->len))                         // fewer packets were sent than attempted
+        free_pkts(&tx_q->m_table[count], tx_q->len - count); // free the unsent packets
 
-    tx_q->len = 0;
+    tx_q->len = 0; // reset the queue length
 }
 
 /*
