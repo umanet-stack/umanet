@@ -1368,13 +1368,14 @@ int main(int argc, char *argv[]) {
     static pthread_t tid;
     uint64_t flags = 0;
 
+    // Register signal handler for SIGINT (Ctrl+C) (graceful shutdown)
     signal(SIGINT, sigint_handler);
 
-    /* init EAL */
-    ret = rte_eal_init(argc, argv);
+    /* init EAL (Environment Abstraction Layer) */
+    ret = rte_eal_init(argc, argv); // Parses DPDK-specific arguments (--lcores, --huge-dir, etc.)
     if (ret < 0)
         rte_exit(EXIT_FAILURE, "Error with EAL initialization\n");
-    argc -= ret;
+    argc -= ret; // Update argc to exclude DPDK-specific arguments
     argv += ret;
 
     /* parse app arguments */
@@ -1383,7 +1384,7 @@ int main(int argc, char *argv[]) {
         rte_exit(EXIT_FAILURE, "Invalid argument\n");
 
     for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
-        TAILQ_INIT(&lcore_info[lcore_id].vdev_list);
+        TAILQ_INIT(&lcore_info[lcore_id].vdev_list); // init first,last dev list
 
         if (rte_lcore_is_enabled(lcore_id))
             lcore_ids[core_id++] = lcore_id;
@@ -1393,7 +1394,7 @@ int main(int argc, char *argv[]) {
         rte_exit(EXIT_FAILURE, "Not enough cores\n");
 
     /* Get the number of physical ports. */
-    nb_ports = rte_eth_dev_count_avail();
+    nb_ports = rte_eth_dev_count_avail(); // Count available (not disabled) Ethernet ports (physical NICs)
 
     /*
      * Update the global var NUM_PORTS and global array PORTS
@@ -1415,6 +1416,7 @@ int main(int argc, char *argv[]) {
      * many queues here. We probably should only do allocation for
      * those queues we are going to use.
      */
+    // number of worker cores (minus master core)
     create_mbuf_pool(valid_num_ports, rte_lcore_count() - 1, MBUF_DATA_SIZE, MAX_QUEUES, RTE_TEST_RX_DESC_DEFAULT,
                      MBUF_CACHE_SIZE);
 
