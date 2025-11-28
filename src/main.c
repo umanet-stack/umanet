@@ -1290,6 +1290,7 @@ static void unregister_drivers(int socket_num) {
     int i, ret;
 
     for (i = 0; i < socket_num; i++) {
+        // each path is PATH_MAX bytes apart
         ret = rte_vhost_driver_unregister(socket_files + i * PATH_MAX);
         if (ret != 0)
             RTE_LOG(ERR, VHOST_CONFIG, "Fail to unregister vhost driver for %s.\n", socket_files + i * PATH_MAX);
@@ -1326,24 +1327,30 @@ static void sigint_handler(__rte_unused int signum) {
  * - We also need make sure, for each switch core, we have allocated
  *   enough mbufs to fill up the mbuf cache.
  */
+// if MAX_PKT_BURST=32, max packet=9KB, mbuf=2KB: need 329/2=144 mbufs
+// TSO (TCP Segmentation Offload) allows huge packets (64KB), so need many more mbufs
 static void create_mbuf_pool(uint16_t nr_port, uint32_t nr_switch_core, uint32_t mbuf_size, uint32_t nr_queues,
                              uint32_t nr_rx_desc, uint32_t nr_mbuf_cache) {
+    // nr_queues: Total number of RX queues
+    // nr_rx_desc: Number of RX descriptors per queue (ring size)
+
     uint32_t nr_mbufs;
     uint32_t nr_mbufs_per_core;
-    uint32_t mtu = 1500;
+    uint32_t mtu = 1500; // Maximum Transmission Unit to standard Ethernet size (1500 bytes)
 
     if (mergeable)
-        mtu = 9000;
-    if (enable_tso)
-        mtu = 64 * 1024;
+        mtu = 9000;      // jumbo frames: allow single packet to span multiple mbufs
+    if (enable_tso)      // TSO allows sending huge packets that NIC splits into smaller segments
+        mtu = 64 * 1024; // 64KB (maximum TSO packet size)
 
+    // how many mbufs needed for a full burst of max-sized packets
     nr_mbufs_per_core = (mtu + mbuf_size) * MAX_PKT_BURST / (mbuf_size - RTE_PKTMBUF_HEADROOM);
     nr_mbufs_per_core += nr_rx_desc;
     nr_mbufs_per_core = RTE_MAX(nr_mbufs_per_core, nr_mbuf_cache);
 
-    nr_mbufs = nr_queues * nr_rx_desc;
+    nr_mbufs = nr_queues * nr_rx_desc; // Mbufs for all NIC RX queue descriptors
     nr_mbufs += nr_mbufs_per_core * nr_switch_core;
-    nr_mbufs *= nr_port;
+    nr_mbufs *= nr_port; // If multi-port setup, each port needs its own pool
 
     mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", nr_mbufs, nr_mbuf_cache, 0, mbuf_size, rte_socket_id());
     if (mbuf_pool == NULL)
