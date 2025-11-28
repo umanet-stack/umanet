@@ -780,7 +780,7 @@ static __rte_always_inline void virtio_xmit(struct vhost_dev *dst_vdev, struct v
 }
 
 /*
- * Check if the packet destination MAC address is for a local device. If so then put
+ * Check if the packet destination MAC address is for a local (same host) device. If so then put
  * the packet on that devices RX queue. If not then return.
  */
 static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rte_mbuf *m) {
@@ -850,6 +850,7 @@ get_psd_sum(void *l3_hdr, uint64_t ol_flags) {
         return rte_ipv6_phdr_cksum(l3_hdr, ol_flags);
 }
 
+// prepare checksum offloads
 static void virtio_tx_offload(struct rte_mbuf *m) {
     void *l3_hdr;
     struct rte_ipv4_hdr *ipv4_hdr = NULL;
@@ -891,52 +892,57 @@ static __rte_always_inline void do_drain_mbuf_table(struct mbuf_table *tx_q) {
  * This function routes the TX packet to the correct interface. This
  * may be a local device or the physical port.
  */
+// determines where to send packet from VM to NIC or another VM
 static __rte_always_inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, uint16_t vlan_tag) {
     struct mbuf_table *tx_q;
     unsigned offset = 0;
-    const uint16_t lcore_id = rte_lcore_id();
+    const uint16_t lcore_id = rte_lcore_id(); // current core (each core has its own tx queue)
     struct rte_ether_hdr *nh;
 
-    nh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-    if (unlikely(rte_is_broadcast_ether_addr(&nh->d_addr))) {
+    nh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);         // get the Ethernet header
+    if (unlikely(rte_is_broadcast_ether_addr(&nh->d_addr))) { // if dest MAC is broadcast
         struct vhost_dev *vdev2;
 
-        TAILQ_FOREACH(vdev2, &vhost_dev_list, global_vdev_entry) {
-            if (vdev2 != vdev)
+        TAILQ_FOREACH(vdev2, &vhost_dev_list, global_vdev_entry) { // iterate over all vhost devices
+            if (vdev2 != vdev)                                     // if not the same device
                 virtio_xmit(vdev2, vdev, m);
         }
-        goto queue2nic;
+        goto queue2nic; // also go to NIC
     }
 
-    /*check if destination is local VM*/
+    /*check if destination is local VM (same host)*/
     if ((vm2vm_mode == VM2VM_SOFTWARE) && (virtio_tx_local(vdev, m) == 0)) {
-        rte_pktmbuf_free(m);
+        rte_pktmbuf_free(m); //  If delivered locally, free the mbuf (no need to send to NIC)
         return;
     }
 
-    if (unlikely(vm2vm_mode == VM2VM_HARDWARE)) {
+    if (unlikely(vm2vm_mode == VM2VM_HARDWARE)) { // uses NIC hardware for VM switching via VLANs
         if (unlikely(find_local_dest(vdev, m, &offset, &vlan_tag) != 0)) {
+            // destination lookup fails (non-zero return)
             rte_pktmbuf_free(m);
             return;
         }
     }
 
     RTE_LOG_DP(DEBUG, VHOST_DATA, "(%d) TX: MAC address is external\n", vdev->vid);
+    // sending to NIC
 
 queue2nic:
 
     /*Add packet to the port tx queue*/
     tx_q = &lcore_tx_queue[lcore_id];
 
-    nh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+    nh = rte_pktmbuf_mtod(
+        m, struct rte_ether_hdr *); // Re-extract Ethernet header (might have been modified in VM2VM processing)
     if (unlikely(nh->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))) {
+        // if packet already has a VLAN tag
         /* Guest has inserted the vlan tag. */
-        struct rte_vlan_hdr *vh = (struct rte_vlan_hdr *)(nh + 1);
-        uint16_t vlan_tag_be = rte_cpu_to_be_16(vlan_tag);
+        struct rte_vlan_hdr *vh = (struct rte_vlan_hdr *)(nh + 1); // VLAN header
+        uint16_t vlan_tag_be = rte_cpu_to_be_16(vlan_tag);         // Convert VLAN tag to big-endian
         if ((vm2vm_mode == VM2VM_HARDWARE) && (vh->vlan_tci != vlan_tag_be))
             vh->vlan_tci = vlan_tag_be;
-    } else {
-        m->ol_flags |= PKT_TX_VLAN_PKT;
+    } else {                            // packet doesn't have VLAN tag yet
+        m->ol_flags |= PKT_TX_VLAN_PKT; // offload flag indicating NIC should insert VLAN tag
 
         /*
          * Find the right seg to adjust the data len when offset is
@@ -956,20 +962,21 @@ queue2nic:
             m->pkt_len += offset;
         }
 
-        m->vlan_tci = vlan_tag;
+        m->vlan_tci = vlan_tag; // Tag Control Information
     }
 
-    if (m->ol_flags & PKT_TX_TCP_SEG)
-        virtio_tx_offload(m);
+    if (m->ol_flags & PKT_TX_TCP_SEG) // if TCP segmentation offload is enabled
+        virtio_tx_offload(m);         // prepare checksum offloads
 
+    // Add packet to the TX queue's mbuf table
     tx_q->m_table[tx_q->len++] = m;
     if (enable_stats) {
         vdev->stats.tx_total++;
         vdev->stats.tx++;
     }
 
-    if (unlikely(tx_q->len == MAX_PKT_BURST))
-        do_drain_mbuf_table(tx_q);
+    if (unlikely(tx_q->len == MAX_PKT_BURST)) // if the queue is full
+        do_drain_mbuf_table(tx_q);            // drain the queue (send packets to NIC)
 }
 
 static __rte_always_inline void drain_mbuf_table(struct mbuf_table *tx_q) {
