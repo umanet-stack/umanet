@@ -1037,14 +1037,14 @@ static __rte_always_inline void drain_eth_rx(struct vhost_dev *vdev) {
     free_pkts(pkts, rx_count);
 }
 
-// receive packets from VM's TX queue
+// receive packets from VM's TX queue, route them to the correct destination
 static __rte_always_inline void drain_virtio_tx(struct vhost_dev *vdev) {
     struct rte_mbuf *pkts[MAX_PKT_BURST];
     uint16_t count;
     uint16_t i;
 
     if (builtin_net_driver) {
-        // send pkt to guest virtio TX ring
+        // copy pkt from guest vring buffer to DPDK mbuf
         count = vs_dequeue_pkts(vdev, VIRTIO_TXQ, mbuf_pool, pkts, MAX_PKT_BURST);
     } else {
         count = rte_vhost_dequeue_burst(vdev->vid, VIRTIO_TXQ, mbuf_pool, pkts, MAX_PKT_BURST);
@@ -1086,6 +1086,7 @@ static int switch_worker(void *arg __rte_unused) {
     RTE_LOG(INFO, VHOST_DATA, "Procesing on Core %u started\n", lcore_id);
 
     tx_q = &lcore_tx_queue[lcore_id];
+    // Get pointer to this core's TX queue
     for (i = 0; i < rte_lcore_count(); i++) {
         if (lcore_ids[i] == lcore_id) {
             tx_q->txq_id = i;
@@ -1094,7 +1095,7 @@ static int switch_worker(void *arg __rte_unused) {
     }
 
     while (1) {
-        drain_mbuf_table(tx_q);
+        drain_mbuf_table(tx_q); // drain if timeout has elapsed
 
         /*
          * Inform the configuration core that we have exited the
@@ -1107,17 +1108,17 @@ static int switch_worker(void *arg __rte_unused) {
          * Process vhost devices
          */
         TAILQ_FOREACH(vdev, &lcore_info[lcore_id].vdev_list, lcore_vdev_entry) {
-            if (unlikely(vdev->remove)) {
+            if (unlikely(vdev->remove)) { // device is marked for removal
                 unlink_vmdq(vdev);
                 vdev->ready = DEVICE_SAFE_REMOVE;
                 continue;
             }
 
             if (likely(vdev->ready == DEVICE_RX))
-                drain_eth_rx(vdev);
+                drain_eth_rx(vdev); // receive packets from physical NIC and forward them to a VM
 
-            if (likely(!vdev->remove))
-                drain_virtio_tx(vdev);
+            if (likely(!vdev->remove)) // device is not being removed (double-check)
+                drain_virtio_tx(vdev); // receive packets from VM's TX queue, route them to the correct destination
         }
     }
 
