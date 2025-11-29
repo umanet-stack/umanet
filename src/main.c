@@ -26,6 +26,8 @@
 #include <rte_vhost.h>
 
 #include "main.h"
+#include "src/tcp_fastpath.h"
+#include "src/tcp_state.h"
 
 #ifndef MAX_QUEUES
 #define MAX_QUEUES 128
@@ -1056,8 +1058,31 @@ static __rte_always_inline void drain_virtio_tx(struct vhost_dev *vdev) {
             free_pkts(pkts, count);
     }
 
-    for (i = 0; i < count; ++i)                               // loop received packets
+    for (i = 0; i < count; ++i) { // loop received packets
+        // NEW: Try TCP classification
+        uint32_t sip, dip;
+        uint16_t sport, dport;
+        struct tcp_flow_state *flow = NULL;
+
+        if (vdev->tcp_offload_enabled && tcp_parse_packet(pkts[i], &sip, &dip, &sport, &dport) == 0) {
+            // Lookup existing flow
+            flow = tcp_flow_lookup(sip, dip, sport, dport);
+
+            if (!flow) {
+                // Check if SYN packet
+                struct rte_tcp_hdr *tcp = rte_pktmbuf_mtod(pkts[i], struct rte_tcp_hdr *);
+                if (tcp->tcp_flags & RTE_TCP_SYN_FLAG) {
+                    flow = tcp_flow_create(sip, dip, sport, dport, vdev->vid);
+                }
+            }
+            if (flow) {
+                RTE_LOG_DP(DEBUG, VHOST_DATA, "Packet belongs to tracked flow\n");
+                // tcp_flow_update(flow, pkts[i], 1 /* inbound */);
+                // Still forward via L2 for now
+            }
+        }
         virtio_tx_route(vdev, pkts[i], vlan_tags[vdev->vid]); // route each to correct destination
+    }
 }
 
 /*
@@ -1436,6 +1461,12 @@ int main(int argc, char *argv[]) {
         if (port_init(portid) != 0)
             rte_exit(EXIT_FAILURE, "Cannot initialize network ports\n");
     }
+
+    // NEW: Initialize TCP offload subsystem
+    if (tcp_offload_init(128 * 1024) != 0) {
+        rte_exit(EXIT_FAILURE, "Cannot initialize TCP offload\n");
+    }
+    RTE_LOG(INFO, VHOST_CONFIG, "TCP offload initialized (pass-through mode)\n");
 
     /* Enable stats if the user option is set. */
     if (enable_stats) {

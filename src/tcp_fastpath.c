@@ -1,3 +1,4 @@
+#include "tcp_fastpath.h"
 #include "tcp_offload.h"
 #include <rte_ether.h>
 #include <rte_ip.h>
