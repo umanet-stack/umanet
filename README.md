@@ -51,17 +51,11 @@ sudo rm -f /mnt/huge/*
 sudo rm -rf /dev/shm/rte_* # remove shm
 ```
 
-## Building
-
-```bash
-meson setup build
-ninja -C build
-```
-
-The executable will be at `build/vhost-switch`.
-
 ## Running
 ```bash
+# build and run
+./run.sh
+
 # Run vhost-switch (vhost-user networking switch)
 # EAL options (before --): -l cores, -n memory channels
 # Application options (after --): -p portmask, --socket-file path, --stats interval
@@ -73,6 +67,10 @@ sudo ./build/vhost-switch \
 # Or install and run from PATH
 sudo ninja -C build install
 sudo vhost-switch -l 2-3 -n 4 -- -p 0x1 --socket-file /mnt/huge/sock0 --stats 1
+
+# watch: doesn't clean up /mnt/huge/sock0
+# find src include -name '*.c' -o -name '*.h' -o -name 'meson.build' | \
+# entr -cr sh -c "ninja -C build && sudo ./build/vhost-switch -l 2-3 -n 4 --file-prefix=vhost -- -p 0x1 --socket-file /mnt/huge/sock0 --stats 1"
 ```
 - **EAL options** (before `--`): `-l` cores, `-n` memory channels, `--huge-dir`, `--file-prefix`, etc.
 - **Application options** (after `--`): `-p` portmask, `--socket-file` path, `--stats` interval, etc.
