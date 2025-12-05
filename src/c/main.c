@@ -134,10 +134,11 @@ static struct rte_eth_conf non_vmdq_conf_default = {
 static unsigned lcore_ids[RTE_MAX_LCORE];
 static uint16_t ports[RTE_MAX_ETHPORTS];
 static unsigned num_ports = 0; /**< The number of ports specified in command line */
-static uint16_t num_pf_queues, num_vmdq_queues;
+// static uint16_t num_pf_queues;
+// static uint16_t num_vmdq_queues;
 static uint16_t vmdq_pool_base, vmdq_queue_base;
 static uint16_t queues_per_pool;
-static int vmdq_enabled = 0; /* Flag to indicate if VMDq is available */
+// static int vmdq_enabled = 0; /* Flag to indicate if VMDq is available */
 
 const uint16_t vlan_tags[] = {
     1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014, 1015,
@@ -166,35 +167,35 @@ struct mbuf_table lcore_tx_queue[RTE_MAX_LCORE];
 #define MBUF_TABLE_DRAIN_TSC ((rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US)
 #define VLAN_HLEN 4
 
-/*
- * Builds up the correct configuration for VMDQ VLAN pool map
- * according to the pool & queue limits.
- */
-static inline int get_eth_conf(struct rte_eth_conf *eth_conf, uint32_t num_devices) {
-    struct rte_eth_vmdq_rx_conf conf;
-    struct rte_eth_vmdq_rx_conf *def_conf = // default config
-        &vmdq_conf_default.rx_adv_conf.vmdq_rx_conf;
-    unsigned i;
+// /*
+//  * Builds up the correct configuration for VMDQ VLAN pool map
+//  * according to the pool & queue limits.
+//  */
+// static inline int get_eth_conf(struct rte_eth_conf *eth_conf, uint32_t num_devices) {
+//     struct rte_eth_vmdq_rx_conf conf;
+//     struct rte_eth_vmdq_rx_conf *def_conf = // default config
+//         &vmdq_conf_default.rx_adv_conf.vmdq_rx_conf;
+//     unsigned i;
 
-    memset(&conf, 0, sizeof(conf));                           // Zero-initializes conf
-    conf.nb_queue_pools = (enum rte_eth_nb_pools)num_devices; // Each pool serves one virtio device
-    // queue pool = shared pool of queues
-    conf.nb_pool_maps = num_devices; // One mapping per device
-    conf.enable_loop_back = def_conf->enable_loop_back;
-    conf.rx_mode = def_conf->rx_mode; // accept/broadcast/multicast
+//     memset(&conf, 0, sizeof(conf));                           // Zero-initializes conf
+//     conf.nb_queue_pools = (enum rte_eth_nb_pools)num_devices; // Each pool serves one virtio device
+//     // queue pool = shared pool of queues
+//     conf.nb_pool_maps = num_devices; // One mapping per device
+//     conf.enable_loop_back = def_conf->enable_loop_back;
+//     conf.rx_mode = def_conf->rx_mode; // accept/broadcast/multicast
 
-    for (i = 0; i < conf.nb_pool_maps; i++) {
-        conf.pool_map[i].vlan_id = vlan_tags[i]; // (1000, 1001, ...)
-        conf.pool_map[i].pools = (1UL << i);     // each pool accepts from 1 vlan tag
-    }
+//     for (i = 0; i < conf.nb_pool_maps; i++) {
+//         conf.pool_map[i].vlan_id = vlan_tags[i]; // (1000, 1001, ...)
+//         conf.pool_map[i].pools = (1UL << i);     // each pool accepts from 1 vlan tag
+//     }
 
-    // Copies base config
-    // (void) suppresses unused return value warning
-    (void)(rte_memcpy(eth_conf, &vmdq_conf_default, sizeof(*eth_conf)));
-    // Overwrites the VMDq section with the computed conf
-    (void)(rte_memcpy(&eth_conf->rx_adv_conf.vmdq_rx_conf, &conf, sizeof(eth_conf->rx_adv_conf.vmdq_rx_conf)));
-    return 0;
-}
+//     // Copies base config
+//     // (void) suppresses unused return value warning
+//     (void)(rte_memcpy(eth_conf, &vmdq_conf_default, sizeof(*eth_conf)));
+//     // Overwrites the VMDq section with the computed conf
+//     (void)(rte_memcpy(&eth_conf->rx_adv_conf.vmdq_rx_conf, &conf, sizeof(eth_conf->rx_adv_conf.vmdq_rx_conf)));
+//     return 0;
+// }
 
 /*
  * Initialises a given port using global settings and with the rx buffers
@@ -221,14 +222,15 @@ static inline int port_init(uint16_t port) {
     if (dev_info.max_vmdq_pools == 0) {
         // real run on xl170, VMDq is not supported
         RTE_LOG(INFO, VHOST_PORT, "VMDq not supported, using non-VMDq mode.\n");
-        vmdq_enabled = 0;
+        // vmdq_enabled = 0;
         /* Use a reasonable default number of devices when VMDq is not available */
         num_devices = 64; /* Default to 64 devices */
-    } else {
-        vmdq_enabled = 1;
-        /*configure the number of supported virtio devices based on VMDQ limits */
-        num_devices = dev_info.max_vmdq_pools;
     }
+    //  else {
+    //     vmdq_enabled = 1;
+    //     /*configure the number of supported virtio devices based on VMDQ limits */
+    //     num_devices = dev_info.max_vmdq_pools;
+    // }
 
     rxconf = &dev_info.default_rxconf;
     txconf = &dev_info.default_txconf;
@@ -250,47 +252,47 @@ static inline int port_init(uint16_t port) {
     tx_rings = (uint16_t)rte_lcore_count(); // one TX queue per core
 
     /* Get port configuration. */
-    if (vmdq_enabled) {
-        retval = get_eth_conf(&port_conf, num_devices);
-        if (retval < 0)
-            return retval;
-        /* NIC queues are divided into pf (physical function) queues and vmdq queues.  */
-        num_pf_queues = dev_info.max_rx_queues - dev_info.vmdq_queue_num;
-        queues_per_pool = dev_info.vmdq_queue_num / dev_info.max_vmdq_pools;
-        num_vmdq_queues = num_devices * queues_per_pool;
-        num_queues = num_pf_queues + num_vmdq_queues;
-        vmdq_queue_base = dev_info.vmdq_queue_base;
-        vmdq_pool_base = dev_info.vmdq_pool_base;
-        printf("pf queue num: %u, configured vmdq pool num: %u, each vmdq pool has %u queues\n", num_pf_queues,
-               num_devices, queues_per_pool);
-    } else {
-        /* Non-VMDq mode: use regular configuration */
-        port_conf = non_vmdq_conf_default;
-        /* Use available RX queues, limit to what NIC supports */
-        queues_per_pool = 1;
-        num_pf_queues = 0;
-        /* Limit num_devices to available RX queues */
-        if (num_devices > dev_info.max_rx_queues)
-            num_devices = dev_info.max_rx_queues;
-        num_vmdq_queues = num_devices;
-        num_queues = num_devices;
-        vmdq_queue_base = 0;
-        vmdq_pool_base = 0;
-        printf("Non-VMDq mode: configured %u devices, 1 queue per device\n", num_devices);
-    }
+    // if (vmdq_enabled) {
+    //     retval = get_eth_conf(&port_conf, num_devices);
+    //     if (retval < 0)
+    //         return retval;
+    //     /* NIC queues are divided into pf (physical function) queues and vmdq queues.  */
+    //     num_pf_queues = dev_info.max_rx_queues - dev_info.vmdq_queue_num;
+    //     queues_per_pool = dev_info.vmdq_queue_num / dev_info.max_vmdq_pools;
+    //     num_vmdq_queues = num_devices * queues_per_pool;
+    //     num_queues = num_pf_queues + num_vmdq_queues;
+    //     vmdq_queue_base = dev_info.vmdq_queue_base;
+    //     vmdq_pool_base = dev_info.vmdq_pool_base;
+    //     printf("pf queue num: %u, configured vmdq pool num: %u, each vmdq pool has %u queues\n", num_pf_queues,
+    //            num_devices, queues_per_pool);
+    // } else {
+    /* Non-VMDq mode: use regular configuration */
+    port_conf = non_vmdq_conf_default;
+    /* Use available RX queues, limit to what NIC supports */
+    queues_per_pool = 1;
+    // num_pf_queues = 0;
+    /* Limit num_devices to available RX queues */
+    if (num_devices > dev_info.max_rx_queues)
+        num_devices = dev_info.max_rx_queues;
+    // num_vmdq_queues = num_devices;
+    num_queues = num_devices;
+    vmdq_queue_base = 0;
+    vmdq_pool_base = 0;
+    printf("Non-VMDq mode: configured %u devices, 1 queue per device\n", num_devices);
+    // }
 
     if (!rte_eth_dev_is_valid_port(port))
         return -1;
 
     /* Limit rx_rings to what we actually need and what the NIC supports */
-    if (vmdq_enabled) {
+    // if (vmdq_enabled) {
+    //     rx_rings = (uint16_t)dev_info.max_rx_queues;
+    // } else {
+    /* In non-VMDq mode, use only the queues we need */
+    rx_rings = (uint16_t)num_queues;
+    if (rx_rings > dev_info.max_rx_queues)
         rx_rings = (uint16_t)dev_info.max_rx_queues;
-    } else {
-        /* In non-VMDq mode, use only the queues we need */
-        rx_rings = (uint16_t)num_queues;
-        if (rx_rings > dev_info.max_rx_queues)
-            rx_rings = (uint16_t)dev_info.max_rx_queues;
-    }
+    // }
     if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_MBUF_FAST_FREE)
         port_conf.txmode.offloads |= DEV_TX_OFFLOAD_MBUF_FAST_FREE;
     /* Configure ethernet device. */
@@ -706,17 +708,17 @@ static int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
             vdev->vlan_tag);
 
     /* Register the MAC address. */
-    if (vmdq_enabled) {
-        ret = rte_eth_dev_mac_addr_add(ports[0], &vdev->mac_address, (uint32_t)vdev->vid + vmdq_pool_base);
-        if (ret)
-            RTE_LOG(ERR, VHOST_DATA, "(%d) failed to add device MAC address to VMDQ\n", vdev->vid);
-        rte_eth_dev_set_vlan_strip_on_queue(ports[0], vdev->vmdq_rx_q, 1);
-    } else {
-        /* In non-VMDq mode, just register MAC address without pool */
-        ret = rte_eth_dev_mac_addr_add(ports[0], &vdev->mac_address, 0);
-        if (ret)
-            RTE_LOG(ERR, VHOST_DATA, "(%d) failed to add device MAC address\n", vdev->vid);
-    }
+    // if (vmdq_enabled) {
+    //     ret = rte_eth_dev_mac_addr_add(ports[0], &vdev->mac_address, (uint32_t)vdev->vid + vmdq_pool_base);
+    //     if (ret)
+    //         RTE_LOG(ERR, VHOST_DATA, "(%d) failed to add device MAC address to VMDQ\n", vdev->vid);
+    //     rte_eth_dev_set_vlan_strip_on_queue(ports[0], vdev->vmdq_rx_q, 1);
+    // } else {
+    /* In non-VMDq mode, just register MAC address without pool */
+    ret = rte_eth_dev_mac_addr_add(ports[0], &vdev->mac_address, 0);
+    if (ret)
+        RTE_LOG(ERR, VHOST_DATA, "(%d) failed to add device MAC address\n", vdev->vid);
+    // }
 
     /* Set device as ready for RX. */
     // Changes state from DEVICE_MAC_LEARNING to DEVICE_RX
