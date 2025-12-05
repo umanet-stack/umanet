@@ -86,3 +86,14 @@ sudo cloud-hypervisor \
   --disk path=/tmp/noble-server-cloudimg-amd64.raw path=/tmp/cloudinit-vm0-dpdk.img \
   --net mac=52:54:00:02:d9:01,vhost_user=true,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=2048
 ```
+
+## Installing Zig
+```bash
+curl -fL --progress-bar -o /tmp/zig.tar.xz https://ziglang.org/builds/zig-x86_64-linux-0.16.0-dev.1484+d0ba6642b.tar.xz
+tar -xf /tmp/zig.tar.xz
+mv /tmp/zig-x86_64-linux-0.16.0-dev.1484+d0ba6642b zig
+rm /tmp/zig.tar.xz
+mv /tmp/zig /usr/bin/zig
+echo 'export PATH=$PATH:/usr/bin/zig' >> ~/.bashrc
+source ~/.bashrc
+```
