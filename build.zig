@@ -20,6 +20,13 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    const inc_path: std.Build.LazyPath = .{
+        .src_path = .{
+            .owner = b,
+            .sub_path = "/usr/local/include",
+        },
+    };
+    exe.root_module.addIncludePath(inc_path);
 
     b.installArtifact(exe);
 
