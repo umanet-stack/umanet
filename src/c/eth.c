@@ -6,11 +6,38 @@
 #define RTE_TEST_RX_DESC_DEFAULT 1024
 #define RTE_TEST_TX_DESC_DEFAULT 512
 
+/* number of devices/queues to support*/
+static uint32_t num_queues = 0;
 static uint32_t num_devices;
+
 static int dequeue_zero_copy;
+static uint16_t queues_per_pool;
+static uint16_t vmdq_pool_base, vmdq_queue_base;
+static uint16_t queues_per_pool;
+
+/* Promiscuous mode */
+static uint32_t promiscuous;
+
+static struct rte_mempool *mbuf_pool;
 
 /* ethernet addresses of ports */
 static struct rte_ether_addr vmdq_ports_eth_addr[RTE_MAX_ETHPORTS];
+
+/* Non-VMDq configuration for NICs without VMDq support */
+static struct rte_eth_conf non_vmdq_conf_default = {
+    .rxmode =
+        {
+            .mq_mode = ETH_MQ_RX_NONE,
+            .split_hdr_size = 0,
+            .offloads = DEV_RX_OFFLOAD_VLAN_STRIP,
+        },
+    .txmode =
+        {
+            .mq_mode = ETH_MQ_TX_NONE,
+            .offloads = (DEV_TX_OFFLOAD_IPV4_CKSUM | DEV_TX_OFFLOAD_TCP_CKSUM | DEV_TX_OFFLOAD_VLAN_INSERT |
+                         DEV_TX_OFFLOAD_MULTI_SEGS | DEV_TX_OFFLOAD_TCP_TSO),
+        },
+};
 
 /*
  * Initialises a given port using global settings and with the rx buffers
@@ -80,11 +107,11 @@ static inline int port_init(uint16_t port) {
     port_conf = non_vmdq_conf_default;
     /* Use available RX queues, limit to what NIC supports */
     queues_per_pool = 1;
-    num_pf_queues = 0;
+    // num_pf_queues = 0;
     /* Limit num_devices to available RX queues */
     if (num_devices > dev_info.max_rx_queues)
         num_devices = dev_info.max_rx_queues;
-    num_vmdq_queues = num_devices;
+    // num_vmdq_queues = num_devices;
     num_queues = num_devices;
     vmdq_queue_base = 0;
     vmdq_pool_base = 0;
