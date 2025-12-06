@@ -93,7 +93,7 @@ curl -fL --progress-bar -o /tmp/zig.tar.xz https://ziglang.org/builds/zig-x86_64
 tar -xf /tmp/zig.tar.xz
 mv /tmp/zig-x86_64-linux-0.16.0-dev.1484+d0ba6642b zig
 rm /tmp/zig.tar.xz
-mv /tmp/zig /usr/bin/zig
+sudo mv /tmp/zig /usr/bin/zig
 echo 'export PATH=$PATH:/usr/bin/zig' >> ~/.bashrc
 source ~/.bashrc
 ```
