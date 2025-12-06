@@ -1,6 +1,7 @@
 #include "state.h"
 #include <stdlib.h>
 #include <string.h>
+#include <sys/queue.h>
 
 // most config -> hardcode, add field-by-field when necessary from zig
 void init_state(AppState *app_state) {
@@ -34,4 +35,6 @@ void init_state(AppState *app_state) {
     app_state->vmdq_queue_base = 0;
     app_state->queues_per_pool = 0;
     app_state->vmdq_enabled = 0;
+
+    TAILQ_INIT(&app_state->vhost_dev_list);
 }
