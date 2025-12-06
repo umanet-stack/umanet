@@ -1,4 +1,6 @@
+#include <rte_ethdev.h>
 #include <stdint.h>
+#include <sys/queue.h>
 
 #ifndef MAX_QUEUES
 #define MAX_QUEUES 128
@@ -32,21 +34,21 @@
 #define MAX_LONG_OPT_SZ 64
 
 /* mask of enabled ports */
-static uint32_t enabled_port_mask = 0;
+//  uint32_t enabled_port_mask = 0;
 
 /* Promiscuous mode */
-static uint32_t promiscuous;
+// static uint32_t promiscuous;
 
 /* number of devices/queues to support*/
-static uint32_t num_queues = 0;
-static uint32_t num_devices;
+// static uint32_t num_queues = 0;
+// static uint32_t num_devices;
 
-static struct rte_mempool *mbuf_pool;
-static int mergeable;
+// static struct rte_mempool *mbuf_pool;
+// static int mergeable;
 
 /* Enable VM2VM communications. If this is disabled then the MAC address compare is skipped. */
 typedef enum { VM2VM_DISABLED = 0, VM2VM_SOFTWARE = 1, VM2VM_HARDWARE = 2, VM2VM_LAST } vm2vm_type;
-static vm2vm_type vm2vm_mode = VM2VM_SOFTWARE;
+// static vm2vm_type vm2vm_mode = VM2VM_SOFTWARE;
 
 /* Enable stats. */
 static uint32_t enable_stats = 0;
@@ -128,10 +130,46 @@ static struct vhost_dev_tailq_list vhost_dev_list = TAILQ_HEAD_INITIALIZER(vhost
 static struct lcore_info lcore_info[RTE_MAX_LCORE];
 
 typedef struct AppState {
+    uint32_t enabled_port_mask;
+    uint32_t promiscuous;
     uint32_t num_queues;
-    uint32_t enable_stats;
+    uint32_t num_devices;
+
     struct rte_mempool *mbuf_pool;
-    char socket_files[MAX_SOCKETS][PATH_MAX];
+    int mergeable;
+    vm2vm_type vm2vm_mode;
+
+    /* Enable stats. */
+    uint32_t enable_stats;
+    /* Enable retries on RX. */
+    uint32_t enable_retry;
+    /* Disable TX checksum offload */
+    uint32_t enable_tx_csum;
+    /* Disable TSO offload */
+    uint32_t enable_tso;
+
+    int client_mode;
+    int dequeue_zero_copy;
+    int builtin_net_driver;
+
+    /* Specify timeout (in useconds) between retries on RX. */
+    uint32_t burst_rx_delay_time;
+    /* Specify the number of retries on RX. */
+    uint32_t burst_rx_retry_num;
+
+    /* Socket file paths. Can be set by user */
+    char *socket_files;
+    int nb_sockets;
+
+    unsigned lcore_ids[RTE_MAX_LCORE];
+    uint16_t ports[RTE_MAX_ETHPORTS];
+    unsigned num_ports; /**< The number of ports specified in command line */
+    uint16_t num_pf_queues;
+    uint16_t num_vmdq_queues;
+    uint16_t vmdq_pool_base, vmdq_queue_base;
+    uint16_t queues_per_pool;
+    int vmdq_enabled; /* Flag to indicate if VMDq is available */
+
 } AppState;
 
 extern AppState *app_state;
