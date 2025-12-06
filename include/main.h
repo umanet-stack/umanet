@@ -9,6 +9,7 @@
 
 // rte = runtime env (dpdk)
 #include <rte_ether.h>
+#include <rte_vhost.h>
 
 /* Macros for printing using RTE_LOG */
 // vhost ops log types: config/data/port
