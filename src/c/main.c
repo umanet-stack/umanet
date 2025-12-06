@@ -372,6 +372,7 @@ static inline int port_init(uint16_t port) {
 /*
  * Set socket file path.
  */
+// zig
 static int us_vhost_parse_socket_path(const char *q_arg) // path e.g. /tmp/vhost-user.sock
 {
     char *old;
@@ -1288,6 +1289,7 @@ static void *print_stats(__rte_unused void *arg) {
     return NULL;
 }
 
+// zig
 static void unregister_drivers(int socket_num) {
     int i, ret;
 
