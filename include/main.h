@@ -5,6 +5,7 @@
 #ifndef _MAIN_H_
 #define _MAIN_H_
 
+#include <rte_vhost.h>
 #include <sys/queue.h>
 
 // rte = runtime env (dpdk)
