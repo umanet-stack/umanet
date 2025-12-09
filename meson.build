@@ -21,7 +21,7 @@ sources = files(
 	'src/main.c',
 	'src/virtio_net.c',
 	'src/config/args.c',
-	'src/config/config.c'
+	'src/eth/port.c',
 )
 
 # Compiler flags
