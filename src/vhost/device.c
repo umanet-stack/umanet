@@ -10,6 +10,17 @@ vhost_state_t vhost = {
     .vhost_dev_list = TAILQ_HEAD_INITIALIZER(vhost.vhost_dev_list),
 };
 
+struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
+    struct vhost_dev *vdev;
+
+    TAILQ_FOREACH(vdev, &vhost.vhost_dev_list, global_vdev_entry) {
+        if (vdev->ready == DEVICE_RX && rte_is_same_ether_addr(mac, &vdev->mac_address))
+            return vdev;
+    }
+
+    return NULL;
+}
+
 /*
  * Remove a device from the specific data core linked list and from the
  * main linked list. Synchonization  occurs through the use of the

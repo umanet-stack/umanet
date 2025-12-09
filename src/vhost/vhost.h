@@ -16,4 +16,6 @@ typedef struct {
 extern vhost_state_t vhost;
 extern const struct vhost_device_ops virtio_net_device_ops;
 
+struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac);
+
 #endif

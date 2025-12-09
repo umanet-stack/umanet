@@ -62,17 +62,6 @@ struct mbuf_table lcore_tx_queue[RTE_MAX_LCORE];
 #define MBUF_TABLE_DRAIN_TSC ((rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US)
 #define VLAN_HLEN 4
 
-static __rte_always_inline struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
-    struct vhost_dev *vdev;
-
-    TAILQ_FOREACH(vdev, &vhost.vhost_dev_list, global_vdev_entry) {
-        if (vdev->ready == DEVICE_RX && rte_is_same_ether_addr(mac, &vdev->mac_address))
-            return vdev;
-    }
-
-    return NULL;
-}
-
 /*
  * This function learns the MAC address of the device and registers this along with a
  * vlan tag to a VMDQ.
