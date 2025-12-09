@@ -1,3 +1,4 @@
+#include "config.h"
 #include "main.h"
 #include <getopt.h>
 #include <rte_ethdev.h>
@@ -15,6 +16,8 @@
 
 #define JUMBO_FRAME_MAX_SIZE 0x2600
 
+config_t config;
+
 static int client_mode;
 static int dequeue_zero_copy;
 static int builtin_net_driver;
@@ -26,8 +29,6 @@ static uint32_t enabled_port_mask = 0;
 static uint32_t promiscuous;
 
 static int mergeable;
-
-typedef enum { VM2VM_DISABLED = 0, VM2VM_SOFTWARE = 1, VM2VM_HARDWARE = 2, VM2VM_LAST } vm2vm_type;
 static vm2vm_type vm2vm_mode = VM2VM_SOFTWARE;
 
 /* Enable stats. */
