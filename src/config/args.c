@@ -1,6 +1,12 @@
-#include <bits/getopt_core.h>
-#include <bits/getopt_ext.h>
+#include <getopt.h>
+#include <rte_ethdev.h>
+#include <rte_log.h>
 #include <rte_memory.h>
+
+// vhost ops log types: config/data/port
+#define RTE_LOGTYPE_VHOST_CONFIG RTE_LOGTYPE_USER1
+#define RTE_LOGTYPE_VHOST_DATA RTE_LOGTYPE_USER2
+#define RTE_LOGTYPE_VHOST_PORT RTE_LOGTYPE_USER3
 
 static int client_mode;
 static int dequeue_zero_copy;
@@ -8,6 +14,9 @@ static int builtin_net_driver;
 
 /* mask of enabled ports */
 static uint32_t enabled_port_mask = 0;
+
+/* Promiscuous mode */
+static uint32_t promiscuous;
 
 /*
  * Parse the portmask provided at run time.
@@ -28,6 +37,49 @@ static int parse_portmask(const char *portmask) // portmask e.g. 0x1
         return -1;
 
     return pm;
+}
+
+/* empty vmdq configuration structure. Filled in programatically */
+static struct rte_eth_conf vmdq_conf_default = {
+    .rxmode =
+        {
+            .mq_mode = ETH_MQ_RX_VMDQ_ONLY,
+            .split_hdr_size = 0,
+            /*
+             * VLAN strip is necessary for 1G NIC such as I350,
+             * this fixes bug of ipv4 forwarding in guest can't
+             * forward pakets from one virtio dev to another virtio dev.
+             */
+            .offloads = DEV_RX_OFFLOAD_VLAN_STRIP,
+        },
+};
+
+/*
+ * Display usage
+ */
+static void us_vhost_usage(const char *prgname) {
+    RTE_LOG(INFO, VHOST_CONFIG,
+            "%s [EAL options] -- -p PORTMASK\n"
+            "		--vm2vm [0|1|2]\n"
+            "		--rx_retry [0|1] --mergeable [0|1] --stats [0-N]\n"
+            "		--socket-file <path>\n"
+            "		--nb-devices ND\n"
+            "		-p PORTMASK: Set mask for ports to be used by application\n"
+            "		--vm2vm [0|1|2]: disable/software(default)/hardware vm2vm comms\n"
+            "		--rx-retry [0|1]: disable/enable(default) retries on rx. Enable retry if destintation queue is "
+            "full\n"
+            "		--rx-retry-delay [0-N]: timeout(in usecond) between retries on RX. This makes effect only if "
+            "retries on rx enabled\n"
+            "		--rx-retry-num [0-N]: the number of retries on rx. This makes effect only if retries on rx "
+            "enabled\n"
+            "		--mergeable [0|1]: disable(default)/enable RX mergeable buffers\n"
+            "		--stats [0-N]: 0: Disable stats, N: Time in seconds to print stats\n"
+            "		--socket-file: The path of the socket file.\n"
+            "		--tx-csum [0|1] disable/enable TX checksum offload.\n"
+            "		--tso [0|1] disable/enable TCP segment offload.\n"
+            "		--client register a vhost-user socket as client mode.\n"
+            "		--dequeue-zero-copy enables dequeue zero copy\n",
+            prgname);
 }
 
 /*
