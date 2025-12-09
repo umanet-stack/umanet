@@ -22,6 +22,7 @@ sources = files(
 	'src/virtio_net.c',
 	'src/config/args.c',
 	'src/eth/port.c',
+	'src/vhost/device.c',
 )
 
 # Compiler flags

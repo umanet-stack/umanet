@@ -3,6 +3,11 @@
 
 #include "main.h"
 
+/* State of virtio device. */
+#define DEVICE_MAC_LEARNING 0
+#define DEVICE_RX 1
+#define DEVICE_SAFE_REMOVE 2
+
 typedef struct {
     struct lcore_info lcore_info[RTE_MAX_LCORE];
     struct vhost_dev_tailq_list vhost_dev_list;
@@ -11,6 +16,4 @@ typedef struct {
 extern vhost_state_t vhost;
 extern const struct vhost_device_ops virtio_net_device_ops;
 
-void destroy_device(int vid);
-int new_device(int vid);
 #endif

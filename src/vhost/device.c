@@ -6,11 +6,6 @@
 #include "src/eth/eth.h"
 #include "src/vhost/vhost.h"
 
-/* State of virtio device. */
-#define DEVICE_MAC_LEARNING 0
-#define DEVICE_RX 1
-#define DEVICE_SAFE_REMOVE 2
-
 vhost_state_t vhost = {
     .vhost_dev_list = TAILQ_HEAD_INITIALIZER(vhost.vhost_dev_list),
 };
@@ -21,7 +16,7 @@ vhost_state_t vhost = {
  * lcore dev_removal_flag. Device is made volatile here to avoid re-ordering
  * of dev->remove=1 which can cause an infinite loop in the rte_pause loop.
  */
-void destroy_device(int vid) {
+static void destroy_device(int vid) {
     struct vhost_dev *vdev = NULL;
     int lcore;
 
@@ -72,7 +67,7 @@ void destroy_device(int vid) {
  * A new device is added to a data core. First the device is added to the main linked list
  * and then allocated to a specific data core.
  */
-int new_device(int vid) {
+static int new_device(int vid) {
     int lcore, core_add = 0;
     uint32_t device_num_min = eth.num_devices;
     struct vhost_dev *vdev;
