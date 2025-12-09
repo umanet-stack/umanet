@@ -26,6 +26,7 @@
 #include <rte_vhost.h>
 
 #include "main.h"
+#include "src/config/config.h"
 #include "src/tcp_state.h"
 #include "tcp_fastpath.h"
 
@@ -41,11 +42,6 @@
 
 #define BURST_TX_DRAIN_US 100 /* TX drain every ~100us */
 
-#define BURST_RX_WAIT_US 15 /* Defines how long we wait between retries on RX */
-#define BURST_RX_RETRIES 4  /* Number of retries on RX. */
-
-#define JUMBO_FRAME_MAX_SIZE 0x2600
-
 /* State of virtio device. */
 #define DEVICE_MAC_LEARNING 0
 #define DEVICE_RX 1
@@ -57,65 +53,11 @@
 
 #define INVALID_PORT_ID 0xFF
 
-/* Maximum long option length for option parsing. */
-#define MAX_LONG_OPT_SZ 64
-
-/* mask of enabled ports */
-static uint32_t enabled_port_mask = 0;
-
-/* Promiscuous mode */
-static uint32_t promiscuous;
-
 /* number of devices/queues to support*/
 static uint32_t num_queues = 0;
 static uint32_t num_devices;
 
 static struct rte_mempool *mbuf_pool;
-static int mergeable;
-
-/* Enable VM2VM communications. If this is disabled then the MAC address compare is skipped. */
-typedef enum { VM2VM_DISABLED = 0, VM2VM_SOFTWARE = 1, VM2VM_HARDWARE = 2, VM2VM_LAST } vm2vm_type;
-static vm2vm_type vm2vm_mode = VM2VM_SOFTWARE;
-
-/* Enable stats. */
-static uint32_t enable_stats = 0;
-/* Enable retries on RX. */
-static uint32_t enable_retry = 1;
-
-/* Disable TX checksum offload */
-static uint32_t enable_tx_csum;
-
-/* Disable TSO offload */
-static uint32_t enable_tso;
-
-static int client_mode;
-static int dequeue_zero_copy;
-
-static int builtin_net_driver;
-
-/* Specify timeout (in useconds) between retries on RX. */
-static uint32_t burst_rx_delay_time = BURST_RX_WAIT_US;
-/* Specify the number of retries on RX. */
-static uint32_t burst_rx_retry_num = BURST_RX_RETRIES;
-
-/* Socket file paths. Can be set by user */
-static char *socket_files;
-static int nb_sockets;
-
-/* empty vmdq configuration structure. Filled in programatically */
-static struct rte_eth_conf vmdq_conf_default = {
-    .rxmode =
-        {
-            .mq_mode = ETH_MQ_RX_VMDQ_ONLY,
-            .split_hdr_size = 0,
-            /*
-             * VLAN strip is necessary for 1G NIC such as I350,
-             * this fixes bug of ipv4 forwarding in guest can't
-             * forward pakets from one virtio dev to another virtio dev.
-             */
-            .offloads = DEV_RX_OFFLOAD_VLAN_STRIP,
-        },
-};
 
 /* Non-VMDq configuration for NICs without VMDq support */
 static struct rte_eth_conf non_vmdq_conf_default = {
@@ -134,8 +76,6 @@ static struct rte_eth_conf non_vmdq_conf_default = {
 };
 
 static unsigned lcore_ids[RTE_MAX_LCORE];
-static uint16_t ports[RTE_MAX_ETHPORTS];
-static unsigned num_ports = 0; /**< The number of ports specified in command line */
 static uint16_t num_pf_queues, num_vmdq_queues;
 static uint16_t vmdq_pool_base, vmdq_queue_base;
 static uint16_t queues_per_pool;
@@ -175,7 +115,7 @@ struct mbuf_table lcore_tx_queue[RTE_MAX_LCORE];
 static inline int get_eth_conf(struct rte_eth_conf *eth_conf, uint32_t num_devices) {
     struct rte_eth_vmdq_rx_conf conf;
     struct rte_eth_vmdq_rx_conf *def_conf = // default config
-        &vmdq_conf_default.rx_adv_conf.vmdq_rx_conf;
+        &config.vmdq_conf_default->rx_adv_conf.vmdq_rx_conf;
     unsigned i;
 
     memset(&conf, 0, sizeof(conf));                           // Zero-initializes conf
@@ -192,7 +132,7 @@ static inline int get_eth_conf(struct rte_eth_conf *eth_conf, uint32_t num_devic
 
     // Copies base config
     // (void) suppresses unused return value warning
-    (void)(rte_memcpy(eth_conf, &vmdq_conf_default, sizeof(*eth_conf)));
+    (void)(rte_memcpy(eth_conf, &config.vmdq_conf_default, sizeof(*eth_conf)));
     // Overwrites the VMDq section with the computed conf
     (void)(rte_memcpy(&eth_conf->rx_adv_conf.vmdq_rx_conf, &conf, sizeof(eth_conf->rx_adv_conf.vmdq_rx_conf)));
     return 0;
@@ -246,7 +186,7 @@ static inline int port_init(uint16_t port) {
      * hit the free threshold easily and free mbufs timely. Otherwise,
      * guest Tx vring would be starved.
      */
-    if (dequeue_zero_copy)
+    if (config.dequeue_zero_copy)
         tx_ring_size = 64;
 
     tx_rings = (uint16_t)rte_lcore_count(); // one TX queue per core
@@ -345,7 +285,7 @@ static inline int port_init(uint16_t port) {
         return retval;
     }
 
-    if (promiscuous) {
+    if (config.promiscuous) {
         retval = rte_eth_promiscuous_enable(port);
         if (retval != 0) {
             RTE_LOG(ERR, VHOST_PORT, "Failed to enable promiscuous mode on port %u: %s\n", port, rte_strerror(-retval));
@@ -370,296 +310,23 @@ static inline int port_init(uint16_t port) {
 }
 
 /*
- * Set socket file path.
- */
-static int us_vhost_parse_socket_path(const char *q_arg) // path e.g. /tmp/vhost-user.sock
-{
-    char *old;
-
-    /* parse number string */
-    if (strnlen(q_arg, PATH_MAX) == PATH_MAX) // check if path is too long
-        return -1;
-
-    old = socket_files;
-    // Reallocates socket_files to fit one more socket path
-    socket_files = realloc(socket_files, PATH_MAX * (nb_sockets + 1));
-    if (socket_files == NULL) { // check if realloc failed
-        free(old);
-        return -1;
-    }
-
-    strlcpy(socket_files + nb_sockets * PATH_MAX, q_arg, PATH_MAX); // copies path to socket_files' new slot
-    nb_sockets++;
-
-    return 0;
-}
-
-/*
- * Parse the portmask provided at run time.
- */
-static int parse_portmask(const char *portmask) // portmask e.g. 0x1
-{
-    char *end = NULL;
-    unsigned long pm;
-
-    errno = 0;
-
-    /* parse hexadecimal string */
-    pm = strtoul(portmask, &end, 16); // converts hexadecimal string to unsigned long
-    if ((portmask[0] == '\0') || (end == NULL) || (*end != '\0') || (errno != 0))
-        return -1;
-
-    if (pm == 0)
-        return -1;
-
-    return pm;
-}
-
-/*
- * Parse num options at run time.
- */
-// Generic parser for numeric options with range validation.
-static int parse_num_opt(const char *q_arg, uint32_t max_valid_value) {
-    char *end = NULL;
-    unsigned long num;
-
-    errno = 0;
-
-    /* parse unsigned int string */
-    num = strtoul(q_arg, &end, 10);
-    if ((q_arg[0] == '\0') || (end == NULL) || (*end != '\0') || (errno != 0))
-        return -1;
-
-    if (num > max_valid_value)
-        return -1;
-
-    return num;
-}
-
-/*
- * Display usage
- */
-static void us_vhost_usage(const char *prgname) {
-    RTE_LOG(INFO, VHOST_CONFIG,
-            "%s [EAL options] -- -p PORTMASK\n"
-            "		--vm2vm [0|1|2]\n"
-            "		--rx_retry [0|1] --mergeable [0|1] --stats [0-N]\n"
-            "		--socket-file <path>\n"
-            "		--nb-devices ND\n"
-            "		-p PORTMASK: Set mask for ports to be used by application\n"
-            "		--vm2vm [0|1|2]: disable/software(default)/hardware vm2vm comms\n"
-            "		--rx-retry [0|1]: disable/enable(default) retries on rx. Enable retry if destintation queue is "
-            "full\n"
-            "		--rx-retry-delay [0-N]: timeout(in usecond) between retries on RX. This makes effect only if "
-            "retries on rx enabled\n"
-            "		--rx-retry-num [0-N]: the number of retries on rx. This makes effect only if retries on rx "
-            "enabled\n"
-            "		--mergeable [0|1]: disable(default)/enable RX mergeable buffers\n"
-            "		--stats [0-N]: 0: Disable stats, N: Time in seconds to print stats\n"
-            "		--socket-file: The path of the socket file.\n"
-            "		--tx-csum [0|1] disable/enable TX checksum offload.\n"
-            "		--tso [0|1] disable/enable TCP segment offload.\n"
-            "		--client register a vhost-user socket as client mode.\n"
-            "		--dequeue-zero-copy enables dequeue zero copy\n",
-            prgname);
-}
-
-/*
- * Parse the arguments given in the command line of the application.
- */
-static int us_vhost_parse_args(int argc, char **argv) {
-    int opt, ret;
-    int option_index;
-    unsigned i;
-    const char *prgname = argv[0];
-    static struct option long_option[] = {
-        {"vm2vm", required_argument, NULL, 0},
-        {"rx-retry", required_argument, NULL, 0},
-        {"rx-retry-delay", required_argument, NULL, 0},
-        {"rx-retry-num", required_argument, NULL, 0},
-        {"mergeable", required_argument, NULL, 0},
-        {"stats", required_argument, NULL, 0},
-        {"socket-file", required_argument, NULL, 0},
-        {"tx-csum", required_argument, NULL, 0},
-        {"tso", required_argument, NULL, 0},
-        {"client", no_argument, &client_mode, 1},
-        {"dequeue-zero-copy", no_argument, &dequeue_zero_copy, 1},
-        {"builtin-net-driver", no_argument, &builtin_net_driver, 1},
-        {NULL, 0, 0, 0},
-    };
-
-    /* Parse command line */
-    while ((opt = getopt_long(argc, argv, "p:P", long_option, &option_index)) != EOF) {
-        switch (opt) {
-        /* Portmask */
-        case 'p':
-            enabled_port_mask = parse_portmask(optarg);
-            if (enabled_port_mask == 0) {
-                RTE_LOG(INFO, VHOST_CONFIG, "Invalid portmask\n");
-                us_vhost_usage(prgname);
-                return -1;
-            }
-            break;
-
-        case 'P':
-            promiscuous = 1;
-            vmdq_conf_default.rx_adv_conf.vmdq_rx_conf.rx_mode = ETH_VMDQ_ACCEPT_BROADCAST | ETH_VMDQ_ACCEPT_MULTICAST;
-
-            break;
-
-        case 0:
-            /* Enable/disable vm2vm comms. */
-            if (!strncmp(long_option[option_index].name, "vm2vm", MAX_LONG_OPT_SZ)) {
-                ret = parse_num_opt(optarg, (VM2VM_LAST - 1));
-                if (ret == -1) {
-                    RTE_LOG(INFO, VHOST_CONFIG,
-                            "Invalid argument for "
-                            "vm2vm [0|1|2]\n");
-                    us_vhost_usage(prgname);
-                    return -1;
-                } else {
-                    vm2vm_mode = (vm2vm_type)ret;
-                }
-            }
-
-            /* Enable/disable retries on RX. */
-            if (!strncmp(long_option[option_index].name, "rx-retry", MAX_LONG_OPT_SZ)) {
-                ret = parse_num_opt(optarg, 1);
-                if (ret == -1) {
-                    RTE_LOG(INFO, VHOST_CONFIG, "Invalid argument for rx-retry [0|1]\n");
-                    us_vhost_usage(prgname);
-                    return -1;
-                } else {
-                    enable_retry = ret;
-                }
-            }
-
-            /* Enable/disable TX checksum offload. */
-            if (!strncmp(long_option[option_index].name, "tx-csum", MAX_LONG_OPT_SZ)) {
-                ret = parse_num_opt(optarg, 1);
-                if (ret == -1) {
-                    RTE_LOG(INFO, VHOST_CONFIG, "Invalid argument for tx-csum [0|1]\n");
-                    us_vhost_usage(prgname);
-                    return -1;
-                } else
-                    enable_tx_csum = ret;
-            }
-
-            /* Enable/disable TSO offload. */
-            if (!strncmp(long_option[option_index].name, "tso", MAX_LONG_OPT_SZ)) {
-                ret = parse_num_opt(optarg, 1);
-                if (ret == -1) {
-                    RTE_LOG(INFO, VHOST_CONFIG, "Invalid argument for tso [0|1]\n");
-                    us_vhost_usage(prgname);
-                    return -1;
-                } else
-                    enable_tso = ret;
-            }
-
-            /* Specify the retries delay time (in useconds) on RX. */
-            if (!strncmp(long_option[option_index].name, "rx-retry-delay", MAX_LONG_OPT_SZ)) {
-                ret = parse_num_opt(optarg, INT32_MAX);
-                if (ret == -1) {
-                    RTE_LOG(INFO, VHOST_CONFIG, "Invalid argument for rx-retry-delay [0-N]\n");
-                    us_vhost_usage(prgname);
-                    return -1;
-                } else {
-                    burst_rx_delay_time = ret;
-                }
-            }
-
-            /* Specify the retries number on RX. */
-            if (!strncmp(long_option[option_index].name, "rx-retry-num", MAX_LONG_OPT_SZ)) {
-                ret = parse_num_opt(optarg, INT32_MAX);
-                if (ret == -1) {
-                    RTE_LOG(INFO, VHOST_CONFIG, "Invalid argument for rx-retry-num [0-N]\n");
-                    us_vhost_usage(prgname);
-                    return -1;
-                } else {
-                    burst_rx_retry_num = ret;
-                }
-            }
-
-            /* Enable/disable RX mergeable buffers. */
-            if (!strncmp(long_option[option_index].name, "mergeable", MAX_LONG_OPT_SZ)) {
-                ret = parse_num_opt(optarg, 1);
-                if (ret == -1) {
-                    RTE_LOG(INFO, VHOST_CONFIG, "Invalid argument for mergeable [0|1]\n");
-                    us_vhost_usage(prgname);
-                    return -1;
-                } else {
-                    mergeable = !!ret;
-                    if (ret) {
-                        vmdq_conf_default.rxmode.offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
-                        vmdq_conf_default.rxmode.max_rx_pkt_len = JUMBO_FRAME_MAX_SIZE;
-                    }
-                }
-            }
-
-            /* Enable/disable stats. */
-            if (!strncmp(long_option[option_index].name, "stats", MAX_LONG_OPT_SZ)) {
-                ret = parse_num_opt(optarg, INT32_MAX);
-                if (ret == -1) {
-                    RTE_LOG(INFO, VHOST_CONFIG, "Invalid argument for stats [0..N]\n");
-                    us_vhost_usage(prgname);
-                    return -1;
-                } else {
-                    enable_stats = ret;
-                }
-            }
-
-            /* Set socket file path. */
-            if (!strncmp(long_option[option_index].name, "socket-file", MAX_LONG_OPT_SZ)) {
-                if (us_vhost_parse_socket_path(optarg) == -1) {
-                    RTE_LOG(INFO, VHOST_CONFIG, "Invalid argument for socket name (Max %d characters)\n", PATH_MAX);
-                    us_vhost_usage(prgname);
-                    return -1;
-                }
-            }
-
-            break;
-
-            /* Invalid option - print options. */
-        default:
-            us_vhost_usage(prgname);
-            return -1;
-        }
-    }
-
-    for (i = 0; i < RTE_MAX_ETHPORTS; i++) {
-        if (enabled_port_mask & (1 << i))
-            ports[num_ports++] = i;
-    }
-
-    if ((num_ports == 0) || (num_ports > MAX_SUP_PORTS)) {
-        RTE_LOG(INFO, VHOST_PORT,
-                "Current enabled port number is %u,"
-                "but only %u port can be enabled\n",
-                num_ports, MAX_SUP_PORTS);
-        return -1;
-    }
-
-    return 0;
-}
-
-/*
  * Update the global var NUM_PORTS and array PORTS according to system ports number
  * and return valid ports number
  */
 static unsigned check_ports_num(unsigned nb_ports) {
-    unsigned valid_num_ports = num_ports;
+    unsigned valid_num_ports = config.num_ports;
     unsigned portid;
 
-    if (num_ports > nb_ports) {
-        RTE_LOG(INFO, VHOST_PORT, "\nSpecified port number(%u) exceeds total system port number(%u)\n", num_ports,
-                nb_ports);
-        num_ports = nb_ports;
+    if (config.num_ports > nb_ports) {
+        RTE_LOG(INFO, VHOST_PORT, "\nSpecified port number(%u) exceeds total system port number(%u)\n",
+                config.num_ports, nb_ports);
+        config.num_ports = nb_ports;
     }
 
-    for (portid = 0; portid < num_ports; portid++) {
-        if (!rte_eth_dev_is_valid_port(ports[portid])) {
-            RTE_LOG(INFO, VHOST_PORT, "\nSpecified port ID(%u) is not valid\n", ports[portid]);
-            ports[portid] = INVALID_PORT_ID;
+    for (portid = 0; portid < config.num_ports; portid++) {
+        if (!rte_eth_dev_is_valid_port(config.ports[portid])) {
+            RTE_LOG(INFO, VHOST_PORT, "\nSpecified port ID(%u) is not valid\n", config.ports[portid]);
+            config.ports[portid] = INVALID_PORT_ID;
             valid_num_ports--;
         }
     }
@@ -709,13 +376,13 @@ static int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
 
     /* Register the MAC address. */
     if (vmdq_enabled) {
-        ret = rte_eth_dev_mac_addr_add(ports[0], &vdev->mac_address, (uint32_t)vdev->vid + vmdq_pool_base);
+        ret = rte_eth_dev_mac_addr_add(config.ports[0], &vdev->mac_address, (uint32_t)vdev->vid + vmdq_pool_base);
         if (ret)
             RTE_LOG(ERR, VHOST_DATA, "(%d) failed to add device MAC address to VMDQ\n", vdev->vid);
-        rte_eth_dev_set_vlan_strip_on_queue(ports[0], vdev->vmdq_rx_q, 1);
+        rte_eth_dev_set_vlan_strip_on_queue(config.ports[0], vdev->vmdq_rx_q, 1);
     } else {
         /* In non-VMDq mode, just register MAC address without pool */
-        ret = rte_eth_dev_mac_addr_add(ports[0], &vdev->mac_address, 0);
+        ret = rte_eth_dev_mac_addr_add(config.ports[0], &vdev->mac_address, 0);
         if (ret)
             RTE_LOG(ERR, VHOST_DATA, "(%d) failed to add device MAC address\n", vdev->vid);
     }
@@ -738,21 +405,21 @@ static inline void unlink_vmdq(struct vhost_dev *vdev) {
 
     if (vdev->ready == DEVICE_RX) {
         /*clear MAC and VLAN settings*/
-        rte_eth_dev_mac_addr_remove(ports[0], &vdev->mac_address);
+        rte_eth_dev_mac_addr_remove(config.ports[0], &vdev->mac_address);
         for (i = 0; i < 6; i++)
             vdev->mac_address.addr_bytes[i] = 0;
 
         vdev->vlan_tag = 0;
 
         /*Clear out the receive buffers*/
-        rx_count = rte_eth_rx_burst(ports[0], (uint16_t)vdev->vmdq_rx_q, pkts_burst, MAX_PKT_BURST);
+        rx_count = rte_eth_rx_burst(config.ports[0], (uint16_t)vdev->vmdq_rx_q, pkts_burst, MAX_PKT_BURST);
 
         while (rx_count) {                 // until queue is empty
             for (i = 0; i < rx_count; i++) // Frees each packet buffer back to mbuf pool
                 rte_pktmbuf_free(pkts_burst[i]);
 
             // Receives next batch of packets from queue
-            rx_count = rte_eth_rx_burst(ports[0], (uint16_t)vdev->vmdq_rx_q, pkts_burst, MAX_PKT_BURST);
+            rx_count = rte_eth_rx_burst(config.ports[0], (uint16_t)vdev->vmdq_rx_q, pkts_burst, MAX_PKT_BURST);
         }
 
         vdev->ready = DEVICE_MAC_LEARNING;
@@ -764,7 +431,7 @@ static __rte_always_inline void virtio_xmit(struct vhost_dev *dst_vdev, struct v
                                             struct rte_mbuf *m) {
     uint16_t ret;
 
-    if (builtin_net_driver) {
+    if (config.builtin_net_driver) {
         // dpdk to vm
         ret = vs_enqueue_pkts(dst_vdev, VIRTIO_RXQ, &m, 1);
     } else {
@@ -773,7 +440,7 @@ static __rte_always_inline void virtio_xmit(struct vhost_dev *dst_vdev, struct v
 
     // dest stats use atomic operations (multiple cores may write)
     // source stats don't (single core writes)
-    if (enable_stats) {
+    if (config.enable_stats) {
         rte_atomic64_inc(&dst_vdev->stats.rx_total_atomic);
         rte_atomic64_add(&dst_vdev->stats.rx_atomic, ret);
         src_vdev->stats.tx_total++;
@@ -883,7 +550,7 @@ static inline void free_pkts(struct rte_mbuf **pkts, uint16_t n) {
 static __rte_always_inline void do_drain_mbuf_table(struct mbuf_table *tx_q) {
     uint16_t count;
 
-    count = rte_eth_tx_burst(ports[0], tx_q->txq_id, tx_q->m_table, tx_q->len);
+    count = rte_eth_tx_burst(config.ports[0], tx_q->txq_id, tx_q->m_table, tx_q->len);
     if (unlikely(count < tx_q->len))                         // fewer packets were sent than attempted
         free_pkts(&tx_q->m_table[count], tx_q->len - count); // free the unsent packets
 
@@ -913,12 +580,12 @@ static __rte_always_inline void virtio_tx_route(struct vhost_dev *vdev, struct r
     }
 
     /*check if destination is local VM (same host)*/
-    if ((vm2vm_mode == VM2VM_SOFTWARE) && (virtio_tx_local(vdev, m) == 0)) {
+    if ((config.vm2vm_mode == VM2VM_SOFTWARE) && (virtio_tx_local(vdev, m) == 0)) {
         rte_pktmbuf_free(m); //  If delivered locally, free the mbuf (no need to send to NIC)
         return;
     }
 
-    if (unlikely(vm2vm_mode == VM2VM_HARDWARE)) { // uses NIC hardware for VM switching via VLANs
+    if (unlikely(config.vm2vm_mode == VM2VM_HARDWARE)) { // uses NIC hardware for VM switching via VLANs
         if (unlikely(find_local_dest(vdev, m, &offset, &vlan_tag) != 0)) {
             // destination lookup fails (non-zero return)
             rte_pktmbuf_free(m);
@@ -941,7 +608,7 @@ queue2nic:
         /* Guest has inserted the vlan tag. */
         struct rte_vlan_hdr *vh = (struct rte_vlan_hdr *)(nh + 1); // VLAN header
         uint16_t vlan_tag_be = rte_cpu_to_be_16(vlan_tag);         // Convert VLAN tag to big-endian
-        if ((vm2vm_mode == VM2VM_HARDWARE) && (vh->vlan_tci != vlan_tag_be))
+        if ((config.vm2vm_mode == VM2VM_HARDWARE) && (vh->vlan_tci != vlan_tag_be))
             vh->vlan_tci = vlan_tag_be;
     } else {                            // packet doesn't have VLAN tag yet
         m->ol_flags |= PKT_TX_VLAN_PKT; // offload flag indicating NIC should insert VLAN tag
@@ -950,7 +617,7 @@ queue2nic:
          * Find the right seg to adjust the data len when offset is
          * bigger than tail room size.
          */
-        if (unlikely(vm2vm_mode == VM2VM_HARDWARE)) {
+        if (unlikely(config.vm2vm_mode == VM2VM_HARDWARE)) {
             if (likely(offset <= rte_pktmbuf_tailroom(m)))
                 m->data_len += offset;
             else {
@@ -972,7 +639,7 @@ queue2nic:
 
     // Add packet to the TX queue's mbuf table
     tx_q->m_table[tx_q->len++] = m;
-    if (enable_stats) {
+    if (config.enable_stats) {
         vdev->stats.tx_total++;
         vdev->stats.tx++;
     }
@@ -1005,11 +672,11 @@ static __rte_always_inline void drain_eth_rx(struct vhost_dev *vdev) {
     struct rte_mbuf *pkts[MAX_PKT_BURST];
 
     // receive packets from physical NIC
-    rx_count = rte_eth_rx_burst(ports[0], vdev->vmdq_rx_q, pkts, MAX_PKT_BURST);
+    rx_count = rte_eth_rx_burst(config.ports[0], vdev->vmdq_rx_q, pkts, MAX_PKT_BURST);
     if (!rx_count)
         return;
 
-    if (builtin_net_driver) {
+    if (config.builtin_net_driver) {
         // send packets to guest virtio RX ring
         enqueue_count = vs_enqueue_pkts(vdev, VIRTIO_RXQ, pkts, rx_count);
     } else {
@@ -1017,12 +684,12 @@ static __rte_always_inline void drain_eth_rx(struct vhost_dev *vdev) {
     }
 
     /* Retry if necessary */
-    if (enable_retry && unlikely(enqueue_count < rx_count)) {
+    if (config.enable_retry && unlikely(enqueue_count < rx_count)) {
         uint32_t retry = 0;
 
-        while (enqueue_count < rx_count && retry++ < burst_rx_retry_num) { // max 4 retries
-            rte_delay_us(burst_rx_delay_time);
-            if (builtin_net_driver) {
+        while (enqueue_count < rx_count && retry++ < config.burst_rx_retry_num) { // max 4 retries
+            rte_delay_us(config.burst_rx_delay_time);
+            if (config.builtin_net_driver) {
                 enqueue_count += vs_enqueue_pkts(vdev, VIRTIO_RXQ, &pkts[enqueue_count], rx_count - enqueue_count);
             } else {
                 enqueue_count +=
@@ -1031,7 +698,7 @@ static __rte_always_inline void drain_eth_rx(struct vhost_dev *vdev) {
         }
     }
 
-    if (enable_stats) {
+    if (config.enable_stats) {
         rte_atomic64_add(&vdev->stats.rx_total_atomic, rx_count);
         rte_atomic64_add(&vdev->stats.rx_atomic, enqueue_count);
     }
@@ -1045,7 +712,7 @@ static __rte_always_inline void drain_virtio_tx(struct vhost_dev *vdev) {
     uint16_t count;
     uint16_t i;
 
-    if (builtin_net_driver) {
+    if (config.builtin_net_driver) {
         // copy pkt from guest vring buffer to DPDK mbuf
         count = vs_dequeue_pkts(vdev, VIRTIO_TXQ, mbuf_pool, pkts, MAX_PKT_BURST);
     } else {
@@ -1172,7 +839,7 @@ static void destroy_device(int vid) {
         rte_pause();
     }
 
-    if (builtin_net_driver)
+    if (config.builtin_net_driver)
         vs_vhost_net_remove(vdev);
 
     // Remove device from its assigned lcore's device list
@@ -1220,7 +887,7 @@ static int new_device(int vid) {
     }
     vdev->vid = vid;
 
-    if (builtin_net_driver)
+    if (config.builtin_net_driver)
         vs_vhost_net_setup(vdev);
 
     TAILQ_INSERT_TAIL(&vhost_dev_list, vdev, global_vdev_entry);
@@ -1277,7 +944,7 @@ static void *print_stats(__rte_unused void *arg) {
     const char top_left[] = {27, '[', '1', ';', '1', 'H', '\0'};
 
     while (1) {
-        sleep(enable_stats);
+        sleep(config.enable_stats);
 
         /* Clear screen and move to top left */
         printf("%s%s\n", clr, top_left);
@@ -1316,16 +983,16 @@ static void unregister_drivers(int socket_num) {
 
     for (i = 0; i < socket_num; i++) {
         // each path is PATH_MAX bytes apart
-        ret = rte_vhost_driver_unregister(socket_files + i * PATH_MAX);
+        ret = rte_vhost_driver_unregister(config.socket_files + i * PATH_MAX);
         if (ret != 0)
-            RTE_LOG(ERR, VHOST_CONFIG, "Fail to unregister vhost driver for %s.\n", socket_files + i * PATH_MAX);
+            RTE_LOG(ERR, VHOST_CONFIG, "Fail to unregister vhost driver for %s.\n", config.socket_files + i * PATH_MAX);
     }
 }
 
 /* When we receive a INT signal, unregister vhost driver */
 static void sigint_handler(__rte_unused int signum) {
     /* Unregister vhost driver. */
-    unregister_drivers(nb_sockets);
+    unregister_drivers(config.nb_sockets);
 
     exit(0);
 }
@@ -1363,10 +1030,10 @@ static void create_mbuf_pool(uint16_t nr_port, uint32_t nr_switch_core, uint32_t
     uint32_t nr_mbufs_per_core;
     uint32_t mtu = 1500; // Maximum Transmission Unit to standard Ethernet size (1500 bytes)
 
-    if (mergeable)
-        mtu = 9000;      // jumbo frames: allow single packet to span multiple mbufs
-    if (enable_tso)      // TSO allows sending huge packets that NIC splits into smaller segments
-        mtu = 64 * 1024; // 64KB (maximum TSO packet size)
+    if (config.mergeable)
+        mtu = 9000;        // jumbo frames: allow single packet to span multiple mbufs
+    if (config.enable_tso) // TSO allows sending huge packets that NIC splits into smaller segments
+        mtu = 64 * 1024;   // 64KB (maximum TSO packet size)
 
     // how many mbufs needed for a full burst of max-sized packets
     nr_mbufs_per_core = (mtu + mbuf_size) * MAX_PKT_BURST / (mbuf_size - RTE_PKTMBUF_HEADROOM);
@@ -1431,7 +1098,7 @@ int main(int argc, char *argv[]) {
         RTE_LOG(INFO, VHOST_PORT,
                 "Current enabled port number is %u,"
                 "but only %u port can be enabled\n",
-                num_ports, MAX_SUP_PORTS);
+                config.num_ports, MAX_SUP_PORTS);
         return -1;
     }
 
@@ -1445,16 +1112,16 @@ int main(int argc, char *argv[]) {
     create_mbuf_pool(valid_num_ports, rte_lcore_count() - 1, MBUF_DATA_SIZE, MAX_QUEUES, RTE_TEST_RX_DESC_DEFAULT,
                      MBUF_CACHE_SIZE);
 
-    if (vm2vm_mode == VM2VM_HARDWARE) {
+    if (config.vm2vm_mode == VM2VM_HARDWARE) {
         /* Enable VT loop back to let L2 switch to do it. */
-        vmdq_conf_default.rx_adv_conf.vmdq_rx_conf.enable_loop_back = 1;
+        config.vmdq_conf_default->rx_adv_conf.vmdq_rx_conf.enable_loop_back = 1;
         RTE_LOG(DEBUG, VHOST_CONFIG, "Enable loop back for L2 switch in vmdq.\n");
     }
 
     /* initialize all ports */
     RTE_ETH_FOREACH_DEV(portid) {
         /* skip ports that are not enabled */
-        if ((enabled_port_mask & (1 << portid)) == 0) {
+        if ((config.enable_port_mask & (1 << portid)) == 0) {
             RTE_LOG(INFO, VHOST_PORT, "Skipping disabled port %d\n", portid);
             continue;
         }
@@ -1469,7 +1136,7 @@ int main(int argc, char *argv[]) {
     RTE_LOG(INFO, VHOST_CONFIG, "TCP offload initialized (pass-through mode)\n");
 
     /* Enable stats if the user option is set. */
-    if (enable_stats) {
+    if (config.enable_stats) {
         ret = rte_ctrl_thread_create(&tid, "print-stats", NULL, print_stats, NULL);
         if (ret < 0)
             rte_exit(EXIT_FAILURE, "Cannot create print-stats thread\n");
@@ -1479,40 +1146,40 @@ int main(int argc, char *argv[]) {
     RTE_LCORE_FOREACH_SLAVE(lcore_id)
     rte_eal_remote_launch(switch_worker, NULL, lcore_id);
 
-    if (client_mode)
+    if (config.client_mode)
         flags |= RTE_VHOST_USER_CLIENT;
 
-    if (dequeue_zero_copy)
+    if (config.dequeue_zero_copy)
         flags |= RTE_VHOST_USER_DEQUEUE_ZERO_COPY;
 
     /* Register vhost user driver to handle vhost messages. */
-    for (i = 0; i < nb_sockets; i++) {
-        char *file = socket_files + i * PATH_MAX;
+    for (i = 0; i < config.nb_sockets; i++) {
+        char *file = config.socket_files + i * PATH_MAX;
         ret = rte_vhost_driver_register(file, flags);
         if (ret != 0) {
             unregister_drivers(i);
             rte_exit(EXIT_FAILURE, "vhost driver register failure.\n");
         }
 
-        if (builtin_net_driver)
+        if (config.builtin_net_driver)
             rte_vhost_driver_set_features(file, VIRTIO_NET_FEATURES);
 
-        if (mergeable == 0) {
+        if (config.mergeable == 0) {
             rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_MRG_RXBUF);
         }
 
-        if (enable_tx_csum == 0) {
+        if (config.enable_tx_csum == 0) {
             rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_CSUM);
         }
 
-        if (enable_tso == 0) {
+        if (config.enable_tso == 0) {
             rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO4);
             rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO6);
             rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO4);
             rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO6);
         }
 
-        if (promiscuous) {
+        if (config.promiscuous) {
             rte_vhost_driver_enable_features(file, 1ULL << VIRTIO_NET_F_CTRL_RX);
         }
 
