@@ -59,14 +59,19 @@ sudo rm -rf /dev/shm/rte_* # remove shm
 # Run vhost-switch (vhost-user networking switch)
 # EAL options (before --): -l cores, -n memory channels
 # Application options (after --): -p portmask, --socket-file path, --stats interval
+#
+# Note: For Mellanox NICs, binding is not required (bifurcated driver model).
+# However, use -w (whitelist) or -b (blacklist) to avoid DPDK using your SSH NIC:
 sudo ./build/vhost-switch \
   -l 2-3 -n 4 \
   --file-prefix=vhost \
+  -w 0000:41:00.0 \  # Whitelist: only use this NIC (replace with your desired NIC PCI address)
+  -b 0000:01:00.0 \  # Blacklist: exclude this NIC (replace with your SSH NIC PCI address)
   -- -p 0x1 --socket-file /mnt/huge/sock0 --stats 1
 
 # Or install and run from PATH
 sudo ninja -C build install
-sudo vhost-switch -l 2-3 -n 4 -- -p 0x1 --socket-file /mnt/huge/sock0 --stats 1
+sudo vhost-switch -l 2-3 -n 4 -b 0000:01:00.0 -- -p 0x1 --socket-file /mnt/huge/sock0 --stats 1
 
 # watch: doesn't clean up /mnt/huge/sock0
 # find src include -name '*.c' -o -name '*.h' -o -name 'meson.build' | \
