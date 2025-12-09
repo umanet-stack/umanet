@@ -2,6 +2,12 @@ const std = @import("std");
 const fahren = @import("fahren");
 
 pub fn main() !void {
+    const args = std.process.args(); // []const []const u8
+
+    // Cast to C-compatible argv
+    const argc: c_int = @intCast(args.len);
+    const argv: [*]*const u8 = @ptrCast(args.ptr);
+
     // Prints to stderr, ignoring potential errors.
     std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
     try fahren.bufferedPrint();
