@@ -19,7 +19,9 @@ sources = files(
 	'src/tcp_state.c',
 	'src/tcp_fastpath.c',
 	'src/main.c',
-	'src/virtio_net.c'
+	'src/virtio_net.c',
+	'src/config/args.c',
+	'src/config/config.c'
 )
 
 # Compiler flags
