@@ -1,12 +1,19 @@
+#include "main.h"
 #include <getopt.h>
 #include <rte_ethdev.h>
 #include <rte_log.h>
 #include <rte_memory.h>
 
-// vhost ops log types: config/data/port
-#define RTE_LOGTYPE_VHOST_CONFIG RTE_LOGTYPE_USER1
-#define RTE_LOGTYPE_VHOST_DATA RTE_LOGTYPE_USER2
-#define RTE_LOGTYPE_VHOST_PORT RTE_LOGTYPE_USER3
+/* the maximum number of external ports supported */
+#define MAX_SUP_PORTS 1
+
+/* Maximum long option length for option parsing. */
+#define MAX_LONG_OPT_SZ 64
+
+#define BURST_RX_WAIT_US 15 /* Defines how long we wait between retries on RX */
+#define BURST_RX_RETRIES 4  /* Number of retries on RX. */
+
+#define JUMBO_FRAME_MAX_SIZE 0x2600
 
 static int client_mode;
 static int dequeue_zero_copy;
@@ -17,6 +24,49 @@ static uint32_t enabled_port_mask = 0;
 
 /* Promiscuous mode */
 static uint32_t promiscuous;
+
+static int mergeable;
+
+typedef enum { VM2VM_DISABLED = 0, VM2VM_SOFTWARE = 1, VM2VM_HARDWARE = 2, VM2VM_LAST } vm2vm_type;
+static vm2vm_type vm2vm_mode = VM2VM_SOFTWARE;
+
+/* Enable stats. */
+static uint32_t enable_stats = 0;
+/* Enable retries on RX. */
+static uint32_t enable_retry = 1;
+
+/* Disable TX checksum offload */
+static uint32_t enable_tx_csum;
+
+/* Disable TSO offload */
+static uint32_t enable_tso;
+
+/* Specify timeout (in useconds) between retries on RX. */
+static uint32_t burst_rx_delay_time = BURST_RX_WAIT_US;
+/* Specify the number of retries on RX. */
+static uint32_t burst_rx_retry_num = BURST_RX_RETRIES;
+
+/* Socket file paths. Can be set by user */
+static char *socket_files;
+static int nb_sockets;
+
+/* empty vmdq configuration structure. Filled in programatically */
+static struct rte_eth_conf vmdq_conf_default = {
+    .rxmode =
+        {
+            .mq_mode = ETH_MQ_RX_VMDQ_ONLY,
+            .split_hdr_size = 0,
+            /*
+             * VLAN strip is necessary for 1G NIC such as I350,
+             * this fixes bug of ipv4 forwarding in guest can't
+             * forward pakets from one virtio dev to another virtio dev.
+             */
+            .offloads = DEV_RX_OFFLOAD_VLAN_STRIP,
+        },
+};
+
+static uint16_t ports[RTE_MAX_ETHPORTS];
+static unsigned num_ports = 0; /**< The number of ports specified in command line */
 
 /*
  * Parse the portmask provided at run time.
@@ -39,20 +89,26 @@ static int parse_portmask(const char *portmask) // portmask e.g. 0x1
     return pm;
 }
 
-/* empty vmdq configuration structure. Filled in programatically */
-static struct rte_eth_conf vmdq_conf_default = {
-    .rxmode =
-        {
-            .mq_mode = ETH_MQ_RX_VMDQ_ONLY,
-            .split_hdr_size = 0,
-            /*
-             * VLAN strip is necessary for 1G NIC such as I350,
-             * this fixes bug of ipv4 forwarding in guest can't
-             * forward pakets from one virtio dev to another virtio dev.
-             */
-            .offloads = DEV_RX_OFFLOAD_VLAN_STRIP,
-        },
-};
+/*
+ * Parse num options at run time.
+ */
+// Generic parser for numeric options with range validation.
+static int parse_num_opt(const char *q_arg, uint32_t max_valid_value) {
+    char *end = NULL;
+    unsigned long num;
+
+    errno = 0;
+
+    /* parse unsigned int string */
+    num = strtoul(q_arg, &end, 10);
+    if ((q_arg[0] == '\0') || (end == NULL) || (*end != '\0') || (errno != 0))
+        return -1;
+
+    if (num > max_valid_value)
+        return -1;
+
+    return num;
+}
 
 /*
  * Display usage
@@ -80,6 +136,31 @@ static void us_vhost_usage(const char *prgname) {
             "		--client register a vhost-user socket as client mode.\n"
             "		--dequeue-zero-copy enables dequeue zero copy\n",
             prgname);
+}
+
+/*
+ * Set socket file path.
+ */
+static int us_vhost_parse_socket_path(const char *q_arg) // path e.g. /tmp/vhost-user.sock
+{
+    char *old;
+
+    /* parse number string */
+    if (strnlen(q_arg, PATH_MAX) == PATH_MAX) // check if path is too long
+        return -1;
+
+    old = socket_files;
+    // Reallocates socket_files to fit one more socket path
+    socket_files = realloc(socket_files, PATH_MAX * (nb_sockets + 1));
+    if (socket_files == NULL) { // check if realloc failed
+        free(old);
+        return -1;
+    }
+
+    strlcpy(socket_files + nb_sockets * PATH_MAX, q_arg, PATH_MAX); // copies path to socket_files' new slot
+    nb_sockets++;
+
+    return 0;
 }
 
 /*
