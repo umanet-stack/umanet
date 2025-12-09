@@ -41,5 +41,6 @@ typedef struct {
 } config_t;
 
 extern config_t config;
+int us_vhost_parse_args(int argc, char **argv);
 
 #endif /* CONFIG_H */

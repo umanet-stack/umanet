@@ -16,58 +16,31 @@
 
 #define JUMBO_FRAME_MAX_SIZE 0x2600
 
-config_t config;
-
-static int client_mode;
-static int dequeue_zero_copy;
-static int builtin_net_driver;
-
-/* mask of enabled ports */
-static uint32_t enabled_port_mask = 0;
-
-/* Promiscuous mode */
-static uint32_t promiscuous;
-
-static int mergeable;
-static vm2vm_type vm2vm_mode = VM2VM_SOFTWARE;
-
-/* Enable stats. */
-static uint32_t enable_stats = 0;
-/* Enable retries on RX. */
-static uint32_t enable_retry = 1;
-
-/* Disable TX checksum offload */
-static uint32_t enable_tx_csum;
-
-/* Disable TSO offload */
-static uint32_t enable_tso;
-
-/* Specify timeout (in useconds) between retries on RX. */
-static uint32_t burst_rx_delay_time = BURST_RX_WAIT_US;
-/* Specify the number of retries on RX. */
-static uint32_t burst_rx_retry_num = BURST_RX_RETRIES;
-
-/* Socket file paths. Can be set by user */
-static char *socket_files;
-static int nb_sockets;
-
-/* empty vmdq configuration structure. Filled in programatically */
-static struct rte_eth_conf vmdq_conf_default = {
-    .rxmode =
-        {
-            .mq_mode = ETH_MQ_RX_VMDQ_ONLY,
-            .split_hdr_size = 0,
-            /*
-             * VLAN strip is necessary for 1G NIC such as I350,
-             * this fixes bug of ipv4 forwarding in guest can't
-             * forward pakets from one virtio dev to another virtio dev.
-             */
-            .offloads = DEV_RX_OFFLOAD_VLAN_STRIP,
+config_t config = {
+    .enable_port_mask = 0,
+    .vm2vm_mode = VM2VM_SOFTWARE,
+    .enable_stats = 0,
+    .enable_retry = 1,
+    .burst_rx_delay_time = BURST_RX_WAIT_US,
+    .burst_rx_retry_num = BURST_RX_RETRIES,
+    .vmdq_conf_default =
+        &(struct rte_eth_conf){
+            .rxmode =
+                {
+                    .mq_mode = ETH_MQ_RX_VMDQ_ONLY,
+                    .split_hdr_size = 0,
+                    /*
+                     * VLAN strip is necessary for 1G NIC such as I350,
+                     * this fixes bug of ipv4 forwarding in guest can't
+                     * forward pakets from one virtio dev to another virtio dev.
+                     */
+                    .offloads = DEV_RX_OFFLOAD_VLAN_STRIP,
+                },
         },
+    .num_ports = 0,
 };
 
-static uint16_t ports[RTE_MAX_ETHPORTS];
-static unsigned num_ports = 0; /**< The number of ports specified in command line */
+#define CFG config
 
 /*
  * Parse the portmask provided at run time.
@@ -150,16 +123,16 @@ static int us_vhost_parse_socket_path(const char *q_arg) // path e.g. /tmp/vhost
     if (strnlen(q_arg, PATH_MAX) == PATH_MAX) // check if path is too long
         return -1;
 
-    old = socket_files;
+    old = CFG.socket_files;
     // Reallocates socket_files to fit one more socket path
-    socket_files = realloc(socket_files, PATH_MAX * (nb_sockets + 1));
-    if (socket_files == NULL) { // check if realloc failed
+    CFG.socket_files = realloc(CFG.socket_files, PATH_MAX * (CFG.nb_sockets + 1));
+    if (CFG.socket_files == NULL) { // check if realloc failed
         free(old);
         return -1;
     }
 
-    strlcpy(socket_files + nb_sockets * PATH_MAX, q_arg, PATH_MAX); // copies path to socket_files' new slot
-    nb_sockets++;
+    strlcpy(CFG.socket_files + CFG.nb_sockets * PATH_MAX, q_arg, PATH_MAX); // copies path to socket_files' new slot
+    CFG.nb_sockets++;
 
     return 0;
 }
@@ -167,7 +140,7 @@ static int us_vhost_parse_socket_path(const char *q_arg) // path e.g. /tmp/vhost
 /*
  * Parse the arguments given in the command line of the application.
  */
-static int us_vhost_parse_args(int argc, char **argv) {
+int us_vhost_parse_args(int argc, char **argv) {
     int opt, ret;
     int option_index;
     unsigned i;
@@ -182,9 +155,9 @@ static int us_vhost_parse_args(int argc, char **argv) {
         {"socket-file", required_argument, NULL, 0},
         {"tx-csum", required_argument, NULL, 0},
         {"tso", required_argument, NULL, 0},
-        {"client", no_argument, &client_mode, 1},
-        {"dequeue-zero-copy", no_argument, &dequeue_zero_copy, 1},
-        {"builtin-net-driver", no_argument, &builtin_net_driver, 1},
+        {"client", no_argument, &CFG.client_mode, 1},
+        {"dequeue-zero-copy", no_argument, &CFG.dequeue_zero_copy, 1},
+        {"builtin-net-driver", no_argument, &CFG.builtin_net_driver, 1},
         {NULL, 0, 0, 0},
     };
 
@@ -193,8 +166,8 @@ static int us_vhost_parse_args(int argc, char **argv) {
         switch (opt) {
         /* Portmask */
         case 'p':
-            enabled_port_mask = parse_portmask(optarg);
-            if (enabled_port_mask == 0) {
+            CFG.enable_port_mask = parse_portmask(optarg);
+            if (CFG.enable_port_mask == 0) {
                 RTE_LOG(INFO, VHOST_CONFIG, "Invalid portmask\n");
                 us_vhost_usage(prgname);
                 return -1;
@@ -202,8 +175,9 @@ static int us_vhost_parse_args(int argc, char **argv) {
             break;
 
         case 'P':
-            promiscuous = 1;
-            vmdq_conf_default.rx_adv_conf.vmdq_rx_conf.rx_mode = ETH_VMDQ_ACCEPT_BROADCAST | ETH_VMDQ_ACCEPT_MULTICAST;
+            CFG.promiscuous = 1;
+            CFG.vmdq_conf_default->rx_adv_conf.vmdq_rx_conf.rx_mode =
+                ETH_VMDQ_ACCEPT_BROADCAST | ETH_VMDQ_ACCEPT_MULTICAST;
 
             break;
 
@@ -218,7 +192,7 @@ static int us_vhost_parse_args(int argc, char **argv) {
                     us_vhost_usage(prgname);
                     return -1;
                 } else {
-                    vm2vm_mode = (vm2vm_type)ret;
+                    CFG.vm2vm_mode = (vm2vm_type)ret;
                 }
             }
 
@@ -230,7 +204,7 @@ static int us_vhost_parse_args(int argc, char **argv) {
                     us_vhost_usage(prgname);
                     return -1;
                 } else {
-                    enable_retry = ret;
+                    CFG.enable_retry = ret;
                 }
             }
 
@@ -242,7 +216,7 @@ static int us_vhost_parse_args(int argc, char **argv) {
                     us_vhost_usage(prgname);
                     return -1;
                 } else
-                    enable_tx_csum = ret;
+                    CFG.enable_tx_csum = ret;
             }
 
             /* Enable/disable TSO offload. */
@@ -253,7 +227,7 @@ static int us_vhost_parse_args(int argc, char **argv) {
                     us_vhost_usage(prgname);
                     return -1;
                 } else
-                    enable_tso = ret;
+                    CFG.enable_tso = ret;
             }
 
             /* Specify the retries delay time (in useconds) on RX. */
@@ -264,7 +238,7 @@ static int us_vhost_parse_args(int argc, char **argv) {
                     us_vhost_usage(prgname);
                     return -1;
                 } else {
-                    burst_rx_delay_time = ret;
+                    CFG.burst_rx_delay_time = ret;
                 }
             }
 
@@ -276,7 +250,7 @@ static int us_vhost_parse_args(int argc, char **argv) {
                     us_vhost_usage(prgname);
                     return -1;
                 } else {
-                    burst_rx_retry_num = ret;
+                    CFG.burst_rx_retry_num = ret;
                 }
             }
 
@@ -288,10 +262,10 @@ static int us_vhost_parse_args(int argc, char **argv) {
                     us_vhost_usage(prgname);
                     return -1;
                 } else {
-                    mergeable = !!ret;
+                    CFG.mergeable = !!ret;
                     if (ret) {
-                        vmdq_conf_default.rxmode.offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
-                        vmdq_conf_default.rxmode.max_rx_pkt_len = JUMBO_FRAME_MAX_SIZE;
+                        CFG.vmdq_conf_default->rxmode.offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
+                        CFG.vmdq_conf_default->rxmode.max_rx_pkt_len = JUMBO_FRAME_MAX_SIZE;
                     }
                 }
             }
@@ -304,7 +278,7 @@ static int us_vhost_parse_args(int argc, char **argv) {
                     us_vhost_usage(prgname);
                     return -1;
                 } else {
-                    enable_stats = ret;
+                    CFG.enable_stats = ret;
                 }
             }
 
@@ -327,15 +301,15 @@ static int us_vhost_parse_args(int argc, char **argv) {
     }
 
     for (i = 0; i < RTE_MAX_ETHPORTS; i++) {
-        if (enabled_port_mask & (1 << i))
-            ports[num_ports++] = i;
+        if (CFG.enable_port_mask & (1 << i))
+            CFG.ports[CFG.num_ports++] = i;
     }
 
-    if ((num_ports == 0) || (num_ports > MAX_SUP_PORTS)) {
+    if ((CFG.num_ports == 0) || (CFG.num_ports > MAX_SUP_PORTS)) {
         RTE_LOG(INFO, VHOST_PORT,
                 "Current enabled port number is %u,"
                 "but only %u port can be enabled\n",
-                num_ports, MAX_SUP_PORTS);
+                CFG.num_ports, MAX_SUP_PORTS);
         return -1;
     }
 
