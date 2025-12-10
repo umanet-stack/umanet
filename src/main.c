@@ -44,7 +44,7 @@ static void *print_stats(__rte_unused void *arg) {
     const char top_left[] = {27, '[', '1', ';', '1', 'H', '\0'};
 
     while (1) {
-        sleep(config.enable_stats);
+        sleep(1);
 
         /* Clear screen and move to top left */
         printf("%s%s\n", clr, top_left);
@@ -78,21 +78,24 @@ static void *print_stats(__rte_unused void *arg) {
     return NULL;
 }
 
-static void unregister_drivers(int socket_num) {
+static void unregister_drivers(int socket_num, const char *path) {
     int i, ret;
 
     for (i = 0; i < socket_num; i++) {
         // each path is PATH_MAX bytes apart
-        ret = rte_vhost_driver_unregister(config.socket_files + i * PATH_MAX);
+        ret = rte_vhost_driver_unregister(path + i * PATH_MAX);
         if (ret != 0)
-            RTE_LOG(ERR, VHOST_CONFIG, "Fail to unregister vhost driver for %s.\n", config.socket_files + i * PATH_MAX);
+            RTE_LOG(ERR, VHOST_CONFIG, "Fail to unregister vhost driver for %s.\n", path + i * PATH_MAX);
     }
 }
+
+static int socket_num;
+static const char *socket_files;
 
 /* When we receive a INT signal, unregister vhost driver */
 static void sigint_handler(__rte_unused int signum) {
     /* Unregister vhost driver. */
-    unregister_drivers(config.nb_sockets);
+    unregister_drivers(socket_num, socket_files);
 
     exit(0);
 }
@@ -118,10 +121,13 @@ int main(int argc, char *argv[]) {
     argc -= ret; // Update argc to exclude DPDK-specific arguments
     argv += ret;
 
+    init_config();
     /* parse app arguments */
-    ret = us_vhost_parse_args(argc, argv);
+    ret = parse_config(&config, argc, argv);
     if (ret < 0)
         rte_exit(EXIT_FAILURE, "Invalid argument\n");
+    socket_num = config.nb_sockets;
+    socket_files = config.socket_files;
 
     for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
         TAILQ_INIT(&vhost.lcore_info[lcore_id].vdev_list); // init first,last dev list
@@ -205,7 +211,7 @@ int main(int argc, char *argv[]) {
         char *file = config.socket_files + i * PATH_MAX;
         ret = rte_vhost_driver_register(file, flags);
         if (ret != 0) {
-            unregister_drivers(i);
+            unregister_drivers(i, socket_files);
             rte_exit(EXIT_FAILURE, "vhost driver register failure.\n");
         }
 

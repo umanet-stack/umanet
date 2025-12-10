@@ -13,6 +13,8 @@ typedef struct {
     int dequeue_zero_copy;
     int builtin_net_driver;
 
+    uint32_t fp_cores_max;
+
     /* mask of enabled ports */
     uint32_t enable_port_mask;
 
@@ -45,6 +47,7 @@ typedef struct {
 } config_t;
 
 extern config_t config;
-int us_vhost_parse_args(int argc, char **argv);
+void init_config();
+int parse_config(config_t *c, int argc, char **argv);
 
 #endif /* CONFIG_H */
