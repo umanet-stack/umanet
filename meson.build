@@ -23,6 +23,8 @@ sources = files(
 	'src/config/args.c',
 	'src/eth/port.c',
 	'src/vhost/device.c',
+	'src/vhost/queues.c',
+	'src/vhost/worker.c',
 )
 
 # Compiler flags
