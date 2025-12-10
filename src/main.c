@@ -172,16 +172,9 @@ int main(int argc, char *argv[]) {
         RTE_LOG(DEBUG, VHOST_CONFIG, "Enable loop back for L2 switch in vmdq.\n");
     }
 
-    /* initialize all ports */
-    RTE_ETH_FOREACH_DEV(portid) {
-        /* skip ports that are not enabled */
-        if ((config.enable_port_mask & (1 << portid)) == 0) {
-            RTE_LOG(INFO, VHOST_PORT, "Skipping disabled port %d\n", portid);
-            continue;
-        }
-        if (port_init(portid) != 0)
-            rte_exit(EXIT_FAILURE, "Cannot initialize network ports\n");
-    }
+    // /* initialize eth port */
+    if (port_init(config.fp_cores_max) != 0)
+        rte_exit(EXIT_FAILURE, "Cannot initialize network ports\n");
 
     // NEW: Initialize TCP offload subsystem
     if (tcp_offload_init(128 * 1024) != 0) {

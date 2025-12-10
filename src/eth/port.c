@@ -43,6 +43,9 @@ static struct rte_eth_conf non_vmdq_conf_default = {
         },
 };
 
+uint32_t port = 0;
+static unsigned num_threads;
+
 /*
  * Builds up the correct configuration for VMDQ VLAN pool map
  * according to the pool & queue limits.
@@ -77,7 +80,7 @@ static inline int get_eth_conf(struct rte_eth_conf *eth_conf, uint32_t num_devic
  * Initialises a given port using global settings and with the rx buffers
  * coming from the mbuf_pool passed as parameter
  */
-int port_init(uint16_t port) {
+int port_init(uint16_t n_threads) {
     struct rte_eth_dev_info dev_info;
     struct rte_eth_conf port_conf;
     struct rte_eth_rxconf *rxconf;
@@ -86,6 +89,17 @@ int port_init(uint16_t port) {
     uint16_t rx_ring_size, tx_ring_size;
     int retval;
     uint16_t q;
+    uint32_t portid;
+
+    num_threads = n_threads; // no. of fastpath cores
+    RTE_ETH_FOREACH_DEV(portid) {
+        if ((config.enable_port_mask & (1 << portid)) == 0) {
+            RTE_LOG(INFO, VHOST_PORT, "Skipping disabled port %d\n", portid);
+            continue;
+        }
+        port = portid;
+        break;
+    }
 
     /* The max pool number from dev_info will be used to validate the pool number specified in cmd line */
     retval = rte_eth_dev_info_get(port, &dev_info);
