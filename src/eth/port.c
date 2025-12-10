@@ -1,6 +1,5 @@
-
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2025 Your Name
+ * Copyright(c) 2010-2017 Intel Corporation
  */
 
 #include <rte_ethdev.h>
