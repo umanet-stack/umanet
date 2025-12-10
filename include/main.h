@@ -5,6 +5,7 @@
 #ifndef _MAIN_H_
 #define _MAIN_H_
 
+#include <rte_vhost.h>
 #include <sys/queue.h>
 
 // rte = runtime env (dpdk)
@@ -63,6 +64,10 @@ struct vhost_dev { // vhost device
 
 #define MAX_QUEUE_PAIRS 4
     struct vhost_queue queues[MAX_QUEUE_PAIRS * 2]; // 4 pairs of RX/TX queues
+
+    // NEW: TCP offload support
+    int tcp_offload_enabled;
+    struct tcp_flow_state *flows; // Flows associated with this VM
 } __rte_cache_aligned;
 
 TAILQ_HEAD(vhost_dev_tailq_list, vhost_dev);
