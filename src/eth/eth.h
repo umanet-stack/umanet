@@ -1,3 +1,8 @@
+
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2025 Your Name
+ */
+
 #ifndef _ETH_H_
 #define _ETH_H_
 

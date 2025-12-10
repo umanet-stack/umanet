@@ -1,3 +1,8 @@
+
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2025 Your Name
+ */
+
 #ifndef CONFIG_H
 #define CONFIG_H
 #include <stdint.h>

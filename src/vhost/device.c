@@ -1,3 +1,8 @@
+
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2025 Your Name
+ */
+
 #include "main.h"
 #include <rte_malloc.h>
 #include <sys/queue.h>

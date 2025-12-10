@@ -1,3 +1,8 @@
+
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2025 Your Name
+ */
+
 #include "tcp_state.h"
 #include "tcp_offload.h"
 #include <rte_malloc.h>

@@ -1,3 +1,8 @@
+
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2025 Your Name
+ */
+
 #include "src/config/config.h"
 #include "src/eth/eth.h"
 #include "src/vhost/vhost.h"

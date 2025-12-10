@@ -1,3 +1,8 @@
+
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright(c) 2025 Your Name
+ */
+
 #include <generic/rte_cycles.h>
 #include <rte_ethdev.h>
 #include <rte_mbuf_core.h>
