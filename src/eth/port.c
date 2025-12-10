@@ -103,6 +103,7 @@ int port_init(uint16_t port) {
         eth.num_devices = 64; /* Default to 64 devices */
     } else {
         eth.vmdq_enabled = 1;
+        RTE_LOG(INFO, VHOST_PORT, "VMDq is supported\n");
         /*configure the number of supported virtio devices based on VMDQ limits */
         eth.num_devices = dev_info.max_vmdq_pools;
     }
