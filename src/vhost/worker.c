@@ -143,12 +143,12 @@ int switch_worker(void *arg __rte_unused) {
     struct dataplane_context *ctx;
 
     /* Allocate fastpath core context */
-    // if ((ctx = rte_zmalloc("fastpath core context", sizeof(*ctx), 0)) == NULL) {
-    //     fprintf(stderr, "Allocating fastpath core context failed\n");
-    //     goto error_alloc;
-    // }
-    // ctxs[id] = ctx;
-    // ctx->id = id;
+    if ((ctx = rte_zmalloc("fastpath core context", sizeof(*ctx), 0)) == NULL) {
+        fprintf(stderr, "Allocating fastpath core context failed\n");
+        goto error_alloc;
+    }
+    ctxs[id] = ctx;
+    ctx->id = id;
 
     /* initialize data plane context */
     // if (dataplane_context_init(ctx) != 0) {

@@ -3,6 +3,7 @@
  */
 
 #include <linux/virtio_net.h>
+#include <rte_malloc.h>
 #include <signal.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -206,6 +207,11 @@ int main(int argc, char *argv[]) {
         ret = rte_ctrl_thread_create(&tid, "print-stats", NULL, print_stats, NULL);
         if (ret < 0)
             rte_exit(EXIT_FAILURE, "Cannot create print-stats thread\n");
+    }
+
+    if ((ctxs = rte_calloc("context list", config.fp_cores_max, sizeof(*ctxs), 64)) == NULL) {
+        perror("dataplane_init: calloc failed");
+        return -1;
     }
 
     printf("Launching switch workers on cores: ");
