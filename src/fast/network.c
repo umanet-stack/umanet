@@ -55,9 +55,6 @@ static struct rte_eth_conf port_conf = {
         {
             .mq_mode = ETH_MQ_RX_RSS,
             .offloads = 0,
-#if RTE_VER_YEAR < 18
-            .ignore_offload_bitfield = 1,
-#endif
         },
     .txmode =
         {
@@ -81,11 +78,7 @@ static unsigned num_threads;
 static struct network_rx_thread **net_threads;
 
 static struct rte_eth_dev_info eth_devinfo;
-#if RTE_VER_YEAR < 19
-struct ether_addr eth_addr;
-#else
 struct rte_ether_addr eth_addr;
-#endif
 
 uint16_t rss_reta_size;
 static struct rte_eth_rss_reta_entry64 *rss_reta = NULL;
@@ -110,11 +103,7 @@ int network_init(unsigned n_threads) {
     }
 
     /* make sure there is only one port */
-#if RTE_VER_YEAR < 18
-    count = rte_eth_dev_count();
-#else
     count = rte_eth_dev_count_avail();
-#endif
     if (count == 0) {
         fprintf(stderr, "No ethernet devices\n");
         goto error_exit;
@@ -167,9 +156,6 @@ int network_init(unsigned n_threads) {
         }
     }
 
-#if RTE_VER_YEAR < 18
-    eth_devinfo.default_txconf.txq_flags = ETH_TXQ_FLAGS_IGNORE;
-#endif
     eth_devinfo.default_rxconf.offloads = 0;
 
     /* enable per-queue checksum offload if requested */
