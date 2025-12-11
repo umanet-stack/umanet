@@ -54,7 +54,10 @@ sudo rm -rf /dev/shm/rte_* # remove shm
 ## Running
 ```bash
 # build and run
-./run.sh
+# c6525-25g nodes
+./run.sh 0000:41:00.0
+
+sudo ps aux | grep vhost-switch | grep -v grep | awk '{print $2}' | xargs kill -9
 
 # Run vhost-switch (vhost-user networking switch)
 # EAL options (before --): -l cores, -n memory channels
