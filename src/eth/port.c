@@ -5,7 +5,7 @@
 #include <rte_ethdev.h>
 #include <stdint.h>
 
-#include "main.h"
+#include "../include/tas.h"
 #include "src/config/config.h"
 #include "src/eth/eth.h"
 

@@ -39,10 +39,11 @@
 #include <rte_spinlock.h>
 #include <rte_version.h>
 
-//  #include <utils.h>
-//  #include <utils_rng.h>
-//  #include <tas_memif.h>
+#include "../include/tas.h"
 #include "internal.h"
+#include <tas_memif.h>
+#include <utils.h>
+#include <utils_rng.h>
 
 #define PERTHREAD_MBUFS 2048
 #define MBUF_SIZE (BUFFER_SIZE + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
@@ -112,7 +113,14 @@ int network_init(unsigned n_threads) {
         goto error_exit;
     }
 
-    RTE_ETH_FOREACH_DEV(p) { net_port_id = p; }
+    RTE_ETH_FOREACH_DEV(p) {
+        if ((config.enable_port_mask & (1 << p)) == 0) {
+            fprintf(stderr, "Skipping disabled port %d\n", p);
+            continue;
+        }
+        net_port_id = p;
+        break;
+    }
 
     /* get mac address and device info */
     rte_eth_macaddr_get(net_port_id, &eth_addr);
@@ -409,71 +417,70 @@ static inline uint16_t core_max(uint16_t num) {
 //     return 0;
 // }
 
-// static int reta_setup() {
-//     uint16_t i, c;
+static int reta_setup() {
+    uint16_t i, c;
 
-//     /* allocate RSS redirection table and core-bucket count table */
-//     rss_reta_size = eth_devinfo.reta_size;
-//     rss_reta =
-//         rte_calloc("rss reta", ((rss_reta_size + RTE_RETA_GROUP_SIZE - 1) / RTE_RETA_GROUP_SIZE), sizeof(*rss_reta),
-//         0);
-//     rss_core_buckets = rte_calloc("rss core buckets", fp_cores_max, sizeof(*rss_core_buckets), 0);
+    /* allocate RSS redirection table and core-bucket count table */
+    rss_reta_size = eth_devinfo.reta_size;
+    rss_reta =
+        rte_calloc("rss reta", ((rss_reta_size + RTE_RETA_GROUP_SIZE - 1) / RTE_RETA_GROUP_SIZE), sizeof(*rss_reta), 0);
+    rss_core_buckets = rte_calloc("rss core buckets", fp_cores_max, sizeof(*rss_core_buckets), 0);
 
-//     if (rss_reta == NULL || rss_core_buckets == NULL) {
-//         fprintf(stderr, "reta_setup: rss_reta alloc failed\n");
-//         goto error_exit;
-//     }
+    if (rss_reta == NULL || rss_core_buckets == NULL) {
+        fprintf(stderr, "reta_setup: rss_reta alloc failed\n");
+        goto error_exit;
+    }
 
-//     if (rss_reta_size > FLEXNIC_PL_MAX_FLOWGROUPS) {
-//         fprintf(stderr,
-//                 "reta_setup: reta size (%u) greater than maximum supported"
-//                 " (%u)\n",
-//                 rss_reta_size, FLEXNIC_PL_MAX_FLOWGROUPS);
-//         abort();
-//     }
+    if (rss_reta_size > FLEXNIC_PL_MAX_FLOWGROUPS) {
+        fprintf(stderr,
+                "reta_setup: reta size (%u) greater than maximum supported"
+                " (%u)\n",
+                rss_reta_size, FLEXNIC_PL_MAX_FLOWGROUPS);
+        abort();
+    }
 
-//     /* initialize reta */
-//     for (i = 0, c = 0; i < rss_reta_size; i++) {
-//         rss_core_buckets[c]++;
-//         rss_reta[i / RTE_RETA_GROUP_SIZE].mask = -1ULL;
-//         rss_reta[i / RTE_RETA_GROUP_SIZE].reta[i % RTE_RETA_GROUP_SIZE] = c;
-//         fp_state->flow_group_steering[i] = c;
-//         c = (c + 1) % fp_cores_cur;
-//     }
+    /* initialize reta */
+    for (i = 0, c = 0; i < rss_reta_size; i++) {
+        rss_core_buckets[c]++;
+        rss_reta[i / RTE_RETA_GROUP_SIZE].mask = -1ULL;
+        rss_reta[i / RTE_RETA_GROUP_SIZE].reta[i % RTE_RETA_GROUP_SIZE] = c;
+        fp_state->flow_group_steering[i] = c;
+        c = (c + 1) % fp_cores_cur;
+    }
 
-//     if (rte_eth_dev_rss_reta_update(net_port_id, rss_reta, rss_reta_size) != 0) {
-//         fprintf(stderr, "reta_setup: rte_eth_dev_rss_reta_update failed\n");
-//         return -1;
-//     }
+    if (rte_eth_dev_rss_reta_update(net_port_id, rss_reta, rss_reta_size) != 0) {
+        fprintf(stderr, "reta_setup: rte_eth_dev_rss_reta_update failed\n");
+        return -1;
+    }
 
-//     return 0;
+    return 0;
 
-// error_exit:
-//     rte_free(rss_core_buckets);
-//     rte_free(rss_reta);
-//     return -1;
-// }
+error_exit:
+    rte_free(rss_core_buckets);
+    rte_free(rss_reta);
+    return -1;
+}
 
-// /* The mlx5 driver by default picks reta size = number of queues. Which is not
-//  * enough for scaling up and down with balanced load. But when updating the reta
-//  * with a larger size, the mlx5 driver resizes the reta.
-//  */
-// static int reta_mlx5_resize(void) {
-//     if (!strcmp(eth_devinfo.driver_name, "net_mlx5")) {
-//         /* for mlx5 we can increase the size with a call to
-//          * rte_eth_dev_rss_reta_update with the target size, so just up the
-//          * reta_sizeo in devinfo so that the reta_setup() call increases it.
-//          */
-//         eth_devinfo.reta_size = 512;
-//     }
+/* The mlx5 driver by default picks reta size = number of queues. Which is not
+ * enough for scaling up and down with balanced load. But when updating the reta
+ * with a larger size, the mlx5 driver resizes the reta.
+ */
+static int reta_mlx5_resize(void) {
+    if (!strcmp(eth_devinfo.driver_name, "net_mlx5")) {
+        /* for mlx5 we can increase the size with a call to
+         * rte_eth_dev_rss_reta_update with the target size, so just up the
+         * reta_sizeo in devinfo so that the reta_setup() call increases it.
+         */
+        eth_devinfo.reta_size = 512;
+    }
 
-//     /* warn if reta is too small */
-//     if (eth_devinfo.reta_size < 128) {
-//         fprintf(stderr,
-//                 "net: RSS redirection table is small (%u), this results in"
-//                 " bad load balancing when scaling down\n",
-//                 eth_devinfo.reta_size);
-//     }
+    /* warn if reta is too small */
+    if (eth_devinfo.reta_size < 128) {
+        fprintf(stderr,
+                "net: RSS redirection table is small (%u), this results in"
+                " bad load balancing when scaling down\n",
+                eth_devinfo.reta_size);
+    }
 
-//     return 0;
-// }
+    return 0;
+}

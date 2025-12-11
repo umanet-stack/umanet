@@ -4,10 +4,12 @@
 
 #include "src/config/config.h"
 #include "src/eth/eth.h"
+#include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 
 #include <generic/rte_cycles.h>
 #include <rte_ethdev.h>
+#include <rte_malloc.h>
 #include <rte_mbuf_core.h>
 
 // receive packets from physical NIC and forward them to a VM
@@ -136,6 +138,23 @@ int switch_worker(void *arg __rte_unused) {
     unsigned lcore_id = rte_lcore_id();
     struct vhost_dev *vdev;
     struct mbuf_table *tx_q;
+    uint16_t id = (uintptr_t)arg;
+
+    struct dataplane_context *ctx;
+
+    /* Allocate fastpath core context */
+    // if ((ctx = rte_zmalloc("fastpath core context", sizeof(*ctx), 0)) == NULL) {
+    //     fprintf(stderr, "Allocating fastpath core context failed\n");
+    //     goto error_alloc;
+    // }
+    // ctxs[id] = ctx;
+    // ctx->id = id;
+
+    /* initialize data plane context */
+    // if (dataplane_context_init(ctx) != 0) {
+    //     fprintf(stderr, "initializing data plane context\n");
+    //     goto error_dpctx;
+    // }
 
     RTE_LOG(INFO, VHOST_DATA, "Procesing on Core %u started\n", lcore_id);
 
@@ -177,4 +196,8 @@ int switch_worker(void *arg __rte_unused) {
     }
 
     return 0;
+
+error_dpctx:
+error_alloc:
+    return -1;
 }

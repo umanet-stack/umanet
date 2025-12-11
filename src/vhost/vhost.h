@@ -5,7 +5,7 @@
 #ifndef _VHOST_H_
 #define _VHOST_H_
 
-#include "main.h"
+#include "../include/tas.h"
 
 /* State of virtio device. */
 #define DEVICE_MAC_LEARNING 0

@@ -43,6 +43,9 @@ typedef struct {
     uint16_t ports[RTE_MAX_ETHPORTS];
     unsigned num_ports; /**< The number of ports specified in command line */
 
+    /* shared memory size */
+    uint64_t shm_len;
+
     /** FP: maximal number of cores used */
     uint32_t fp_cores_max;
     /** FP: interrupts (blocking) enabled */

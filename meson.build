@@ -25,6 +25,9 @@ sources = files(
 	'src/vhost/device.c',
 	'src/vhost/queues.c',
 	'src/vhost/worker.c',
+	'src/fast/network.c',
+	'src/fast/fastemu.c',
+	'src/shm.c',
 )
 
 # Compiler flags

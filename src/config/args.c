@@ -2,8 +2,8 @@
  * Copyright(c) 2010-2017 Intel Corporation
  */
 
+#include "../include/tas.h"
 #include "config.h"
-#include "main.h"
 #include <getopt.h>
 #include <rte_ethdev.h>
 #include <rte_log.h>
@@ -48,6 +48,7 @@ void init_config() {
                         .offloads = DEV_RX_OFFLOAD_VLAN_STRIP,
                     },
             },
+        .shm_len = 1024 * 1024 * 1024,
         .num_ports = 0,
         .fp_cores_max = 1,
         .fp_interrupts = 1,

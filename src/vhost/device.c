@@ -2,7 +2,7 @@
  * Copyright(c) 2010-2017 Intel Corporation
  */
 
-#include "main.h"
+#include "../include/tas.h"
 #include <rte_malloc.h>
 #include <sys/queue.h>
 

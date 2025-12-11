@@ -12,7 +12,7 @@
 #include <rte_log.h>
 #include <rte_vhost.h>
 
-#include "main.h"
+#include "./include/tas.h"
 #include "src/config/config.h"
 #include "src/eth/eth.h"
 #include "src/tcp_state.h"
@@ -31,6 +31,12 @@
 
 /* Configurable number of RX/TX ring descriptors */
 #define RTE_TEST_RX_DESC_DEFAULT 1024
+
+unsigned fp_cores_max;
+volatile unsigned fp_cores_cur = 1;
+volatile unsigned fp_scale_to = 0;
+
+struct dataplane_context **ctxs = NULL;
 
 /*
  * This is a thread will wake up after a period to print stats if the user has
@@ -100,6 +106,8 @@ static void sigint_handler(__rte_unused int signum) {
     exit(0);
 }
 
+static unsigned threads_launched = 0;
+
 /*
  * Main function, does initialisation and calls the per-lcore functions.
  */
@@ -110,6 +118,8 @@ int main(int argc, char *argv[]) {
     uint16_t portid;
     static pthread_t tid;
     uint64_t flags = 0;
+
+    int res = EXIT_SUCCESS;
 
     // Register signal handler for SIGINT (Ctrl+C) (graceful shutdown)
     signal(SIGINT, sigint_handler);
@@ -173,14 +183,23 @@ int main(int argc, char *argv[]) {
     }
 
     // /* initialize eth port */
+    printf("Initializing network ports on cores: ");
+    fflush(stdout);
     if (port_init(config.fp_cores_max) != 0)
         rte_exit(EXIT_FAILURE, "Cannot initialize network ports\n");
 
+    // if (network_init(fp_cores_max) != 0) {
+    //     res = EXIT_FAILURE;
+    //     fprintf(stderr, "network init failed\n");
+    //     rte_exit(EXIT_FAILURE, "network init failed\n");
+    //     // goto error_shm_cleanup;
+    // }
+
     // NEW: Initialize TCP offload subsystem
-    if (tcp_offload_init(128 * 1024) != 0) {
-        rte_exit(EXIT_FAILURE, "Cannot initialize TCP offload\n");
-    }
-    RTE_LOG(INFO, VHOST_CONFIG, "TCP offload initialized (pass-through mode)\n");
+    // if (tcp_offload_init(128 * 1024) != 0) {
+    //     rte_exit(EXIT_FAILURE, "Cannot initialize TCP offload\n");
+    // }
+    // RTE_LOG(INFO, VHOST_CONFIG, "TCP offload initialized (pass-through mode)\n");
 
     /* Enable stats if the user option is set. */
     if (config.enable_stats) {
@@ -189,9 +208,22 @@ int main(int argc, char *argv[]) {
             rte_exit(EXIT_FAILURE, "Cannot create print-stats thread\n");
     }
 
-    /* Launch all data cores. */
+    printf("Launching switch workers on cores: ");
     RTE_LCORE_FOREACH_SLAVE(lcore_id)
     rte_eal_remote_launch(switch_worker, NULL, lcore_id);
+
+    // void *arg;
+    // /* Launch all data cores. */
+    // RTE_LCORE_FOREACH_SLAVE(lcore_id) {
+    //     if (threads_launched < fp_cores_max) {
+    //         arg = (void *)(uintptr_t)threads_launched;
+    //         if (rte_eal_remote_launch(switch_worker, arg, lcore_id) != 0) {
+    //             fprintf(stderr, "ERROR\n");
+    //             return -1;
+    //         }
+    //         threads_launched++;
+    //     }
+    // }
 
     if (config.client_mode)
         flags |= RTE_VHOST_USER_CLIENT;

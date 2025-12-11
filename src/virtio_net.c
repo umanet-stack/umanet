@@ -10,7 +10,7 @@
 #include <rte_memcpy.h>
 #include <rte_vhost.h>
 
-#include "main.h"
+#include "./include/tas.h"
 
 /*
  * A very simple vhost-user net driver implementation, without
