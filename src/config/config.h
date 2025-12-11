@@ -13,8 +13,6 @@ typedef struct {
     int dequeue_zero_copy;
     int builtin_net_driver;
 
-    uint32_t fp_cores_max;
-
     /* mask of enabled ports */
     uint32_t enable_port_mask;
 
@@ -44,6 +42,23 @@ typedef struct {
 
     uint16_t ports[RTE_MAX_ETHPORTS];
     unsigned num_ports; /**< The number of ports specified in command line */
+
+    /** FP: maximal number of cores used */
+    uint32_t fp_cores_max;
+    /** FP: interrupts (blocking) enabled */
+    uint32_t fp_interrupts;
+    /** FP: tcp checksum offload enabled */
+    uint32_t fp_xsumoffload;
+    /** FP: auto scaling enabled */
+    uint32_t fp_autoscale;
+    /** FP: use huge pages for internal and buffer memory */
+    uint32_t fp_hugepages;
+    /** FP: enable vlan stripping */
+    uint32_t fp_vlan_strip;
+    /** FP: polling interval for TAS */
+    uint32_t fp_poll_interval_tas;
+    /** FP: polling interval for app */
+    uint32_t fp_poll_interval_app;
 } config_t;
 
 extern config_t config;

@@ -49,6 +49,14 @@ void init_config() {
                     },
             },
         .num_ports = 0,
+        .fp_cores_max = 1,
+        .fp_interrupts = 1,
+        .fp_xsumoffload = 1,
+        .fp_autoscale = 1,
+        .fp_hugepages = 1,
+        .fp_vlan_strip = 0,
+        .fp_poll_interval_tas = 10000,
+        .fp_poll_interval_app = 10000,
     };
 }
 
