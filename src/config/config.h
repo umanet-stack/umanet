@@ -9,9 +9,9 @@
 
 typedef struct {
     /* ===== vhost-user ===== */
-    int client_mode;
-    int dequeue_zero_copy;
-    int mergeable;
+    uint32_t client_mode;
+    uint32_t dequeue_zero_copy;
+    uint32_t mergeable;
     uint32_t enable_stats;
     /* Enable retries on RX. */
     uint32_t enable_retry;

@@ -13,8 +13,7 @@
 #define BURST_RX_RETRIES 4  /* Number of retries on RX. */
 
 static inline int parse_int32(const char *s, uint32_t *pi);
-static int parse_num_opt(const char *q_arg, uint32_t max_valid_value);
-static int us_vhost_parse_socket_path(config_t *c, const char *q_arg);
+static int parse_socket_path(config_t *c, const char *q_arg);
 
 void init_config(config_t *c) {
     /* ===== vhost-user ===== */
@@ -143,93 +142,59 @@ static void us_vhost_usage(const char *prgname) {
  * Parse the arguments given in the command line of the application.
  */
 int parse_config(config_t *c, int argc, char **argv) {
-    int opt, ret;
+    int opt;
     const char *prgname = argv[0];
 
     while ((opt = getopt_long(argc, argv, "", options, NULL)) != EOF) {
         switch (opt) {
         case CP_RX_RETRY:
-            /* Enable/disable retries on RX. */
-            ret = parse_num_opt(optarg, 1);
-            if (ret == -1) {
+            if (parse_int32(optarg, &c->enable_retry) != 0) {
                 fprintf(stderr, "Invalid argument for rx-retry [0|1]\n");
                 goto failed;
-            } else {
-                c->enable_retry = ret;
             }
             break;
         case CP_TX_CSUM:
-            /* Enable/disable TX checksum offload. */
-            ret = parse_num_opt(optarg, 1);
-            if (ret == -1) {
+            if (parse_int32(optarg, &c->enable_tx_csum) != 0) {
                 fprintf(stderr, "Invalid argument for tx-csum [0|1]\n");
                 goto failed;
-            } else
-                c->enable_tx_csum = ret;
+            }
             break;
-
         case CP_TSO:
-            /* Enable/disable TSO offload. */
-            ret = parse_num_opt(optarg, 1);
-            if (ret == -1) {
+            if (parse_int32(optarg, &c->enable_tso) != 0) {
                 fprintf(stderr, "Invalid argument for tso [0|1]\n");
                 goto failed;
-            } else
-                c->enable_tso = ret;
+            }
             break;
-
         case CP_RX_RETRY_DELAY:
-            /* Specify the retries delay time (in useconds) on RX. */
-            ret = parse_num_opt(optarg, INT32_MAX);
-            if (ret == -1) {
+            if (parse_int32(optarg, &c->burst_rx_delay_time) != 0) {
                 fprintf(stderr, "Invalid argument for rx-retry-delay [0-N]\n");
                 goto failed;
-            } else {
-                c->burst_rx_delay_time = ret;
             }
             break;
-
         case CP_RX_RETRY_NUM:
-            /* Specify the retries number on RX. */
-            ret = parse_num_opt(optarg, INT32_MAX);
-            if (ret == -1) {
+            if (parse_int32(optarg, &c->burst_rx_retry_num) != 0) {
                 fprintf(stderr, "Invalid argument for rx-retry-num [0-N]\n");
                 goto failed;
-            } else {
-                c->burst_rx_retry_num = ret;
             }
             break;
-
         case CP_MERGEABLE:
-            /* Enable/disable RX mergeable buffers. */
-            ret = parse_num_opt(optarg, 1);
-            if (ret == -1) {
+            if (parse_int32(optarg, &c->mergeable) != 0) {
                 fprintf(stderr, "Invalid argument for mergeable [0|1]\n");
                 goto failed;
-            } else {
-                c->mergeable = !!ret;
             }
             break;
-
         case CP_STATS:
-            /* Enable/disable stats. */
-            ret = parse_num_opt(optarg, INT32_MAX);
-            if (ret == -1) {
-                fprintf(stderr, "Invalid argument for stats [0..N]\n");
+            if (parse_int32(optarg, &c->enable_stats) != 0) {
+                fprintf(stderr, "Invalid argument for stats [0-N]\n");
                 goto failed;
-            } else {
-                c->enable_stats = ret;
             }
             break;
-
         case CP_SOCKET_FILE:
-            /* Set socket file path. */
-            if (us_vhost_parse_socket_path(c, optarg) == -1) {
+            if (parse_socket_path(c, optarg) == -1) {
                 fprintf(stderr, "Invalid argument for socket name (Max %d characters)\n", PATH_MAX);
                 goto failed;
             }
             break;
-
         case CP_FP_CORES_MAX:
             if (parse_int32(optarg, &c->fp_cores_max) != 0) {
                 fprintf(stderr, "Invalid argument for fp-cores-max [0-N]\n");
@@ -265,31 +230,7 @@ static inline int parse_int32(const char *s, uint32_t *pi) {
     return 0;
 }
 
-/*
- * Parse num options at run time.
- */
-// Generic parser for numeric options with range validation.
-static int parse_num_opt(const char *q_arg, uint32_t max_valid_value) {
-    char *end = NULL;
-    unsigned long num;
-
-    errno = 0;
-
-    /* parse unsigned int string */
-    num = strtoul(q_arg, &end, 10);
-    if ((q_arg[0] == '\0') || (end == NULL) || (*end != '\0') || (errno != 0))
-        return -1;
-
-    if (num > max_valid_value)
-        return -1;
-
-    return num;
-}
-
-/*
- * Set socket file path.
- */
-static int us_vhost_parse_socket_path(config_t *c, const char *q_arg) // path e.g. /tmp/vhost-user.sock
+static int parse_socket_path(config_t *c, const char *q_arg) // path e.g. /tmp/vhost-user.sock
 {
     char *old;
 
