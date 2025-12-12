@@ -131,41 +131,8 @@ static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rt
     return 0;
 }
 
-/*
- * Check if the destination MAC of a packet is one local VM,
- * and get its vlan tag, and offset if it is.
- */
-static __rte_always_inline int find_local_dest(struct vhost_dev *vdev, struct rte_mbuf *m, uint32_t *offset,
-                                               uint16_t *vlan_tag) {
-    struct vhost_dev *dst_vdev;
-    struct rte_ether_hdr *pkt_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-
-    dst_vdev = find_vhost_dev(&pkt_hdr->d_addr);
-    if (!dst_vdev)
-        return 0;
-
-    if (vdev->vid == dst_vdev->vid) {
-        RTE_LOG_DP(DEBUG, VHOST_DATA, "(%d) TX: src and dst MAC is same. Dropping packet.\n", vdev->vid);
-        return -1;
-    }
-
-    /*
-     * HW vlan strip will reduce the packet length
-     * by minus length of vlan tag, so need restore
-     * the packet length by plus it.
-     */
-    *offset = VLAN_HLEN;
-    *vlan_tag = eth.vlan_tags[vdev->vid];
-
-    RTE_LOG_DP(DEBUG, VHOST_DATA, "(%d) TX: pkt to local VM device id: (%d), vlan tag: %u.\n", vdev->vid, dst_vdev->vid,
-               *vlan_tag);
-
-    return 0;
-}
-
-static uint16_t
 // pseudo header checksum
-get_psd_sum(void *l3_hdr, uint64_t ol_flags) {
+static uint16_t get_psd_sum(void *l3_hdr, uint64_t ol_flags) {
     if (ol_flags & PKT_TX_IPV4)
         return rte_ipv4_phdr_cksum(l3_hdr, ol_flags);
     else /* assume ethertype == RTE_ETHER_TYPE_IPV6 */
@@ -217,7 +184,6 @@ void do_drain_mbuf_table(struct mbuf_table *tx_q) {
 // determines where to send packet from VM to NIC or another VM
 void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, uint16_t vlan_tag) {
     struct mbuf_table *tx_q;
-    unsigned offset = 0;
     const uint16_t lcore_id = rte_lcore_id(); // current core (each core has its own tx queue)
     struct rte_ether_hdr *nh;
 
@@ -233,17 +199,9 @@ void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, uint16_t vlan_t
     }
 
     /*check if destination is local VM (same host)*/
-    if ((config.vm2vm_mode == VM2VM_SOFTWARE) && (virtio_tx_local(vdev, m) == 0)) {
+    if (virtio_tx_local(vdev, m) == 0) {
         rte_pktmbuf_free(m); //  If delivered locally, free the mbuf (no need to send to NIC)
         return;
-    }
-
-    if (unlikely(config.vm2vm_mode == VM2VM_HARDWARE)) { // uses NIC hardware for VM switching via VLANs
-        if (unlikely(find_local_dest(vdev, m, &offset, &vlan_tag) != 0)) {
-            // destination lookup fails (non-zero return)
-            rte_pktmbuf_free(m);
-            return;
-        }
     }
 
     RTE_LOG_DP(DEBUG, VHOST_DATA, "(%d) TX: MAC address is external\n", vdev->vid);
@@ -256,35 +214,10 @@ queue2nic:
 
     nh = rte_pktmbuf_mtod(
         m, struct rte_ether_hdr *); // Re-extract Ethernet header (might have been modified in VM2VM processing)
-    if (unlikely(nh->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))) {
-        // if packet already has a VLAN tag
-        /* Guest has inserted the vlan tag. */
-        struct rte_vlan_hdr *vh = (struct rte_vlan_hdr *)(nh + 1); // VLAN header
-        uint16_t vlan_tag_be = rte_cpu_to_be_16(vlan_tag);         // Convert VLAN tag to big-endian
-        if ((config.vm2vm_mode == VM2VM_HARDWARE) && (vh->vlan_tci != vlan_tag_be))
-            vh->vlan_tci = vlan_tag_be;
-    } else {                            // packet doesn't have VLAN tag yet
+    if (unlikely(nh->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))) {
+        // packet doesn't have VLAN tag yet
         m->ol_flags |= PKT_TX_VLAN_PKT; // offload flag indicating NIC should insert VLAN tag
-
-        /*
-         * Find the right seg to adjust the data len when offset is
-         * bigger than tail room size.
-         */
-        if (unlikely(config.vm2vm_mode == VM2VM_HARDWARE)) {
-            if (likely(offset <= rte_pktmbuf_tailroom(m)))
-                m->data_len += offset;
-            else {
-                struct rte_mbuf *seg = m;
-
-                while ((seg->next != NULL) && (offset > rte_pktmbuf_tailroom(seg)))
-                    seg = seg->next;
-
-                seg->data_len += offset;
-            }
-            m->pkt_len += offset;
-        }
-
-        m->vlan_tci = vlan_tag; // Tag Control Information
+        m->vlan_tci = vlan_tag;         // Tag Control Information
     }
 
     if (m->ol_flags & PKT_TX_TCP_SEG) // if TCP segmentation offload is enabled

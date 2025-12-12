@@ -20,7 +20,6 @@ typedef struct {
     uint32_t promiscuous;
     int mergeable;
 
-    vm2vm_type vm2vm_mode;
     uint32_t enable_stats;
     /* Enable retries on RX. */
     uint32_t enable_retry;

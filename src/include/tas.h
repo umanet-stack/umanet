@@ -28,7 +28,6 @@
 #include "../../include/packet_defs.h"
 #include "../../include/tas_memif.h"
 #include "../config/config.h"
-#include <stdio.h>
 
 /** @addtogroup tas
  *  @brief TAS.

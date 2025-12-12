@@ -29,7 +29,6 @@ config_t config;
 void init_config() {
     config = (config_t){
         .enable_port_mask = 0,
-        .vm2vm_mode = VM2VM_SOFTWARE,
         .enable_stats = 0,
         .enable_retry = 1,
         .burst_rx_delay_time = BURST_RX_WAIT_US,
@@ -50,7 +49,6 @@ void init_config() {
 enum cfg_params {
     CP_PORTMASK,
     CP_PROMISCIOUS,
-    CP_VM2VM,
     CP_RX_RETRY,
     CP_RX_RETRY_DELAY,
     CP_RX_RETRY_NUM,
@@ -75,11 +73,6 @@ static struct option options[] = {
         "promiscuous",
         no_argument,
         .val = CP_PROMISCIOUS,
-    },
-    {
-        "vm2vm",
-        required_argument,
-        .val = CP_VM2VM,
     },
     {
         "rx-retry",
@@ -179,17 +172,6 @@ int parse_config(config_t *c, int argc, char **argv) {
 
         case CP_PROMISCIOUS:
             c->promiscuous = 1;
-            break;
-
-        case CP_VM2VM:
-            /* Enable/disable vm2vm comms. */
-            ret = parse_num_opt(optarg, (VM2VM_LAST - 1));
-            if (ret == -1) {
-                fprintf(stderr, "Invalid argument for vm2vm [0|1|2]\n");
-                goto failed;
-            } else {
-                c->vm2vm_mode = (vm2vm_type)ret;
-            }
             break;
 
         case CP_RX_RETRY:
