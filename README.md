@@ -2,9 +2,6 @@
 ## Prerequisites
 - use Linux (some syscalls in code are Linux-only)
 
-## What vhost-switch does
-**vhost-switch** is a DPDK-based vhost-user backend that acts as a **high-performance network switch** for VMs:
-
 1. **VM-to-VM communication**: Forwards packets between VMs based on MAC addresses (software switching)
 2. **VM-to-Physical NIC**: Forwards packets from VMs to the physical network interface
 3. **Physical NIC-to-VM**: Receives packets from the physical NIC and delivers them to the appropriate VM
@@ -25,6 +22,7 @@ The switch worker loop continuously:
 ./setup/init.sh
 ./setup/create-cloud-init.sh
 ./setup/init-dpdk.sh
+# reserve and mount hugepages
 
 # reserve hugepages
 # 2048 × 2 MB = 4 GB mem for hugepages
@@ -32,10 +30,9 @@ sudo sysctl -w vm.nr_hugepages=2048
 grep Huge /proc/meminfo
 
 # mount hugepage FS
-sudo mkdir -p /mnt/huge
-sudo mount -t hugetlbfs nodev /mnt/huge
+sudo mount -t hugetlbfs nodev /dev/hugepages
 
-# /dev/hugepages is default, we use /mnt/huge
+# check mounts
 mount | grep huge
 
 # load VFIO kernel modules
@@ -44,22 +41,16 @@ sudo modprobe vfio-pci
 lsmod | grep vfio
 sudo dmesg | grep -e DMAR -e IOMMU
 
+# check NICs
 sudo dpdk-devbind.py --status
 
 # unmount
-sudo umount -l /mnt/huge
+sudo umount -l /dev/hugepages
 
 # Clean up any leftover hugepage files from previous runs
 sudo umount -l /mnt/huge
 sudo rm -f /mnt/huge/*
 sudo rm -rf /dev/shm/rte_* # remove shm
-```
-
-### TAS migration hugepage allocation
-```bash
-sudo mount -t hugetlbfs nodev /dev/hugepages
-
-# Clean up any leftover hugepage files from previous runs
 sudo rm -f /dev/hugepages/tas_memory
 ```
 
@@ -69,32 +60,17 @@ sudo rm -f /dev/hugepages/tas_memory
 # c6525-25g nodes
 sudo ./run.sh 0000:41:00.0
 
+# kill process
 sudo ps aux | grep vhost-switch | grep -v grep | awk '{print $2}' | xargs kill -9
-
-# Run vhost-switch (vhost-user networking switch)
-# EAL options (before --): -l cores, -n memory channels
-# Application options (after --): --portmask, --socket-file path, --stats interval
-#
-# Note: For Mellanox NICs, binding is not required (bifurcated driver model).
-# However, use -w (whitelist) or -b (blacklist) to avoid DPDK using your SSH NIC:
-sudo ./build/vhost-switch \
-  -l 2-3 -n 4 \
-  --file-prefix=vhost \
-  -w 0000:41:00.0 \  # Whitelist: only use this NIC (replace with your desired NIC PCI address)
-  -b 0000:01:00.0 \  # Blacklist: exclude this NIC (replace with your SSH NIC PCI address)
-  -- --portmask 0x1 --socket-file /mnt/huge/sock0 --stats 1
 
 # Or install and run from PATH
 sudo ninja -C build install
 sudo vhost-switch -l 2-3 -n 4 -b 0000:01:00.0 -- --portmask 0x1 --socket-file /mnt/huge/sock0 --stats 1
-
-# watch: doesn't clean up /mnt/huge/sock0
-# find src include -name '*.c' -o -name '*.h' -o -name 'meson.build' | \
-# entr -cr sh -c "ninja -C build && sudo ./build/vhost-switch -l 2-3 -n 4 --file-prefix=vhost -- --portmask 0x1 --socket-file /mnt/huge/sock0 --stats 1"
 ```
-- **EAL options** (before `--`): `-l` cores, `-n` memory channels, `--huge-dir`, `--file-prefix`, etc.
-- **Application options** (after `--`): `--portmask`, `--socket-file` path, `--stats` interval, etc.
 
+## Development
+- `./run.sh` to check it builds and runs
+- spin up a CH VM to test the TCP stack works
 ```bash
 sudo cloud-hypervisor \
   --cpus boot=1 \
