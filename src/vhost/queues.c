@@ -40,18 +40,10 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
             vdev->mac_address.addr_bytes[3], vdev->mac_address.addr_bytes[4], vdev->mac_address.addr_bytes[5],
             vdev->vlan_tag);
 
-    /* Register the MAC address. */
-    if (eth.vmdq_enabled) {
-        ret = rte_eth_dev_mac_addr_add(config.ports[0], &vdev->mac_address, (uint32_t)vdev->vid + eth.vmdq_pool_base);
-        if (ret)
-            RTE_LOG(ERR, VHOST_DATA, "(%d) failed to add device MAC address to VMDQ\n", vdev->vid);
-        rte_eth_dev_set_vlan_strip_on_queue(config.ports[0], vdev->vmdq_rx_q, 1);
-    } else {
-        /* In non-VMDq mode, just register MAC address without pool */
-        ret = rte_eth_dev_mac_addr_add(config.ports[0], &vdev->mac_address, 0);
-        if (ret)
-            RTE_LOG(ERR, VHOST_DATA, "(%d) failed to add device MAC address\n", vdev->vid);
-    }
+    /* Register the MAC address without pool */
+    ret = rte_eth_dev_mac_addr_add(config.ports[0], &vdev->mac_address, 0);
+    if (ret)
+        RTE_LOG(ERR, VHOST_DATA, "(%d) failed to add device MAC address\n", vdev->vid);
 
     /* Set device as ready for RX. */
     // Changes state from DEVICE_MAC_LEARNING to DEVICE_RX

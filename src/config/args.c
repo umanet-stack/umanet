@@ -34,20 +34,6 @@ void init_config() {
         .enable_retry = 1,
         .burst_rx_delay_time = BURST_RX_WAIT_US,
         .burst_rx_retry_num = BURST_RX_RETRIES,
-        .vmdq_conf_default =
-            &(struct rte_eth_conf){
-                .rxmode =
-                    {
-                        .mq_mode = ETH_MQ_RX_VMDQ_ONLY,
-                        .split_hdr_size = 0,
-                        /*
-                         * VLAN strip is necessary for 1G NIC such as I350,
-                         * this fixes bug of ipv4 forwarding in guest can't
-                         * forward pakets from one virtio dev to another virtio dev.
-                         */
-                        .offloads = DEV_RX_OFFLOAD_VLAN_STRIP,
-                    },
-            },
         .shm_len = 1024 * 1024 * 1024,
         .num_ports = 0,
         .fp_cores_max = 1,
@@ -193,8 +179,6 @@ int parse_config(config_t *c, int argc, char **argv) {
 
         case CP_PROMISCIOUS:
             c->promiscuous = 1;
-            c->vmdq_conf_default->rx_adv_conf.vmdq_rx_conf.rx_mode =
-                ETH_VMDQ_ACCEPT_BROADCAST | ETH_VMDQ_ACCEPT_MULTICAST;
             break;
 
         case CP_VM2VM:
@@ -268,10 +252,6 @@ int parse_config(config_t *c, int argc, char **argv) {
                 goto failed;
             } else {
                 c->mergeable = !!ret;
-                if (ret) {
-                    c->vmdq_conf_default->rxmode.offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
-                    c->vmdq_conf_default->rxmode.max_rx_pkt_len = JUMBO_FRAME_MAX_SIZE;
-                }
             }
             break;
 

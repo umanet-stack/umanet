@@ -9,8 +9,6 @@
 #include <stdint.h>
 
 typedef struct {
-    int vmdq_enabled; /* Flag to indicate if VMDq is available */
-
     /* number of devices/queues to support*/
     uint32_t num_queues;
     uint32_t num_devices;
@@ -18,8 +16,6 @@ typedef struct {
     struct rte_mempool *mbuf_pool;
 
     uint16_t num_pf_queues;
-    uint16_t num_vmdq_queues;
-    uint16_t vmdq_pool_base;
     uint16_t vmdq_queue_base;
     uint16_t queues_per_pool;
 

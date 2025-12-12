@@ -178,12 +178,6 @@ int main(int argc, char *argv[]) {
     create_mbuf_pool(valid_num_ports, rte_lcore_count() - 1, MBUF_DATA_SIZE, MAX_QUEUES, RTE_TEST_RX_DESC_DEFAULT,
                      MBUF_CACHE_SIZE);
 
-    if (config.vm2vm_mode == VM2VM_HARDWARE) {
-        /* Enable VT loop back to let L2 switch to do it. */
-        config.vmdq_conf_default->rx_adv_conf.vmdq_rx_conf.enable_loop_back = 1;
-        RTE_LOG(DEBUG, VHOST_CONFIG, "Enable loop back for L2 switch in vmdq.\n");
-    }
-
     // /* initialize eth port */
     printf("Initializing network ports on cores: ");
     fflush(stdout);

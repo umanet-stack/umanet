@@ -37,9 +37,6 @@ typedef struct {
     char *socket_files;
     int nb_sockets;
 
-    /* empty vmdq configuration structure. Filled in programatically */
-    struct rte_eth_conf *vmdq_conf_default;
-
     uint16_t ports[RTE_MAX_ETHPORTS];
     unsigned num_ports; /**< The number of ports specified in command line */
 
