@@ -128,7 +128,6 @@ int main(int argc, char *argv[]) {
     unsigned lcore_id, core_id = 0;
     unsigned nb_ports, valid_num_ports;
     int ret, i;
-    uint16_t portid;
     static pthread_t tid;
     uint64_t flags = 0;
 
@@ -205,20 +204,6 @@ int main(int argc, char *argv[]) {
                 config.num_ports, MAX_SUP_PORTS);
         return -1;
     }
-
-    /*
-     * FIXME: here we are trying to allocate mbufs big enough for
-     * @MAX_QUEUES, but the truth is we're never going to use that
-     * many queues here. We probably should only do allocation for
-     * those queues we are going to use.
-     */
-    // number of worker cores (minus master core)
-    // create_mbuf_pool(valid_num_ports, rte_lcore_count() - 1, MBUF_DATA_SIZE, MAX_QUEUES, RTE_TEST_RX_DESC_DEFAULT,
-    //                  MBUF_CACHE_SIZE);
-
-    // /* initialize eth port */
-    // if (port_init(config.fp_cores_max) != 0)
-    //     rte_exit(EXIT_FAILURE, "Cannot initialize network ports\n");
 
     // Sets up RX/TX queues per core
     // Initializes ARP, routing tables

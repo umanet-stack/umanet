@@ -38,8 +38,6 @@ extern vhost_state_t vhost;
 extern const struct vhost_device_ops virtio_net_device_ops;
 
 struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac);
-void create_mbuf_pool(uint16_t nr_port, uint32_t nr_switch_core, uint32_t mbuf_size, uint32_t nr_queues,
-                      uint32_t nr_rx_desc, uint32_t nr_mbuf_cache);
 void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, uint16_t vlan_tag);
 int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m);
 void unlink_vmdq(struct vhost_dev *vdev);
