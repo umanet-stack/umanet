@@ -16,7 +16,7 @@
 #include "./config/config.h"
 #include "./include/tas.h"
 #include "src/eth/eth.h"
-#include "src/tcp_state.h"
+#include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 #include "tcp_fastpath.h"
 
@@ -39,8 +39,9 @@ volatile unsigned fp_scale_to = 0;
 
 struct dataplane_context **ctxs = NULL;
 
-// static int start_threads(void);
-// static int common_thread(void *arg);
+static int start_threads(void);
+static void thread_error(void);
+static int common_thread(void *arg);
 
 /*
  * This is a thread will wake up after a period to print stats if the user has
@@ -133,21 +134,28 @@ int main(int argc, char *argv[]) {
 
     /* allocate shared memory before dpdk grabs all huge pages */
     if (shm_preinit() != 0) {
+        fprintf(stderr, "shm preinit failed\n");
         res = EXIT_FAILURE;
         goto error_exit;
     }
 
-    /* init EAL (Environment Abstraction Layer) */
+    /* init DPDK EAL (Environment Abstraction Layer) */
+    rte_log_set_global_level(RTE_LOG_ERR);
     ret = rte_eal_init(argc, argv); // Parses DPDK-specific arguments (--lcores, --huge-dir, etc.)
-    if (ret < 0)
-        rte_exit(EXIT_FAILURE, "Error with EAL initialization\n");
+    if (ret < 0) {
+        fprintf(stderr, "dpdk init failed\n");
+        res = EXIT_FAILURE;
+        goto error_exit;
+    }
     argc -= ret; // Update argc to exclude DPDK-specific arguments
     argv += ret;
 
     /* parse app arguments */
-    ret = parse_config(&config, argc, argv);
-    if (ret < 0)
-        rte_exit(EXIT_FAILURE, "Invalid argument\n");
+    if (parse_config(&config, argc, argv) != 0) {
+        fprintf(stderr, "invalid argument\n");
+        res = EXIT_FAILURE;
+        goto error_exit;
+    }
     socket_num = config.nb_sockets;
     socket_files = config.socket_files;
     fp_cores_max = config.fp_cores_max;
@@ -195,18 +203,25 @@ int main(int argc, char *argv[]) {
     if (port_init(config.fp_cores_max) != 0)
         rte_exit(EXIT_FAILURE, "Cannot initialize network ports\n");
 
+    // Sets up RX/TX queues per core
+    // Initializes ARP, routing tables
     // if (network_init(fp_cores_max) != 0) {
     //     res = EXIT_FAILURE;
     //     fprintf(stderr, "network init failed\n");
-    //     rte_exit(EXIT_FAILURE, "network init failed\n");
-    //     // goto error_shm_cleanup;
+    //     goto error_shm_cleanup;
     // }
 
-    // NEW: Initialize TCP offload subsystem
-    // if (tcp_offload_init(128 * 1024) != 0) {
-    //     rte_exit(EXIT_FAILURE, "Cannot initialize TCP offload\n");
+    // // just check if config ok
+    // if (dataplane_init() != 0) {
+    //     res = EXIT_FAILURE;
+    //     fprintf(stderr, "dpinit failed\n");
+    //     goto error_network_cleanup;
     // }
-    // RTE_LOG(INFO, VHOST_CONFIG, "TCP offload initialized (pass-through mode)\n");
+
+    // Mark System Ready
+    // Sets flag in shared memory indicating TAS is ready
+    // Applications waiting to connect to TAS can now proceed
+    // shm_set_ready();
 
     /* Enable stats if the user option is set. */
     if (config.enable_stats) {
@@ -292,6 +307,109 @@ int main(int argc, char *argv[]) {
 
     return 0;
 
+error_network_cleanup:
+    network_cleanup();
+error_shm_cleanup:
+    shm_cleanup();
 error_exit:
     return res;
 }
+
+static int common_thread(void *arg) {
+    uint16_t id = (uintptr_t)arg;
+    struct dataplane_context *ctx;
+
+    {
+        char name[17];
+        snprintf(name, sizeof(name), "stcp-fp-%u", id);
+        pthread_setname_np(pthread_self(), name);
+    }
+
+    /* Allocate fastpath core context */
+    if ((ctx = rte_zmalloc("fastpath core context", sizeof(*ctx), 0)) == NULL) {
+        fprintf(stderr, "Allocating fastpath core context failed\n");
+        goto error_alloc;
+    }
+    ctxs[id] = ctx;
+    ctx->id = id;
+
+    /* initialize trace if enabled */
+#ifdef FLEXNIC_TRACING
+    if (trace_thread_init(id) != 0) {
+        fprintf(stderr, "initializing trace failed\n");
+        goto error_trace;
+    }
+#endif
+
+    /* initialize data plane context */
+    if (dataplane_context_init(ctx) != 0) {
+        fprintf(stderr, "initializing data plane context\n");
+        goto error_dpctx;
+    }
+
+    /* poll doorbells and network */
+    dataplane_loop(ctx);
+
+    dataplane_context_destroy(ctx);
+    return 0;
+
+error_dpctx:
+#ifdef FLEXNIC_TRACING
+error_trace:
+#endif
+    dataplane_context_destroy(ctx);
+error_alloc:
+    thread_error();
+    return -1;
+}
+
+static int start_threads(void) {
+    unsigned cores_avail, cores_needed, core;
+    void *arg;
+
+    cores_avail = rte_lcore_count();
+    /* fast path cores + one slow path core */
+    cores_needed = fp_cores_max + 1;
+
+    if ((ctxs = rte_calloc("context list", fp_cores_max, sizeof(*ctxs), 64)) == NULL) {
+        perror("datplane_init: calloc failed");
+        return -1;
+    }
+
+    /* check that we have enough cores */
+    if (cores_avail < cores_needed) {
+        fprintf(stderr, "Not enough cores: got %u need %u\n", cores_avail, cores_needed);
+        return -1;
+    }
+
+    /* start common threads */
+    RTE_LCORE_FOREACH_SLAVE(core) {
+        if (threads_launched < fp_cores_max) {
+            arg = (void *)(uintptr_t)threads_launched;
+            if (rte_eal_remote_launch(common_thread, arg, core) != 0) {
+                fprintf(stderr, "ERROR\n");
+                return -1;
+            }
+            threads_launched++;
+        }
+    }
+
+    return 0;
+}
+
+static void thread_error(void) {
+    fprintf(stderr, "thread_error\n");
+    abort();
+}
+
+// int flexnic_scale_to(uint32_t cores) {
+//     if (fp_scale_to != 0) {
+//         fprintf(stderr, "flexnic_scale_to: already scaling\n");
+//         return -1;
+//     }
+
+//     fp_scale_to = cores;
+
+//     notify_fastpath_core(0);
+//     return 0;
+// }
