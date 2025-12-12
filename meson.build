@@ -19,7 +19,6 @@ sources = files(
 	'src/tcp_state.c',
 	'src/tcp_fastpath.c',
 	'src/main.c',
-	'src/virtio_net.c',
 	'src/config/args.c',
 	'src/eth/port.c',
 	'src/vhost/device.c',

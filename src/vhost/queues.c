@@ -88,13 +88,8 @@ void unlink_vmdq(struct vhost_dev *vdev) {
 static __rte_always_inline void virtio_xmit(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev,
                                             struct rte_mbuf *m) {
     uint16_t ret;
-
-    if (config.builtin_net_driver) {
-        // dpdk to vm
-        ret = vs_enqueue_pkts(dst_vdev, VIRTIO_RXQ, &m, 1);
-    } else {
-        ret = rte_vhost_enqueue_burst(dst_vdev->vid, VIRTIO_RXQ, &m, 1);
-    }
+    // dpdk to vm
+    ret = rte_vhost_enqueue_burst(dst_vdev->vid, VIRTIO_RXQ, &m, 1);
 
     // dest stats use atomic operations (multiple cores may write)
     // source stats don't (single core writes)

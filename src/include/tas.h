@@ -162,11 +162,4 @@ struct lcore_info {
 /* we implement non-extra virtio net features (0 = no extra features) */
 #define VIRTIO_NET_FEATURES 0
 
-// vs = vhost-server
-void vs_vhost_net_setup(struct vhost_dev *dev);
-void vs_vhost_net_remove(struct vhost_dev *dev);
-uint16_t vs_enqueue_pkts(struct vhost_dev *dev, uint16_t queue_id, struct rte_mbuf **pkts, uint32_t count);
-
-uint16_t vs_dequeue_pkts(struct vhost_dev *dev, uint16_t queue_id, struct rte_mempool *mbuf_pool,
-                         struct rte_mbuf **pkts, uint16_t count);
 #endif /* ndef TAS_H_ */

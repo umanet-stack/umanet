@@ -22,12 +22,8 @@ static __rte_always_inline void drain_eth_rx(struct vhost_dev *vdev) {
     if (!rx_count)
         return;
 
-    if (config.builtin_net_driver) {
-        // send packets to guest virtio RX ring
-        enqueue_count = vs_enqueue_pkts(vdev, VIRTIO_RXQ, pkts, rx_count);
-    } else {
-        enqueue_count = rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, pkts, rx_count);
-    }
+    // send packets to guest virtio RX ring
+    enqueue_count = rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, pkts, rx_count);
 
     /* Retry if necessary */
     if (config.enable_retry && unlikely(enqueue_count < rx_count)) {
@@ -35,12 +31,8 @@ static __rte_always_inline void drain_eth_rx(struct vhost_dev *vdev) {
 
         while (enqueue_count < rx_count && retry++ < config.burst_rx_retry_num) { // max 4 retries
             rte_delay_us(config.burst_rx_delay_time);
-            if (config.builtin_net_driver) {
-                enqueue_count += vs_enqueue_pkts(vdev, VIRTIO_RXQ, &pkts[enqueue_count], rx_count - enqueue_count);
-            } else {
-                enqueue_count +=
-                    rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, &pkts[enqueue_count], rx_count - enqueue_count);
-            }
+            enqueue_count +=
+                rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, &pkts[enqueue_count], rx_count - enqueue_count);
         }
     }
 
@@ -58,12 +50,8 @@ static __rte_always_inline void drain_virtio_tx(struct vhost_dev *vdev) {
     uint16_t count;
     uint16_t i;
 
-    if (config.builtin_net_driver) {
-        // copy pkt from guest vring buffer to DPDK mbuf
-        count = vs_dequeue_pkts(vdev, VIRTIO_TXQ, eth.mbuf_pool, pkts, MAX_PKT_BURST);
-    } else {
-        count = rte_vhost_dequeue_burst(vdev->vid, VIRTIO_TXQ, eth.mbuf_pool, pkts, MAX_PKT_BURST);
-    }
+    // copy pkt from guest vring buffer to DPDK mbuf (vm -> dpdk)
+    count = rte_vhost_dequeue_burst(vdev->vid, VIRTIO_TXQ, eth.mbuf_pool, pkts, MAX_PKT_BURST);
 
     /* setup VMDq for the first packet */
     if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) { // device in MAC learning

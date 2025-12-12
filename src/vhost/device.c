@@ -6,7 +6,6 @@
 #include <rte_malloc.h>
 #include <sys/queue.h>
 
-#include "src/config/config.h"
 #include "src/eth/eth.h"
 #include "src/vhost/vhost.h"
 
@@ -46,9 +45,6 @@ static void destroy_device(int vid) {
     while (vdev->ready != DEVICE_SAFE_REMOVE) {
         rte_pause();
     }
-
-    if (config.builtin_net_driver)
-        vs_vhost_net_remove(vdev);
 
     // Remove device from its assigned lcore's device list
     TAILQ_REMOVE(&vhost.lcore_info[vdev->coreid].vdev_list, vdev, lcore_vdev_entry);
@@ -94,9 +90,6 @@ static int new_device(int vid) {
         return -1;
     }
     vdev->vid = vid;
-
-    if (config.builtin_net_driver)
-        vs_vhost_net_setup(vdev);
 
     TAILQ_INSERT_TAIL(&vhost.vhost_dev_list, vdev, global_vdev_entry);
     // Calculate VMDq RX queue number for this device
