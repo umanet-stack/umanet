@@ -141,3 +141,51 @@ void unregister_vhost_drivers(int socket_num, const char *path) {
             RTE_LOG(ERR, VHOST_CONFIG, "Fail to unregister vhost driver for %s.\n", path + i * PATH_MAX);
     }
 }
+
+int register_vhost_drivers() {
+    uint64_t flags = 0;
+
+    if (config.client_mode)
+        flags |= RTE_VHOST_USER_CLIENT;
+
+    if (config.dequeue_zero_copy)
+        flags |= RTE_VHOST_USER_DEQUEUE_ZERO_COPY;
+
+    /* Register vhost user driver to handle vhost messages. */
+    for (int i = 0; i < config.nb_sockets; i++) {
+        char *file = config.socket_files + i * PATH_MAX;
+        printf("Registering vhost driver for %s...\n", file);
+        if (rte_vhost_driver_register(file, flags) != 0) {
+            unregister_vhost_drivers(i, config.socket_files);
+            return -1;
+        }
+
+        if (config.mergeable == 0) {
+            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_MRG_RXBUF);
+        }
+
+        if (config.enable_tx_csum == 0) {
+            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_CSUM);
+        }
+
+        if (config.enable_tso == 0) {
+            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO4);
+            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO6);
+            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO4);
+            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO6);
+        }
+
+        if (rte_vhost_driver_callback_register(file, &virtio_net_device_ops) != 0) {
+            printf("failed to register vhost driver callbacks.\n");
+            return -1;
+        }
+
+        if (rte_vhost_driver_start(file) < 0) {
+            printf("failed to start vhost driver.\n");
+            return -1;
+        }
+    }
+
+    printf("Vhost drivers started, waiting for connections...\n");
+    return 0;
+}

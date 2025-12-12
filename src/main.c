@@ -88,11 +88,7 @@ static unsigned threads_launched = 0;
 
 int main(int argc, char *argv[]) {
     int res = EXIT_SUCCESS;
-
     unsigned lcore_id, core_id = 0;
-    int ret, i;
-    static pthread_t tid;
-    uint64_t flags = 0;
 
     // Register signal handler for SIGINT (Ctrl+C) (graceful shutdown)
     signal(SIGINT, sigint_handler);
@@ -109,14 +105,14 @@ int main(int argc, char *argv[]) {
 
     /* init DPDK EAL (Environment Abstraction Layer) */
     rte_log_set_global_level(RTE_LOG_ERR);
-    ret = rte_eal_init(argc, argv); // Parses DPDK-specific arguments (--lcores, --huge-dir, etc.)
-    if (ret < 0) {
+    int dpdk_args = rte_eal_init(argc, argv); // Parses DPDK-specific arguments (--lcores, --huge-dir, etc.)
+    if (dpdk_args < 0) {
         fprintf(stderr, "dpdk init failed\n");
         res = EXIT_FAILURE;
         goto error_exit;
     }
-    argc -= ret; // Update argc to exclude DPDK-specific arguments
-    argv += ret;
+    argc -= dpdk_args; // Update argc to exclude DPDK-specific arguments
+    argv += dpdk_args;
 
     /* parse app arguments */
     if (parse_config(&config, argc, argv) != 0) {
@@ -148,9 +144,6 @@ int main(int argc, char *argv[]) {
             vhost.lcore_ids[core_id++] = lcore_id;
     }
 
-    if (rte_lcore_count() > RTE_MAX_LCORE)
-        rte_exit(EXIT_FAILURE, "Not enough cores\n");
-
     // Sets up RX/TX queues per core, initializes ARP, routing tables
     printf("Initializing network...\n");
     if (network_init(fp_cores_max) != 0) {
@@ -166,17 +159,14 @@ int main(int argc, char *argv[]) {
         goto error_network_cleanup;
     }
 
-    // Mark System Ready
-    // Sets flag in shared memory indicating TAS is ready
-    // Applications waiting to connect to TAS can now proceed
+    // Sets flag in shared memory indicating TAS is ready, app waiting to connect can now proceed
     printf("Marking shm ready...\n");
     shm_set_ready();
 
     /* Enable stats if the user option is set. */
-    if (config.enable_stats) {
-        ret = rte_ctrl_thread_create(&tid, "print-stats", NULL, print_stats, NULL);
-        if (ret < 0)
-            rte_exit(EXIT_FAILURE, "Cannot create print-stats thread\n");
+    static pthread_t tid;
+    if (config.enable_stats && rte_ctrl_thread_create(&tid, "print-stats", NULL, print_stats, NULL) < 0) {
+        rte_exit(EXIT_FAILURE, "Cannot create print-stats thread\n");
     }
 
     // Start worker threads BEFORE vhost registration
@@ -188,54 +178,15 @@ int main(int argc, char *argv[]) {
         goto error_dataplane_cleanup;
     }
 
-    // Wait for all threads to initialize their TX/RX queues
-    printf("Waiting for worker threads to initialize...\n");
+    printf("Waiting for worker threads to initialize TX/RX queues...\n");
     sleep(1);
-
-    if (config.client_mode)
-        flags |= RTE_VHOST_USER_CLIENT;
-
-    if (config.dequeue_zero_copy)
-        flags |= RTE_VHOST_USER_DEQUEUE_ZERO_COPY;
-
-    /* Register vhost user driver to handle vhost messages. */
-    for (i = 0; i < config.nb_sockets; i++) {
-        char *file = config.socket_files + i * PATH_MAX;
-        printf("Registering vhost driver for %s...\n", file);
-        ret = rte_vhost_driver_register(file, flags);
-        if (ret != 0) {
-            unregister_vhost_drivers(i, socket_files);
-            rte_exit(EXIT_FAILURE, "vhost driver register failure.\n");
-        }
-
-        if (config.mergeable == 0) {
-            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_MRG_RXBUF);
-        }
-
-        if (config.enable_tx_csum == 0) {
-            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_CSUM);
-        }
-
-        if (config.enable_tso == 0) {
-            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO4);
-            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO6);
-            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO4);
-            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO6);
-        }
-
-        ret = rte_vhost_driver_callback_register(file, &virtio_net_device_ops);
-        if (ret != 0) {
-            rte_exit(EXIT_FAILURE, "failed to register vhost driver callbacks.\n");
-        }
-
-        if (rte_vhost_driver_start(file) < 0) {
-            rte_exit(EXIT_FAILURE, "failed to start vhost driver.\n");
-        }
+    if (register_vhost_drivers() != 0) {
+        res = EXIT_FAILURE;
+        fprintf(stderr, "register_vhost_drivers failed\n");
+        goto error_dataplane_cleanup;
     }
 
-    printf("Vhost drivers started, waiting for connections...\n");
-
-    // Wait for lcores to finish (they won't in this design, but this keeps main alive)
+    // Wait for lcores to finish (keeps main alive)
     RTE_LCORE_FOREACH_SLAVE(lcore_id) { rte_eal_wait_lcore(lcore_id); }
 
     /* clean up the EAL */

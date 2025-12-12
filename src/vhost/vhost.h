@@ -15,7 +15,6 @@
 
 #define BURST_TX_DRAIN_US 100 /* TX drain every ~100us */
 #define MBUF_TABLE_DRAIN_TSC ((rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US)
-#define VLAN_HLEN 4
 
 /* Used for queueing bursts of TX packets. */
 struct mbuf_table {
@@ -50,4 +49,5 @@ void drain_eth_rx(struct vhost_dev *vdev);
 void drain_mbuf_table(struct mbuf_table *tx_q);
 
 void unregister_vhost_drivers(int socket_num, const char *path);
+int register_vhost_drivers();
 #endif
