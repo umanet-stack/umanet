@@ -56,9 +56,8 @@ sudo rm -f /dev/hugepages/tas_memory
 
 ## Running
 ```bash
-# build and run
 # c6525-25g nodes
-sudo ./run.sh 0000:41:00.0
+sudo ./build_and_run.sh 0000:41:00.0
 
 # kill process
 sudo ps aux | grep vhost-switch | grep -v grep | awk '{print $2}' | xargs kill -9
@@ -69,7 +68,7 @@ sudo vhost-switch -l 2-3 -n 4 -b 0000:01:00.0 -- --portmask 0x1 --socket-file /m
 ```
 
 ## Development
-- `./run.sh` to check it builds and runs
+- `./build_and_run.sh` to check it builds and runs
 - spin up a CH VM to test the TCP stack works
 ```bash
 sudo cloud-hypervisor \
