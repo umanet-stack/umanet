@@ -114,14 +114,8 @@ int network_init(unsigned n_threads) {
         goto error_exit;
     }
 
-    RTE_ETH_FOREACH_DEV(p) {
-        if ((config.enable_port_mask & (1 << p)) == 0) {
-            fprintf(stderr, "Skipping disabled port %d\n", p);
-            continue;
-        }
-        net_port_id = p;
-        break;
-    }
+    // used -w (whitelist) for NIC PCI addr in dpdk args, this should have only one port with id 0
+    RTE_ETH_FOREACH_DEV(p) { net_port_id = p; }
 
     /* get mac address and device info */
     rte_eth_macaddr_get(net_port_id, &eth_addr);

@@ -8,6 +8,7 @@
 
 #include "src/config/config.h"
 #include "src/eth/eth.h"
+#include "src/fast/network.h"
 #include "src/vhost/vhost.h"
 
 /*
@@ -41,7 +42,7 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
             vdev->vlan_tag);
 
     /* Register the MAC address without pool */
-    ret = rte_eth_dev_mac_addr_add(config.ports[0], &vdev->mac_address, 0);
+    ret = rte_eth_dev_mac_addr_add(net_port_id, &vdev->mac_address, 0);
     if (ret)
         RTE_LOG(ERR, VHOST_DATA, "(%d) failed to add device MAC address\n", vdev->vid);
 
@@ -63,21 +64,21 @@ void unlink_vmdq(struct vhost_dev *vdev) {
 
     if (vdev->ready == DEVICE_RX) {
         /*clear MAC and VLAN settings*/
-        rte_eth_dev_mac_addr_remove(config.ports[0], &vdev->mac_address);
+        rte_eth_dev_mac_addr_remove(net_port_id, &vdev->mac_address);
         for (i = 0; i < 6; i++)
             vdev->mac_address.addr_bytes[i] = 0;
 
         vdev->vlan_tag = 0;
 
         /*Clear out the receive buffers*/
-        rx_count = rte_eth_rx_burst(config.ports[0], (uint16_t)vdev->vmdq_rx_q, pkts_burst, MAX_PKT_BURST);
+        rx_count = rte_eth_rx_burst(net_port_id, (uint16_t)vdev->vmdq_rx_q, pkts_burst, MAX_PKT_BURST);
 
         while (rx_count) {                 // until queue is empty
             for (i = 0; i < rx_count; i++) // Frees each packet buffer back to mbuf pool
                 rte_pktmbuf_free(pkts_burst[i]);
 
             // Receives next batch of packets from queue
-            rx_count = rte_eth_rx_burst(config.ports[0], (uint16_t)vdev->vmdq_rx_q, pkts_burst, MAX_PKT_BURST);
+            rx_count = rte_eth_rx_burst(net_port_id, (uint16_t)vdev->vmdq_rx_q, pkts_burst, MAX_PKT_BURST);
         }
 
         vdev->ready = DEVICE_MAC_LEARNING;
@@ -172,10 +173,9 @@ void do_drain_mbuf_table(struct mbuf_table *tx_q) {
     uint16_t count;
 
     printf("do_drain_mbuf_table\n");
-    printf("ports: %d\n", config.ports[0]);
     printf("txq_id: %d\n", tx_q->txq_id);
     printf("len: %d\n", tx_q->len);
-    count = rte_eth_tx_burst(config.ports[0], tx_q->txq_id, tx_q->m_table, tx_q->len);
+    count = rte_eth_tx_burst(net_port_id, tx_q->txq_id, tx_q->m_table, tx_q->len);
     printf("count: %d\n", count);
     if (unlikely(count < tx_q->len))                         // fewer packets were sent than attempted
         free_pkts(&tx_q->m_table[count], tx_q->len - count); // free the unsent packets

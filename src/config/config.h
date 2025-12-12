@@ -14,9 +14,6 @@ typedef struct {
     int dequeue_zero_copy;
     int builtin_net_driver;
 
-    /* mask of enabled ports */
-    uint32_t enable_port_mask;
-
     /* Promiscuous mode */
     uint32_t promiscuous;
     int mergeable;
@@ -36,9 +33,6 @@ typedef struct {
     /* Socket file paths. Can be set by user */
     char *socket_files;
     int nb_sockets;
-
-    uint16_t ports[RTE_MAX_ETHPORTS];
-    unsigned num_ports; /**< The number of ports specified in command line */
 
     /* shared memory size */
     uint64_t shm_len;

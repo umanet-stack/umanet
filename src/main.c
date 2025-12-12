@@ -122,7 +122,6 @@ int main(int argc, char *argv[]) {
     int res = EXIT_SUCCESS;
 
     unsigned lcore_id, core_id = 0;
-    unsigned nb_ports, valid_num_ports;
     int ret, i;
     static pthread_t tid;
     uint64_t flags = 0;
@@ -183,23 +182,6 @@ int main(int argc, char *argv[]) {
 
     if (rte_lcore_count() > RTE_MAX_LCORE)
         rte_exit(EXIT_FAILURE, "Not enough cores\n");
-
-    /* Get the number of physical ports. */
-    nb_ports = rte_eth_dev_count_avail(); // Count available (not disabled) Ethernet ports (physical NICs)
-
-    /*
-     * Update the global var NUM_PORTS and global array PORTS
-     * and get value of var VALID_NUM_PORTS according to system ports number
-     */
-    valid_num_ports = check_ports_num(nb_ports);
-
-    if ((valid_num_ports == 0) || (valid_num_ports > MAX_SUP_PORTS)) {
-        RTE_LOG(INFO, VHOST_PORT,
-                "Current enabled port number is %u,"
-                "but only %u port can be enabled\n",
-                config.num_ports, MAX_SUP_PORTS);
-        return -1;
-    }
 
     // Sets up RX/TX queues per core
     // Initializes ARP, routing tables

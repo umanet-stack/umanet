@@ -4,6 +4,7 @@
 
 #include "src/config/config.h"
 #include "src/eth/eth.h"
+#include "src/fast/network.h"
 #include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 
@@ -18,7 +19,7 @@ void drain_eth_rx(struct vhost_dev *vdev) {
     struct rte_mbuf *pkts[MAX_PKT_BURST];
 
     // receive packets from physical NIC
-    rx_count = rte_eth_rx_burst(config.ports[0], vdev->vmdq_rx_q, pkts, MAX_PKT_BURST);
+    rx_count = rte_eth_rx_burst(net_port_id, vdev->vmdq_rx_q, pkts, MAX_PKT_BURST);
     if (!rx_count)
         return;
 

@@ -21,20 +21,17 @@
 #define JUMBO_FRAME_MAX_SIZE 0x2600
 
 static inline int parse_int32(const char *s, uint32_t *pi);
-static int parse_portmask(const char *portmask);
 static int parse_num_opt(const char *q_arg, uint32_t max_valid_value);
 static int us_vhost_parse_socket_path(config_t *c, const char *q_arg);
 
 config_t config;
 void init_config() {
     config = (config_t){
-        .enable_port_mask = 0,
         .enable_stats = 0,
         .enable_retry = 1,
         .burst_rx_delay_time = BURST_RX_WAIT_US,
         .burst_rx_retry_num = BURST_RX_RETRIES,
         .shm_len = 1024 * 1024 * 1024,
-        .num_ports = 0,
         .fp_cores_max = 1,
         .fp_interrupts = 1,
         .fp_xsumoffload = 1,
@@ -157,19 +154,10 @@ static void us_vhost_usage(const char *prgname) {
  */
 int parse_config(config_t *c, int argc, char **argv) {
     int opt, ret;
-    unsigned i;
     const char *prgname = argv[0];
 
     while ((opt = getopt_long(argc, argv, "", options, NULL)) != EOF) {
         switch (opt) {
-        case CP_PORTMASK:
-            c->enable_port_mask = parse_portmask(optarg);
-            if (c->enable_port_mask == 0) {
-                fprintf(stderr, "Invalid portmask\n");
-                goto failed;
-            }
-            break;
-
         case CP_PROMISCIOUS:
             c->promiscuous = 1;
             break;
@@ -279,19 +267,6 @@ int parse_config(config_t *c, int argc, char **argv) {
         }
     }
 
-    for (i = 0; i < RTE_MAX_ETHPORTS; i++) {
-        if (c->enable_port_mask & (1 << i))
-            c->ports[c->num_ports++] = i;
-    }
-
-    if ((c->num_ports == 0) || (c->num_ports > MAX_SUP_PORTS)) {
-        fprintf(stderr,
-                "Current enabled port number is %u,"
-                "but only %u port can be enabled\n",
-                c->num_ports, MAX_SUP_PORTS);
-        return -1;
-    }
-
     return 0;
 
 failed:
@@ -305,27 +280,6 @@ static inline int parse_int32(const char *s, uint32_t *pi) {
     if (!*s || *end)
         return -1;
     return 0;
-}
-
-/*
- * Parse the portmask provided at run time.
- */
-static int parse_portmask(const char *portmask) // portmask e.g. 0x1
-{
-    char *end = NULL;
-    unsigned long pm;
-
-    errno = 0;
-
-    /* parse hexadecimal string */
-    pm = strtoul(portmask, &end, 16); // converts hexadecimal string to unsigned long
-    if ((portmask[0] == '\0') || (end == NULL) || (*end != '\0') || (errno != 0))
-        return -1;
-
-    if (pm == 0)
-        return -1;
-
-    return pm;
 }
 
 /*
