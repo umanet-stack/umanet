@@ -116,6 +116,10 @@ int network_init(unsigned n_threads) {
 
     // used -w (whitelist) for NIC PCI addr in dpdk args, this should have only one port with id 0
     RTE_ETH_FOREACH_DEV(p) { net_port_id = p; }
+    if (!rte_eth_dev_is_valid_port(net_port_id)) {
+        fprintf(stderr, "Specified port ID(%u) is not valid\n", net_port_id);
+        goto error_exit;
+    }
 
     /* get mac address and device info */
     rte_eth_macaddr_get(net_port_id, &eth_addr);
