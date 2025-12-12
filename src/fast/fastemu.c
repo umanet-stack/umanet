@@ -1,5 +1,33 @@
 
 #include "src/fast/network.h"
+#include "src/include/tas.h"
+
+int dataplane_init(void) {
+    if (FLEXNIC_INTERNAL_MEM_SIZE < sizeof(struct flextcp_pl_mem)) {
+        fprintf(stderr,
+                "dataplane_init: internal flexnic memory size not "
+                "sufficient (got %x, need %zx)\n",
+                FLEXNIC_INTERNAL_MEM_SIZE, sizeof(struct flextcp_pl_mem));
+        return -1;
+    }
+
+    if (fp_cores_max > FLEXNIC_PL_APPST_CTX_MCS) {
+        fprintf(stderr,
+                "dataplane_init: more cores than FLEXNIC_PL_APPST_CTX_MCS "
+                "(%u)\n",
+                FLEXNIC_PL_APPST_CTX_MCS);
+        return -1;
+    }
+    if (FLEXNIC_PL_FLOWST_NUM > FLEXNIC_NUM_QMQUEUES) {
+        fprintf(stderr,
+                "dataplane_init: more flow states than queue manager queues"
+                "(%u > %u)\n",
+                FLEXNIC_PL_FLOWST_NUM, FLEXNIC_NUM_QMQUEUES);
+        return -1;
+    }
+
+    return 0;
+}
 
 int dataplane_context_init(struct dataplane_context *ctx) {
     char name[32];
