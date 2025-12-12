@@ -48,4 +48,6 @@ void do_drain_mbuf_table(struct mbuf_table *tx_q);
 void drain_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx);
 void drain_eth_rx(struct vhost_dev *vdev);
 void drain_mbuf_table(struct mbuf_table *tx_q);
+
+void unregister_vhost_drivers(int socket_num, const char *path);
 #endif

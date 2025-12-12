@@ -130,3 +130,14 @@ const struct vhost_device_ops virtio_net_device_ops = {
     .new_device = new_device,
     .destroy_device = destroy_device,
 };
+
+void unregister_vhost_drivers(int socket_num, const char *path) {
+    int i, ret;
+
+    for (i = 0; i < socket_num; i++) {
+        // each path is PATH_MAX bytes apart
+        ret = rte_vhost_driver_unregister(path + i * PATH_MAX);
+        if (ret != 0)
+            RTE_LOG(ERR, VHOST_CONFIG, "Fail to unregister vhost driver for %s.\n", path + i * PATH_MAX);
+    }
+}

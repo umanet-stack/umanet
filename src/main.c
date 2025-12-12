@@ -19,19 +19,6 @@
 #include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 
-#ifndef MAX_QUEUES
-#define MAX_QUEUES 128
-#endif
-
-/* the maximum number of external ports supported */
-#define MAX_SUP_PORTS 1
-
-#define MBUF_CACHE_SIZE 128
-#define MBUF_DATA_SIZE RTE_MBUF_DEFAULT_BUF_SIZE
-
-/* Configurable number of RX/TX ring descriptors */
-#define RTE_TEST_RX_DESC_DEFAULT 1024
-
 struct core_load {
     uint64_t cyc_busy;
 };
@@ -47,10 +34,6 @@ static int start_threads(void);
 static void thread_error(void);
 static int common_thread(void *arg);
 
-/*
- * This is a thread will wake up after a period to print stats if the user has
- * enabled them.
- */
 static void *print_stats(__rte_unused void *arg) {
     struct vhost_dev *vdev;
     uint64_t tx_dropped, rx_dropped;
@@ -93,25 +76,11 @@ static void *print_stats(__rte_unused void *arg) {
     return NULL;
 }
 
-static void unregister_drivers(int socket_num, const char *path) {
-    int i, ret;
-
-    for (i = 0; i < socket_num; i++) {
-        // each path is PATH_MAX bytes apart
-        ret = rte_vhost_driver_unregister(path + i * PATH_MAX);
-        if (ret != 0)
-            RTE_LOG(ERR, VHOST_CONFIG, "Fail to unregister vhost driver for %s.\n", path + i * PATH_MAX);
-    }
-}
-
 static int socket_num;
 static const char *socket_files;
 
-/* When we receive a INT signal, unregister vhost driver */
 static void sigint_handler(__rte_unused int signum) {
-    /* Unregister vhost driver. */
-    unregister_drivers(socket_num, socket_files);
-
+    unregister_vhost_drivers(socket_num, socket_files);
     exit(0);
 }
 
@@ -182,8 +151,7 @@ int main(int argc, char *argv[]) {
     if (rte_lcore_count() > RTE_MAX_LCORE)
         rte_exit(EXIT_FAILURE, "Not enough cores\n");
 
-    // Sets up RX/TX queues per core
-    // Initializes ARP, routing tables
+    // Sets up RX/TX queues per core, initializes ARP, routing tables
     printf("Initializing network...\n");
     if (network_init(fp_cores_max) != 0) {
         res = EXIT_FAILURE;
@@ -191,7 +159,6 @@ int main(int argc, char *argv[]) {
         goto error_shm_cleanup;
     }
 
-    // // just check if config ok
     printf("Checking dataplane config...\n");
     if (dataplane_init() != 0) {
         res = EXIT_FAILURE;
@@ -237,7 +204,7 @@ int main(int argc, char *argv[]) {
         printf("Registering vhost driver for %s...\n", file);
         ret = rte_vhost_driver_register(file, flags);
         if (ret != 0) {
-            unregister_drivers(i, socket_files);
+            unregister_vhost_drivers(i, socket_files);
             rte_exit(EXIT_FAILURE, "vhost driver register failure.\n");
         }
 
