@@ -108,6 +108,7 @@ int port_init(uint16_t n_threads) {
     /* Limit num_devices to available RX queues */
     if (eth.num_devices > dev_info.max_rx_queues)
         eth.num_devices = dev_info.max_rx_queues;
+    eth.num_queues = eth.num_devices;
     printf("Non-VMDq mode: configured %u devices, 1 queue per device\n", eth.num_devices);
 
     if (!rte_eth_dev_is_valid_port(port))

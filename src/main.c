@@ -116,14 +116,14 @@ static unsigned threads_launched = 0;
  * Main function, does initialisation and calls the per-lcore functions.
  */
 int main(int argc, char *argv[]) {
+    int res = EXIT_SUCCESS;
+
     unsigned lcore_id, core_id = 0;
     unsigned nb_ports, valid_num_ports;
     int ret, i;
     uint16_t portid;
     static pthread_t tid;
     uint64_t flags = 0;
-
-    int res = EXIT_SUCCESS;
 
     // Register signal handler for SIGINT (Ctrl+C) (graceful shutdown)
     signal(SIGINT, sigint_handler);
@@ -135,8 +135,8 @@ int main(int argc, char *argv[]) {
     argc -= ret; // Update argc to exclude DPDK-specific arguments
     argv += ret;
 
-    init_config();
     /* parse app arguments */
+    init_config();
     ret = parse_config(&config, argc, argv);
     if (ret < 0)
         rte_exit(EXIT_FAILURE, "Invalid argument\n");
