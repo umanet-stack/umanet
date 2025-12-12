@@ -100,6 +100,7 @@ int network_init(unsigned n_threads) {
     /* allocate thread pointer arrays */
     net_threads = rte_calloc("net thread ptrs", n_threads, sizeof(*net_threads), 0);
     if (net_threads == NULL) {
+        fprintf(stderr, "Allocating net thread pointers failed\n");
         goto error_exit;
     }
 
