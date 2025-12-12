@@ -128,6 +128,9 @@ int main(int argc, char *argv[]) {
     // Register signal handler for SIGINT (Ctrl+C) (graceful shutdown)
     signal(SIGINT, sigint_handler);
 
+    /* initialize config with defaults before using it */
+    init_config();
+
     /* allocate shared memory before dpdk grabs all huge pages */
     if (shm_preinit() != 0) {
         res = EXIT_FAILURE;
@@ -142,7 +145,6 @@ int main(int argc, char *argv[]) {
     argv += ret;
 
     /* parse app arguments */
-    init_config();
     ret = parse_config(&config, argc, argv);
     if (ret < 0)
         rte_exit(EXIT_FAILURE, "Invalid argument\n");
