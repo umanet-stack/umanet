@@ -170,7 +170,12 @@ void free_pkts(struct rte_mbuf **pkts, uint16_t n) {
 void do_drain_mbuf_table(struct mbuf_table *tx_q) {
     uint16_t count;
 
+    printf("do_drain_mbuf_table\n");
+    printf("ports: %d\n", config.ports[0]);
+    printf("txq_id: %d\n", tx_q->txq_id);
+    printf("len: %d\n", tx_q->len);
     count = rte_eth_tx_burst(config.ports[0], tx_q->txq_id, tx_q->m_table, tx_q->len);
+    printf("count: %d\n", count);
     if (unlikely(count < tx_q->len))                         // fewer packets were sent than attempted
         free_pkts(&tx_q->m_table[count], tx_q->len - count); // free the unsent packets
 

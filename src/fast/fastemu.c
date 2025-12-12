@@ -2,6 +2,7 @@
 #include "src/fast/network.h"
 #include "src/include/tas.h"
 #include "src/vhost/vhost.h"
+#include <unistd.h>
 
 int dataplane_init(void) {
     if (FLEXNIC_INTERNAL_MEM_SIZE < sizeof(struct flextcp_pl_mem)) {
@@ -67,7 +68,6 @@ int dataplane_context_init(struct dataplane_context *ctx) {
 void dataplane_context_destroy(struct dataplane_context *ctx) {}
 
 void dataplane_loop(struct dataplane_context *ctx) {
-    unsigned i;
     unsigned lcore_id = rte_lcore_id();
     struct vhost_dev *vdev;
     struct mbuf_table *tx_q;
@@ -75,15 +75,12 @@ void dataplane_loop(struct dataplane_context *ctx) {
     RTE_LOG(INFO, VHOST_DATA, "Procesing on Core %u started\n", lcore_id);
 
     tx_q = &vhost.lcore_tx_queue[lcore_id];
-    // Get pointer to this core's TX queue
-    for (i = 0; i < rte_lcore_count(); i++) {
-        if (vhost.lcore_ids[i] == lcore_id) {
-            tx_q->txq_id = i;
-            break;
-        }
-    }
+    // Use ctx->id which matches the initialized TX queue ID
+    tx_q->txq_id = ctx->id;
 
     while (1) {
+        sleep(1);
+        printf("Draining mbuf table...\n");
         drain_mbuf_table(tx_q); // drain if timeout has elapsed
 
         /*
@@ -103,11 +100,15 @@ void dataplane_loop(struct dataplane_context *ctx) {
                 continue;
             }
 
-            if (likely(vdev->ready == DEVICE_RX))
+            if (likely(vdev->ready == DEVICE_RX)) {
+                printf("Draining eth rx...\n");
                 drain_eth_rx(vdev); // receive packets from physical NIC and forward them to a VM
+            }
 
-            if (likely(!vdev->remove)) // device is not being removed (double-check)
-                drain_virtio_tx(vdev); // receive packets from VM's TX queue, route them to the correct destination
+            if (likely(!vdev->remove)) { // device is not being removed (double-check)
+                printf("Draining virtio tx...\n");
+                drain_virtio_tx(vdev, ctx); // receive packets from VM's TX queue, route them to the correct destination
+            }
         }
     }
 }

@@ -4,6 +4,7 @@
 
 #include "src/config/config.h"
 #include "src/eth/eth.h"
+#include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 
 #include <generic/rte_cycles.h>
@@ -44,13 +45,13 @@ void drain_eth_rx(struct vhost_dev *vdev) {
 }
 
 // receive packets from VM's TX queue, route them to the correct destination
-void drain_virtio_tx(struct vhost_dev *vdev) {
+void drain_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
     struct rte_mbuf *pkts[MAX_PKT_BURST];
     uint16_t count;
     uint16_t i;
 
     // copy pkt from guest vring buffer to DPDK mbuf (vm -> dpdk)
-    count = rte_vhost_dequeue_burst(vdev->vid, VIRTIO_TXQ, eth.mbuf_pool, pkts, MAX_PKT_BURST);
+    count = rte_vhost_dequeue_burst(vdev->vid, VIRTIO_TXQ, ctx->net.pool, pkts, MAX_PKT_BURST);
 
     /* setup VMDq for the first packet */
     if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) { // device in MAC learning
@@ -139,7 +140,8 @@ int switch_worker(void *arg __rte_unused) {
                 drain_eth_rx(vdev); // receive packets from physical NIC and forward them to a VM
 
             if (likely(!vdev->remove)) // device is not being removed (double-check)
-                drain_virtio_tx(vdev); // receive packets from VM's TX queue, route them to the correct destination
+                drain_virtio_tx(vdev,
+                                NULL); // receive packets from VM's TX queue, route them to the correct destination
         }
     }
 

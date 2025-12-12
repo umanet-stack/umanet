@@ -6,6 +6,7 @@
 #include <rte_malloc.h>
 #include <signal.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include <rte_atomic.h>
@@ -33,11 +34,16 @@
 /* Configurable number of RX/TX ring descriptors */
 #define RTE_TEST_RX_DESC_DEFAULT 1024
 
+struct core_load {
+    uint64_t cyc_busy;
+};
+
 unsigned fp_cores_max;
 volatile unsigned fp_cores_cur = 1;
 volatile unsigned fp_scale_to = 0;
 
 struct dataplane_context **ctxs = NULL;
+struct core_load *core_loads = NULL;
 
 static int start_threads(void);
 static void thread_error(void);
@@ -160,6 +166,19 @@ int main(int argc, char *argv[]) {
     socket_files = config.socket_files;
     fp_cores_max = config.fp_cores_max;
 
+    if ((core_loads = calloc(fp_cores_max, sizeof(*core_loads))) == NULL) {
+        res = EXIT_FAILURE;
+        fprintf(stderr, "core loads alloc failed\n");
+        goto error_exit;
+    }
+
+    // Sets up application queues and DMA regions
+    if (shm_init(fp_cores_max) != 0) {
+        res = EXIT_FAILURE;
+        fprintf(stderr, "dma init failed\n");
+        goto error_exit;
+    }
+
     for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
         TAILQ_INIT(&vhost.lcore_info[lcore_id].vdev_list); // init first,last dev list
 
@@ -194,34 +213,38 @@ int main(int argc, char *argv[]) {
      * those queues we are going to use.
      */
     // number of worker cores (minus master core)
-    create_mbuf_pool(valid_num_ports, rte_lcore_count() - 1, MBUF_DATA_SIZE, MAX_QUEUES, RTE_TEST_RX_DESC_DEFAULT,
-                     MBUF_CACHE_SIZE);
+    // create_mbuf_pool(valid_num_ports, rte_lcore_count() - 1, MBUF_DATA_SIZE, MAX_QUEUES, RTE_TEST_RX_DESC_DEFAULT,
+    //                  MBUF_CACHE_SIZE);
 
     // /* initialize eth port */
-    printf("Initializing network ports on cores: ");
-    fflush(stdout);
-    if (port_init(config.fp_cores_max) != 0)
-        rte_exit(EXIT_FAILURE, "Cannot initialize network ports\n");
+    // if (port_init(config.fp_cores_max) != 0)
+    //     rte_exit(EXIT_FAILURE, "Cannot initialize network ports\n");
 
     // Sets up RX/TX queues per core
     // Initializes ARP, routing tables
-    // if (network_init(fp_cores_max) != 0) {
-    //     res = EXIT_FAILURE;
-    //     fprintf(stderr, "network init failed\n");
-    //     goto error_shm_cleanup;
-    // }
+    eth.num_devices = 64;
+    eth.queues_per_pool = 1;
+    printf("Initializing network...\n");
+    fflush(stdout);
+    if (network_init(fp_cores_max) != 0) {
+        res = EXIT_FAILURE;
+        fprintf(stderr, "network init failed\n");
+        goto error_shm_cleanup;
+    }
 
     // // just check if config ok
-    // if (dataplane_init() != 0) {
-    //     res = EXIT_FAILURE;
-    //     fprintf(stderr, "dpinit failed\n");
-    //     goto error_network_cleanup;
-    // }
+    printf("Checking dataplane config...\n");
+    if (dataplane_init() != 0) {
+        res = EXIT_FAILURE;
+        fprintf(stderr, "dpinit failed\n");
+        goto error_network_cleanup;
+    }
 
     // Mark System Ready
     // Sets flag in shared memory indicating TAS is ready
     // Applications waiting to connect to TAS can now proceed
-    // shm_set_ready();
+    printf("Marking shm ready...\n");
+    shm_set_ready();
 
     /* Enable stats if the user option is set. */
     if (config.enable_stats) {
@@ -230,9 +253,18 @@ int main(int argc, char *argv[]) {
             rte_exit(EXIT_FAILURE, "Cannot create print-stats thread\n");
     }
 
+    // Start worker threads BEFORE vhost registration
+    // This ensures TX queues are initialized before vhost can send packets
     printf("Launching switch workers on cores: ");
-    RTE_LCORE_FOREACH_SLAVE(lcore_id)
-    rte_eal_remote_launch(switch_worker, NULL, lcore_id);
+    if (start_threads() != 0) {
+        res = EXIT_FAILURE;
+        fprintf(stderr, "start_threads failed\n");
+        goto error_dataplane_cleanup;
+    }
+
+    // Wait for all threads to initialize their TX/RX queues
+    printf("Waiting for worker threads to initialize...\n");
+    sleep(1);
 
     if (config.client_mode)
         flags |= RTE_VHOST_USER_CLIENT;
@@ -243,6 +275,7 @@ int main(int argc, char *argv[]) {
     /* Register vhost user driver to handle vhost messages. */
     for (i = 0; i < config.nb_sockets; i++) {
         char *file = config.socket_files + i * PATH_MAX;
+        printf("Registering vhost driver for %s...\n", file);
         ret = rte_vhost_driver_register(file, flags);
         if (ret != 0) {
             unregister_drivers(i, socket_files);
@@ -281,14 +314,17 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    RTE_LCORE_FOREACH_SLAVE(lcore_id)
-    rte_eal_wait_lcore(lcore_id);
+    printf("Vhost drivers started, waiting for connections...\n");
+
+    // Wait for lcores to finish (they won't in this design, but this keeps main alive)
+    RTE_LCORE_FOREACH_SLAVE(lcore_id) { rte_eal_wait_lcore(lcore_id); }
 
     /* clean up the EAL */
     rte_eal_cleanup();
 
     return 0;
 
+error_dataplane_cleanup:
 error_network_cleanup:
     network_cleanup();
 error_shm_cleanup:
@@ -330,6 +366,7 @@ static int common_thread(void *arg) {
     }
 
     /* poll doorbells and network */
+    printf("Entering dataplane loop...\n");
     dataplane_loop(ctx);
 
     dataplane_context_destroy(ctx);

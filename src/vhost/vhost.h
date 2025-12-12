@@ -6,6 +6,7 @@
 #define _VHOST_H_
 
 #include "../include/tas.h"
+#include "src/include/fastpath.h"
 
 /* State of virtio device. */
 #define DEVICE_MAC_LEARNING 0
@@ -46,7 +47,7 @@ void unlink_vmdq(struct vhost_dev *vdev);
 void free_pkts(struct rte_mbuf **pkts, uint16_t n);
 void do_drain_mbuf_table(struct mbuf_table *tx_q);
 
-void drain_virtio_tx(struct vhost_dev *vdev);
+void drain_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx);
 void drain_eth_rx(struct vhost_dev *vdev);
 void drain_mbuf_table(struct mbuf_table *tx_q);
 #endif
