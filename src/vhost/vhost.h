@@ -46,4 +46,7 @@ void unlink_vmdq(struct vhost_dev *vdev);
 void free_pkts(struct rte_mbuf **pkts, uint16_t n);
 void do_drain_mbuf_table(struct mbuf_table *tx_q);
 
+void drain_virtio_tx(struct vhost_dev *vdev);
+void drain_eth_rx(struct vhost_dev *vdev);
+void drain_mbuf_table(struct mbuf_table *tx_q);
 #endif

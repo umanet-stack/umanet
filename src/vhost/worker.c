@@ -12,7 +12,7 @@
 #include <rte_mbuf_core.h>
 
 // receive packets from physical NIC and forward them to a VM
-static __rte_always_inline void drain_eth_rx(struct vhost_dev *vdev) {
+void drain_eth_rx(struct vhost_dev *vdev) {
     uint16_t rx_count, enqueue_count;
     struct rte_mbuf *pkts[MAX_PKT_BURST];
 
@@ -44,7 +44,7 @@ static __rte_always_inline void drain_eth_rx(struct vhost_dev *vdev) {
 }
 
 // receive packets from VM's TX queue, route them to the correct destination
-static __rte_always_inline void drain_virtio_tx(struct vhost_dev *vdev) {
+void drain_virtio_tx(struct vhost_dev *vdev) {
     struct rte_mbuf *pkts[MAX_PKT_BURST];
     uint16_t count;
     uint16_t i;
@@ -63,7 +63,7 @@ static __rte_always_inline void drain_virtio_tx(struct vhost_dev *vdev) {
     }
 }
 
-static __rte_always_inline void drain_mbuf_table(struct mbuf_table *tx_q) {
+void drain_mbuf_table(struct mbuf_table *tx_q) {
     // static = function-scope, keeps value between function calls
     static uint64_t prev_tsc; // previous timestamp
     uint64_t cur_tsc;
