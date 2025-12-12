@@ -260,10 +260,6 @@ int main(int argc, char *argv[]) {
             rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO6);
         }
 
-        if (config.promiscuous) {
-            rte_vhost_driver_enable_features(file, 1ULL << VIRTIO_NET_F_CTRL_RX);
-        }
-
         ret = rte_vhost_driver_callback_register(file, &virtio_net_device_ops);
         if (ret != 0) {
             rte_exit(EXIT_FAILURE, "failed to register vhost driver callbacks.\n");

@@ -11,8 +11,6 @@ typedef struct {
     int client_mode;
     int dequeue_zero_copy;
 
-    /* Promiscuous mode */
-    uint32_t promiscuous;
     int mergeable;
 
     uint32_t enable_stats;

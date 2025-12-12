@@ -37,7 +37,6 @@ void init_config() {
 
 enum cfg_params {
     CP_PORTMASK,
-    CP_PROMISCIOUS,
     CP_RX_RETRY,
     CP_RX_RETRY_DELAY,
     CP_RX_RETRY_NUM,
@@ -56,11 +55,6 @@ static struct option options[] = {
         "portmask",
         required_argument,
         .val = CP_PORTMASK,
-    },
-    {
-        "promiscuous",
-        no_argument,
-        .val = CP_PROMISCIOUS,
     },
     {
         "rx-retry",
@@ -148,10 +142,6 @@ int parse_config(config_t *c, int argc, char **argv) {
 
     while ((opt = getopt_long(argc, argv, "", options, NULL)) != EOF) {
         switch (opt) {
-        case CP_PROMISCIOUS:
-            c->promiscuous = 1;
-            break;
-
         case CP_RX_RETRY:
             /* Enable/disable retries on RX. */
             ret = parse_num_opt(optarg, 1);
