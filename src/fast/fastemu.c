@@ -1,6 +1,7 @@
 
 #include "src/fast/network.h"
 #include "src/include/tas.h"
+#include "src/vhost/vhost.h"
 
 int dataplane_init(void) {
     if (FLEXNIC_INTERNAL_MEM_SIZE < sizeof(struct flextcp_pl_mem)) {
@@ -61,4 +62,52 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     // fp_state->kctx[ctx->id].evfd = ctx->evfd;
 
     return 0;
+}
+
+void dataplane_context_destroy(struct dataplane_context *ctx) {}
+
+void dataplane_loop(struct dataplane_context *ctx) {
+    unsigned i;
+    unsigned lcore_id = rte_lcore_id();
+    struct vhost_dev *vdev;
+    struct mbuf_table *tx_q;
+
+    RTE_LOG(INFO, VHOST_DATA, "Procesing on Core %u started\n", lcore_id);
+
+    tx_q = &vhost.lcore_tx_queue[lcore_id];
+    // Get pointer to this core's TX queue
+    for (i = 0; i < rte_lcore_count(); i++) {
+        if (vhost.lcore_ids[i] == lcore_id) {
+            tx_q->txq_id = i;
+            break;
+        }
+    }
+
+    while (1) {
+        drain_mbuf_table(tx_q); // drain if timeout has elapsed
+
+        /*
+         * Inform the configuration core that we have exited the
+         * linked list and that no devices are in use if requested.
+         */
+        if (vhost.lcore_info[lcore_id].dev_removal_flag == REQUEST_DEV_REMOVAL)
+            vhost.lcore_info[lcore_id].dev_removal_flag = ACK_DEV_REMOVAL;
+
+        /*
+         * Process vhost devices
+         */
+        TAILQ_FOREACH(vdev, &vhost.lcore_info[lcore_id].vdev_list, lcore_vdev_entry) {
+            if (unlikely(vdev->remove)) { // device is marked for removal
+                unlink_vmdq(vdev);
+                vdev->ready = DEVICE_SAFE_REMOVE;
+                continue;
+            }
+
+            if (likely(vdev->ready == DEVICE_RX))
+                drain_eth_rx(vdev); // receive packets from physical NIC and forward them to a VM
+
+            if (likely(!vdev->remove)) // device is not being removed (double-check)
+                drain_virtio_tx(vdev); // receive packets from VM's TX queue, route them to the correct destination
+        }
+    }
 }
