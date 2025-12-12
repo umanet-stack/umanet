@@ -23,6 +23,8 @@ struct core_load {
     uint64_t cyc_busy;
 };
 
+config_t config;
+
 unsigned fp_cores_max;
 volatile unsigned fp_cores_cur = 1;
 volatile unsigned fp_scale_to = 0;
@@ -76,11 +78,8 @@ static void *print_stats(__rte_unused void *arg) {
     return NULL;
 }
 
-static int socket_num;
-static const char *socket_files;
-
 static void sigint_handler(__rte_unused int signum) {
-    unregister_vhost_drivers(socket_num, socket_files);
+    unregister_vhost_drivers(config.nb_sockets, config.socket_files);
     exit(0);
 }
 
@@ -93,7 +92,7 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, sigint_handler);
 
     /* initialize config with defaults before using it */
-    init_config();
+    init_config(&config);
 
     /* allocate shared memory before dpdk grabs all huge pages */
     if (shm_preinit() != 0) {
@@ -119,8 +118,6 @@ int main(int argc, char *argv[]) {
         res = EXIT_FAILURE;
         goto error_exit;
     }
-    socket_num = config.nb_sockets;
-    socket_files = config.socket_files;
     fp_cores_max = config.fp_cores_max;
 
     if ((core_loads = calloc(fp_cores_max, sizeof(*core_loads))) == NULL) {

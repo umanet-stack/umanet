@@ -2,8 +2,8 @@
  * Copyright(c) 2010-2017 Intel Corporation
  */
 
-#include "../include/tas.h"
 #include "config.h"
+#include "../include/tas.h"
 #include <getopt.h>
 #include <rte_ethdev.h>
 #include <rte_log.h>
@@ -16,23 +16,29 @@ static inline int parse_int32(const char *s, uint32_t *pi);
 static int parse_num_opt(const char *q_arg, uint32_t max_valid_value);
 static int us_vhost_parse_socket_path(config_t *c, const char *q_arg);
 
-config_t config;
-void init_config() {
-    config = (config_t){
-        .enable_stats = 0,
-        .enable_retry = 1,
-        .burst_rx_delay_time = BURST_RX_WAIT_US,
-        .burst_rx_retry_num = BURST_RX_RETRIES,
-        .shm_len = 1024 * 1024 * 1024,
-        .fp_cores_max = 1,
-        .fp_interrupts = 1,
-        .fp_xsumoffload = 1,
-        .fp_autoscale = 1,
-        .fp_hugepages = 1,
-        .fp_vlan_strip = 0,
-        .fp_poll_interval_tas = 10000,
-        .fp_poll_interval_app = 10000,
-    };
+void init_config(config_t *c) {
+    /* ===== vhost-user ===== */
+    c->client_mode = 0;
+    c->dequeue_zero_copy = 0;
+    c->mergeable = 0;
+    c->enable_stats = 0;
+    c->enable_retry = 1;
+    c->enable_tx_csum = 0;
+    c->enable_tso = 0;
+    c->burst_rx_delay_time = BURST_RX_WAIT_US;
+    c->burst_rx_retry_num = BURST_RX_RETRIES;
+    c->socket_files = NULL;
+    c->nb_sockets = 0;
+    /* ===== TAS ===== */
+    c->shm_len = 1024 * 1024 * 1024;
+    c->fp_cores_max = 1;
+    c->fp_interrupts = 1;
+    c->fp_xsumoffload = 1;
+    c->fp_autoscale = 1;
+    c->fp_hugepages = 1;
+    c->fp_vlan_strip = 0;
+    c->fp_poll_interval_tas = 10000;
+    c->fp_poll_interval_app = 10000;
 }
 
 enum cfg_params {

@@ -17,7 +17,7 @@ include_dirs = include_directories('include')
 
 sources = files(
 	'src/main.c',
-	'src/config/args.c',
+	'src/config/config.c',
 	'src/vhost/device.c',
 	'src/vhost/queues.c',
 	'src/vhost/worker.c',

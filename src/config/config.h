@@ -8,11 +8,10 @@
 #include <stdint.h>
 
 typedef struct {
+    /* ===== vhost-user ===== */
     int client_mode;
     int dequeue_zero_copy;
-
     int mergeable;
-
     uint32_t enable_stats;
     /* Enable retries on RX. */
     uint32_t enable_retry;
@@ -24,11 +23,11 @@ typedef struct {
     uint32_t burst_rx_delay_time;
     /* Specify the number of retries on RX. */
     uint32_t burst_rx_retry_num;
-
     /* Socket file paths. Can be set by user */
     char *socket_files;
     int nb_sockets;
 
+    /* ===== TAS ===== */
     /* shared memory size */
     uint64_t shm_len;
 
@@ -50,8 +49,7 @@ typedef struct {
     uint32_t fp_poll_interval_app;
 } config_t;
 
-extern config_t config;
-void init_config();
+void init_config(config_t *c);
 int parse_config(config_t *c, int argc, char **argv);
 
 #endif /* CONFIG_H */
