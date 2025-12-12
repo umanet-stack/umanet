@@ -16,7 +16,6 @@ typedef struct {
     struct rte_mempool *mbuf_pool;
 
     uint16_t num_pf_queues;
-    uint16_t vmdq_queue_base;
     uint16_t queues_per_pool;
 
     const uint16_t vlan_tags[64];

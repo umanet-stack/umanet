@@ -101,7 +101,7 @@ static int new_device(int vid) {
     TAILQ_INSERT_TAIL(&vhost.vhost_dev_list, vdev, global_vdev_entry);
     // Calculate VMDq RX queue number for this device
     // Each device gets queues_per_pool queues
-    vdev->vmdq_rx_q = vid * eth.queues_per_pool + eth.vmdq_queue_base;
+    vdev->vmdq_rx_q = vid * eth.queues_per_pool;
 
     /*reset ready flag*/
     vdev->ready = DEVICE_MAC_LEARNING;
