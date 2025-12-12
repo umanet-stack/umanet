@@ -128,6 +128,12 @@ int main(int argc, char *argv[]) {
     // Register signal handler for SIGINT (Ctrl+C) (graceful shutdown)
     signal(SIGINT, sigint_handler);
 
+    /* allocate shared memory before dpdk grabs all huge pages */
+    if (shm_preinit() != 0) {
+        res = EXIT_FAILURE;
+        goto error_exit;
+    }
+
     /* init EAL (Environment Abstraction Layer) */
     ret = rte_eal_init(argc, argv); // Parses DPDK-specific arguments (--lcores, --huge-dir, etc.)
     if (ret < 0)
@@ -283,4 +289,7 @@ int main(int argc, char *argv[]) {
     rte_eal_cleanup();
 
     return 0;
+
+error_exit:
+    return res;
 }

@@ -27,13 +27,14 @@ The switch worker loop continuously:
 ./setup/init-dpdk.sh
 
 # reserve hugepages
-# 1024 × 2 MB = 2 GB mem for hugepages
-sudo sysctl -w vm.nr_hugepages=1024
+# 2048 × 2 MB = 4 GB mem for hugepages
+sudo sysctl -w vm.nr_hugepages=2048
 grep Huge /proc/meminfo
 
 # mount hugepage FS
 sudo mkdir -p /mnt/huge
 sudo mount -t hugetlbfs nodev /mnt/huge
+
 # /dev/hugepages is default, we use /mnt/huge
 mount | grep huge
 
@@ -45,17 +46,28 @@ sudo dmesg | grep -e DMAR -e IOMMU
 
 sudo dpdk-devbind.py --status
 
+# unmount
+sudo umount -l /mnt/huge
+
 # Clean up any leftover hugepage files from previous runs
 sudo umount -l /mnt/huge
 sudo rm -f /mnt/huge/*
 sudo rm -rf /dev/shm/rte_* # remove shm
 ```
 
+### TAS migration hugepage allocation
+```bash
+sudo mount -t hugetlbfs nodev /dev/hugepages
+
+# Clean up any leftover hugepage files from previous runs
+sudo rm -f /dev/hugepages/tas_memory
+```
+
 ## Running
 ```bash
 # build and run
 # c6525-25g nodes
-./run.sh 0000:41:00.0
+sudo ./run.sh 0000:41:00.0
 
 sudo ps aux | grep vhost-switch | grep -v grep | awk '{print $2}' | xargs kill -9
 
