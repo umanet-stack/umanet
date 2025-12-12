@@ -19,7 +19,6 @@
 #include "src/eth/eth.h"
 #include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
-#include "tcp_fastpath.h"
 
 #ifndef MAX_QUEUES
 #define MAX_QUEUES 128
@@ -119,9 +118,6 @@ static void sigint_handler(__rte_unused int signum) {
 
 static unsigned threads_launched = 0;
 
-/*
- * Main function, does initialisation and calls the per-lcore functions.
- */
 int main(int argc, char *argv[]) {
     int res = EXIT_SUCCESS;
 

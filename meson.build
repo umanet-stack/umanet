@@ -16,8 +16,6 @@ dpdk = dependency('libdpdk', required: true)
 include_dirs = include_directories('include')
 
 sources = files(
-	'src/tcp_state.c',
-	'src/tcp_fastpath.c',
 	'src/main.c',
 	'src/config/args.c',
 	'src/eth/port.c',
