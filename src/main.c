@@ -139,6 +139,7 @@ int main(int argc, char *argv[]) {
         rte_exit(EXIT_FAILURE, "Invalid argument\n");
     socket_num = config.nb_sockets;
     socket_files = config.socket_files;
+    fp_cores_max = config.fp_cores_max;
 
     for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
         TAILQ_INIT(&vhost.lcore_info[lcore_id].vdev_list); // init first,last dev list
@@ -209,7 +210,7 @@ int main(int argc, char *argv[]) {
             rte_exit(EXIT_FAILURE, "Cannot create print-stats thread\n");
     }
 
-    if ((ctxs = rte_calloc("context list", config.fp_cores_max, sizeof(*ctxs), 64)) == NULL) {
+    if ((ctxs = rte_calloc("context list", fp_cores_max, sizeof(*ctxs), 64)) == NULL) {
         perror("dataplane_init: calloc failed");
         return -1;
     }
