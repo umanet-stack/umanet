@@ -36,6 +36,7 @@ typedef struct {
 
 extern vhost_state_t vhost;
 extern const struct vhost_device_ops virtio_net_device_ops;
+extern const uint16_t vlan_tags[64];
 
 struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac);
 void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, uint16_t vlan_tag);

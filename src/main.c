@@ -16,7 +16,6 @@
 
 #include "./config/config.h"
 #include "./include/tas.h"
-#include "src/eth/eth.h"
 #include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 

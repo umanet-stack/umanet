@@ -7,7 +7,6 @@
 #include <rte_mbuf_core.h>
 
 #include "src/config/config.h"
-#include "src/eth/eth.h"
 #include "src/fast/network.h"
 #include "src/vhost/vhost.h"
 
@@ -33,7 +32,7 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
 
     /* vlan_tag currently uses the device_id. */
     // device 0 → VLAN 1000
-    vdev->vlan_tag = eth.vlan_tags[vdev->vid];
+    vdev->vlan_tag = vlan_tags[vdev->vid];
 
     /* Print out VMDQ registration info. */
     RTE_LOG(INFO, VHOST_DATA, "(%d) mac %02x:%02x:%02x:%02x:%02x:%02x and vlan %d registered\n", vdev->vid,
