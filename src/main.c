@@ -88,7 +88,6 @@ static unsigned threads_launched = 0;
 
 int main(int argc, char *argv[]) {
     int res = EXIT_SUCCESS;
-    unsigned lcore_id, core_id = 0;
 
     // Register signal handler for SIGINT (Ctrl+C) (graceful shutdown)
     signal(SIGINT, sigint_handler);
@@ -137,13 +136,6 @@ int main(int argc, char *argv[]) {
         goto error_exit;
     }
 
-    for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
-        TAILQ_INIT(&vhost.lcore_info[lcore_id].vdev_list); // init first,last dev list
-
-        if (rte_lcore_is_enabled(lcore_id))
-            vhost.lcore_ids[core_id++] = lcore_id;
-    }
-
     // Sets up RX/TX queues per core, initializes ARP, routing tables
     printf("Initializing network...\n");
     if (network_init(fp_cores_max) != 0) {
@@ -187,6 +179,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Wait for lcores to finish (keeps main alive)
+    unsigned lcore_id;
     RTE_LCORE_FOREACH_SLAVE(lcore_id) { rte_eal_wait_lcore(lcore_id); }
 
     /* clean up the EAL */

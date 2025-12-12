@@ -143,7 +143,15 @@ void unregister_vhost_drivers(int socket_num, const char *path) {
 }
 
 int register_vhost_drivers() {
+    unsigned lcore_id, core_id = 0;
     uint64_t flags = 0;
+
+    for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
+        TAILQ_INIT(&vhost.lcore_info[lcore_id].vdev_list); // init first,last dev list
+
+        if (rte_lcore_is_enabled(lcore_id))
+            vhost.lcore_ids[core_id++] = lcore_id;
+    }
 
     if (config.client_mode)
         flags |= RTE_VHOST_USER_CLIENT;
