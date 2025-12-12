@@ -4,23 +4,14 @@
 
 #ifndef CONFIG_H
 #define CONFIG_H
+#include <rte_build_config.h>
 #include <stdint.h>
 
-typedef enum { VM2VM_DISABLED = 0, VM2VM_SOFTWARE = 1, VM2VM_HARDWARE = 2, VM2VM_LAST } vm2vm_type;
-
 typedef struct {
-    int client_mode;
-    int dequeue_zero_copy;
-    int builtin_net_driver;
-
-    /* mask of enabled ports */
-    uint32_t enable_port_mask;
-
-    /* Promiscuous mode */
-    uint32_t promiscuous;
-    int mergeable;
-
-    vm2vm_type vm2vm_mode;
+    /* ===== vhost-user ===== */
+    uint32_t client_mode;
+    uint32_t dequeue_zero_copy;
+    uint32_t mergeable;
     uint32_t enable_stats;
     /* Enable retries on RX. */
     uint32_t enable_retry;
@@ -32,19 +23,33 @@ typedef struct {
     uint32_t burst_rx_delay_time;
     /* Specify the number of retries on RX. */
     uint32_t burst_rx_retry_num;
-
     /* Socket file paths. Can be set by user */
     char *socket_files;
     int nb_sockets;
 
-    /* empty vmdq configuration structure. Filled in programatically */
-    struct rte_eth_conf *vmdq_conf_default;
+    /* ===== TAS ===== */
+    /* shared memory size */
+    uint64_t shm_len;
 
-    uint16_t ports[RTE_MAX_ETHPORTS];
-    unsigned num_ports; /**< The number of ports specified in command line */
+    /** FP: maximal number of cores used */
+    uint32_t fp_cores_max;
+    /** FP: interrupts (blocking) enabled */
+    uint32_t fp_interrupts;
+    /** FP: tcp checksum offload enabled */
+    uint32_t fp_xsumoffload;
+    /** FP: auto scaling enabled */
+    uint32_t fp_autoscale;
+    /** FP: use huge pages for internal and buffer memory */
+    uint32_t fp_hugepages;
+    /** FP: enable vlan stripping */
+    uint32_t fp_vlan_strip;
+    /** FP: polling interval for TAS */
+    uint32_t fp_poll_interval_tas;
+    /** FP: polling interval for app */
+    uint32_t fp_poll_interval_app;
 } config_t;
 
-extern config_t config;
-int us_vhost_parse_args(int argc, char **argv);
+void init_config(config_t *c);
+int parse_config(config_t *c, int argc, char **argv);
 
 #endif /* CONFIG_H */
