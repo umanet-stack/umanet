@@ -7,12 +7,9 @@
 #include <rte_build_config.h>
 #include <stdint.h>
 
-typedef enum { VM2VM_DISABLED = 0, VM2VM_SOFTWARE = 1, VM2VM_HARDWARE = 2, VM2VM_LAST } vm2vm_type;
-
 typedef struct {
     int client_mode;
     int dequeue_zero_copy;
-    int builtin_net_driver;
 
     /* Promiscuous mode */
     uint32_t promiscuous;

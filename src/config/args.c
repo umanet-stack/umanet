@@ -9,16 +9,8 @@
 #include <rte_log.h>
 #include <rte_memory.h>
 
-/* the maximum number of external ports supported */
-#define MAX_SUP_PORTS 1
-
-/* Maximum long option length for option parsing. */
-#define MAX_LONG_OPT_SZ 64
-
 #define BURST_RX_WAIT_US 15 /* Defines how long we wait between retries on RX */
 #define BURST_RX_RETRIES 4  /* Number of retries on RX. */
-
-#define JUMBO_FRAME_MAX_SIZE 0x2600
 
 static inline int parse_int32(const char *s, uint32_t *pi);
 static int parse_num_opt(const char *q_arg, uint32_t max_valid_value);
@@ -56,7 +48,6 @@ enum cfg_params {
     CP_TSO,
     CP_CLIENT,
     CP_DEQUEUE_ZERO_COPY,
-    CP_BUILTIN_NET_DRIVER,
     CP_FP_CORES_MAX,
 };
 
@@ -118,7 +109,6 @@ static struct option options[] = {
     },
     {"client", no_argument, .val = CP_CLIENT},
     {"dequeue-zero-copy", no_argument, .val = CP_DEQUEUE_ZERO_COPY},
-    {"builtin-net-driver", no_argument, .val = CP_BUILTIN_NET_DRIVER},
 };
 
 /*
@@ -256,9 +246,6 @@ int parse_config(config_t *c, int argc, char **argv) {
             break;
         case CP_DEQUEUE_ZERO_COPY:
             c->dequeue_zero_copy = 1;
-            break;
-        case CP_BUILTIN_NET_DRIVER:
-            c->builtin_net_driver = 1;
             break;
 
         default:

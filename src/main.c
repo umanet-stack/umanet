@@ -245,9 +245,6 @@ int main(int argc, char *argv[]) {
             rte_exit(EXIT_FAILURE, "vhost driver register failure.\n");
         }
 
-        if (config.builtin_net_driver)
-            rte_vhost_driver_set_features(file, VIRTIO_NET_FEATURES);
-
         if (config.mergeable == 0) {
             rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_MRG_RXBUF);
         }
