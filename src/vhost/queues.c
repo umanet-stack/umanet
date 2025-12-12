@@ -84,6 +84,7 @@ void unlink_vmdq(struct vhost_dev *vdev) {
     }
 }
 
+// currently simulates sending pkts to vm
 // Transmits a packet from one vhost device to another via virtqueue.
 static __rte_always_inline void virtio_xmit(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev,
                                             struct rte_mbuf *m) {

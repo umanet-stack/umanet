@@ -67,6 +67,21 @@ int dataplane_context_init(struct dataplane_context *ctx) {
 
 void dataplane_context_destroy(struct dataplane_context *ctx) {}
 
+/*
+ * Main function of dataplane. It basically does:
+ *
+ * for each vhost device {
+ *    - drain_eth_rx():
+ *      Which drains the host eth Rx queue linked to the vhost device,
+ *      and deliver all of them to guest virito Rx ring associated with
+ *      this vhost device.
+ *
+ *    - drain_virtio_tx()
+ *      Which drains the guest virtio Tx queue and deliver all of them
+ *      to the target, which could be another vhost device, or the
+ *      physical eth dev. The route is done in function "virtio_tx_route".
+ * }
+ */
 void dataplane_loop(struct dataplane_context *ctx) {
     unsigned lcore_id = rte_lcore_id();
     struct vhost_dev *vdev;
