@@ -9,11 +9,6 @@
 #include <stdint.h>
 
 typedef struct {
-    /* number of devices/queues to support*/
-    uint32_t num_devices;
-
-    uint16_t queues_per_pool;
-
     const uint16_t vlan_tags[64];
 } eth_state_t;
 

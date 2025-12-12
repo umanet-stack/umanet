@@ -185,10 +185,7 @@ int main(int argc, char *argv[]) {
 
     // Sets up RX/TX queues per core
     // Initializes ARP, routing tables
-    eth.num_devices = 64;
-    eth.queues_per_pool = 1;
     printf("Initializing network...\n");
-    fflush(stdout);
     if (network_init(fp_cores_max) != 0) {
         res = EXIT_FAILURE;
         fprintf(stderr, "network init failed\n");

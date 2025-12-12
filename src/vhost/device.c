@@ -6,7 +6,6 @@
 #include <rte_malloc.h>
 #include <sys/queue.h>
 
-#include "src/eth/eth.h"
 #include "src/vhost/vhost.h"
 
 vhost_state_t vhost = {
@@ -80,7 +79,7 @@ static void destroy_device(int vid) {
  */
 static int new_device(int vid) {
     int lcore, core_add = 0;
-    uint32_t device_num_min = eth.num_devices;
+    uint32_t device_num_min = 64;
     struct vhost_dev *vdev;
 
     // RTE_CACHE_LINE_SIZE: Align to cache line (64 bytes typically) to avoid false sharing between cores
@@ -92,9 +91,8 @@ static int new_device(int vid) {
     vdev->vid = vid;
 
     TAILQ_INSERT_TAIL(&vhost.vhost_dev_list, vdev, global_vdev_entry);
-    // Calculate VMDq RX queue number for this device
-    // Each device gets queues_per_pool queues
-    vdev->vmdq_rx_q = vid * eth.queues_per_pool;
+    // Each device gets 1 RX queue
+    vdev->vmdq_rx_q = vid;
 
     /*reset ready flag*/
     vdev->ready = DEVICE_MAC_LEARNING;
