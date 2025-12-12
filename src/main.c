@@ -239,19 +239,6 @@ int main(int argc, char *argv[]) {
     RTE_LCORE_FOREACH_SLAVE(lcore_id)
     rte_eal_remote_launch(switch_worker, NULL, lcore_id);
 
-    // void *arg;
-    // /* Launch all data cores. */
-    // RTE_LCORE_FOREACH_SLAVE(lcore_id) {
-    //     if (threads_launched < fp_cores_max) {
-    //         arg = (void *)(uintptr_t)threads_launched;
-    //         if (rte_eal_remote_launch(switch_worker, arg, lcore_id) != 0) {
-    //             fprintf(stderr, "ERROR\n");
-    //             return -1;
-    //         }
-    //         threads_launched++;
-    //     }
-    // }
-
     if (config.client_mode)
         flags |= RTE_VHOST_USER_CLIENT;
 

@@ -4,7 +4,6 @@
 
 #include "src/config/config.h"
 #include "src/eth/eth.h"
-#include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 
 #include <generic/rte_cycles.h>
@@ -59,29 +58,7 @@ static __rte_always_inline void drain_virtio_tx(struct vhost_dev *vdev) {
             free_pkts(pkts, count);
     }
 
-    for (i = 0; i < count; ++i) { // loop received packets
-        // NEW: Try TCP classification
-        // uint32_t sip, dip;
-        // uint16_t sport, dport;
-        // struct tcp_flow_state *flow = NULL;
-
-        // if (vdev->tcp_offload_enabled && tcp_parse_packet(pkts[i], &sip, &dip, &sport, &dport) == 0) {
-        //     // Lookup existing flow
-        //     flow = tcp_flow_lookup(sip, dip, sport, dport);
-
-        //     if (!flow) {
-        //         // Check if SYN packet
-        //         struct rte_tcp_hdr *tcp = rte_pktmbuf_mtod(pkts[i], struct rte_tcp_hdr *);
-        //         if (tcp->tcp_flags & RTE_TCP_SYN_FLAG) {
-        //             flow = tcp_flow_create(sip, dip, sport, dport, vdev->vid);
-        //         }
-        //     }
-        //     if (flow) {
-        //         RTE_LOG_DP(DEBUG, VHOST_DATA, "Packet belongs to tracked flow\n");
-        //         // tcp_flow_update(flow, pkts[i], 1 /* inbound */);
-        //         // Still forward via L2 for now
-        //     }
-        // }
+    for (i = 0; i < count; ++i) {                                 // loop received packets
         virtio_tx_route(vdev, pkts[i], eth.vlan_tags[vdev->vid]); // route each to correct destination
     }
 }
@@ -126,23 +103,6 @@ int switch_worker(void *arg __rte_unused) {
     unsigned lcore_id = rte_lcore_id();
     struct vhost_dev *vdev;
     struct mbuf_table *tx_q;
-    uint16_t id = (uintptr_t)arg;
-
-    struct dataplane_context *ctx;
-
-    /* Allocate fastpath core context */
-    if ((ctx = rte_zmalloc("fastpath core context", sizeof(*ctx), 0)) == NULL) {
-        fprintf(stderr, "Allocating fastpath core context failed\n");
-        goto error_alloc;
-    }
-    ctxs[id] = ctx;
-    ctx->id = id;
-
-    /* initialize data plane context */
-    // if (dataplane_context_init(ctx) != 0) {
-    //     fprintf(stderr, "initializing data plane context\n");
-    //     goto error_dpctx;
-    // }
 
     RTE_LOG(INFO, VHOST_DATA, "Procesing on Core %u started\n", lcore_id);
 
@@ -184,8 +144,4 @@ int switch_worker(void *arg __rte_unused) {
     }
 
     return 0;
-
-error_dpctx:
-error_alloc:
-    return -1;
 }
