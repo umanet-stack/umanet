@@ -20,9 +20,6 @@ typedef struct {
     uint16_t queues_per_pool;
 
     const uint16_t vlan_tags[64];
-
-    /* ethernet addresses of ports */
-    struct rte_ether_addr vmdq_ports_eth_addr[64];
 } eth_state_t;
 
 extern eth_state_t eth;

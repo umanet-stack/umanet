@@ -181,18 +181,7 @@ int port_init(uint16_t n_threads) {
         }
     }
 
-    retval = rte_eth_macaddr_get(port, &eth.vmdq_ports_eth_addr[port]);
-    if (retval < 0) {
-        RTE_LOG(ERR, VHOST_PORT, "Failed to get MAC address on port %u: %s\n", port, rte_strerror(-retval));
-        return retval;
-    }
-
     RTE_LOG(INFO, VHOST_PORT, "Max virtio devices supported: %u\n", eth.num_devices);
-    RTE_LOG(INFO, VHOST_PORT,
-            "Port %u MAC: %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 "\n", port,
-            eth.vmdq_ports_eth_addr[port].addr_bytes[0], eth.vmdq_ports_eth_addr[port].addr_bytes[1],
-            eth.vmdq_ports_eth_addr[port].addr_bytes[2], eth.vmdq_ports_eth_addr[port].addr_bytes[3],
-            eth.vmdq_ports_eth_addr[port].addr_bytes[4], eth.vmdq_ports_eth_addr[port].addr_bytes[5]);
 
     return 0;
 }
