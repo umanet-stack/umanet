@@ -4,6 +4,7 @@
 
 #ifndef CONFIG_H
 #define CONFIG_H
+#include <rte_build_config.h>
 #include <stdint.h>
 
 typedef enum { VM2VM_DISABLED = 0, VM2VM_SOFTWARE = 1, VM2VM_HARDWARE = 2, VM2VM_LAST } vm2vm_type;

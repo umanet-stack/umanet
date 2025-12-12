@@ -13,8 +13,8 @@
 #include <rte_log.h>
 #include <rte_vhost.h>
 
+#include "./config/config.h"
 #include "./include/tas.h"
-#include "src/config/config.h"
 #include "src/eth/eth.h"
 #include "src/tcp_state.h"
 #include "src/vhost/vhost.h"
@@ -38,6 +38,9 @@ volatile unsigned fp_cores_cur = 1;
 volatile unsigned fp_scale_to = 0;
 
 struct dataplane_context **ctxs = NULL;
+
+// static int start_threads(void);
+// static int common_thread(void *arg);
 
 /*
  * This is a thread will wake up after a period to print stats if the user has
