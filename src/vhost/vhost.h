@@ -80,7 +80,7 @@ TAILQ_HEAD(vhost_dev_tailq_list, vhost_dev);
 /*
  * Structure containing data core specific information.
  */
-struct lcore_info {
+struct vhost_info {
     uint32_t device_num;
 
     /* Flag to synchronize device removal. */
@@ -109,7 +109,7 @@ struct mbuf_table {
 };
 
 typedef struct {
-    struct lcore_info lcore_info[RTE_MAX_LCORE];
+    struct vhost_info vhost[RTE_MAX_LCORE];
     struct vhost_dev_tailq_list vhost_dev_list;
 
     /* TX queue for each data core. */

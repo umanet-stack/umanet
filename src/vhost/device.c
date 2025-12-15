@@ -47,14 +47,14 @@ static void destroy_device(int vid) {
     }
 
     // Remove device from its assigned lcore's device list
-    TAILQ_REMOVE(&vhost.lcore_info[vdev->coreid].vdev_list, vdev, lcore_vdev_entry);
+    TAILQ_REMOVE(&vhost.vhost[vdev->coreid].vdev_list, vdev, lcore_vdev_entry);
     // Remove device from global device list
     TAILQ_REMOVE(&vhost.vhost_dev_list, vdev, global_vdev_entry);
 
     // tells worker cores to acknowledge they've seen the removal at their next safe point
     /* Set the dev_removal_flag on each lcore. */
     RTE_LCORE_FOREACH_SLAVE(lcore)
-    vhost.lcore_info[lcore].dev_removal_flag = REQUEST_DEV_REMOVAL;
+    vhost.vhost[lcore].dev_removal_flag = REQUEST_DEV_REMOVAL;
 
     /*
      * Once each core has set the dev_removal_flag to ACK_DEV_REMOVAL
@@ -63,11 +63,11 @@ static void destroy_device(int vid) {
      */
     RTE_LCORE_FOREACH_SLAVE(lcore) {
         // busy-wait until it acknowledges removal
-        while (vhost.lcore_info[lcore].dev_removal_flag != ACK_DEV_REMOVAL)
+        while (vhost.vhost[lcore].dev_removal_flag != ACK_DEV_REMOVAL)
             rte_pause();
     }
 
-    vhost.lcore_info[vdev->coreid].device_num--;
+    vhost.vhost[vdev->coreid].device_num--;
 
     RTE_LOG(INFO, VHOST_DATA, "(%d) device has been removed from data core\n", vdev->vid);
 
@@ -101,15 +101,15 @@ static int new_device(int vid) {
 
     /* Find a suitable lcore to add the device. */
     RTE_LCORE_FOREACH_SLAVE(lcore) {
-        if (vhost.lcore_info[lcore].device_num < device_num_min) {
-            device_num_min = vhost.lcore_info[lcore].device_num;
+        if (vhost.vhost[lcore].device_num < device_num_min) {
+            device_num_min = vhost.vhost[lcore].device_num;
             core_add = lcore;
         }
     }
     vdev->coreid = core_add;
 
-    TAILQ_INSERT_TAIL(&vhost.lcore_info[vdev->coreid].vdev_list, vdev, lcore_vdev_entry);
-    vhost.lcore_info[vdev->coreid].device_num++;
+    TAILQ_INSERT_TAIL(&vhost.vhost[vdev->coreid].vdev_list, vdev, lcore_vdev_entry);
+    vhost.vhost[vdev->coreid].device_num++;
 
     /* Disable notifications. */
     // Normally, guest would send interrupt when it adds packets to TX queue or consumes packets from RX queue
@@ -148,7 +148,7 @@ int register_vhost_drivers() {
     uint64_t flags = 0;
 
     for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
-        TAILQ_INIT(&vhost.lcore_info[lcore_id].vdev_list); // init first,last dev list
+        TAILQ_INIT(&vhost.vhost[lcore_id].vdev_list); // init first,last dev list
 
         if (rte_lcore_is_enabled(lcore_id))
             vhost.lcore_ids[core_id++] = lcore_id;

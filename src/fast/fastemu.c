@@ -165,13 +165,13 @@ void dataplane_loop(struct dataplane_context *ctx) {
          * Inform the configuration core that we have exited the
          * linked list and that no devices are in use if requested.
          */
-        if (vhost.lcore_info[lcore_id].dev_removal_flag == REQUEST_DEV_REMOVAL)
-            vhost.lcore_info[lcore_id].dev_removal_flag = ACK_DEV_REMOVAL;
+        if (vhost.vhost[lcore_id].dev_removal_flag == REQUEST_DEV_REMOVAL)
+            vhost.vhost[lcore_id].dev_removal_flag = ACK_DEV_REMOVAL;
 
         /*
          * Process vhost devices
          */
-        TAILQ_FOREACH(vdev, &vhost.lcore_info[lcore_id].vdev_list, lcore_vdev_entry) {
+        TAILQ_FOREACH(vdev, &vhost.vhost[lcore_id].vdev_list, lcore_vdev_entry) {
             if (unlikely(vdev->remove)) { // device is marked for removal
                 unlink_vmdq(vdev);
                 vdev->ready = DEVICE_SAFE_REMOVE;
