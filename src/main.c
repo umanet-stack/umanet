@@ -153,10 +153,10 @@ int main(int argc, char *argv[]) {
     shm_set_ready();
 
     /* Enable stats if the user option is set. */
-    static pthread_t tid;
-    if (config.enable_stats && rte_ctrl_thread_create(&tid, "print-stats", NULL, print_stats, NULL) < 0) {
-        rte_exit(EXIT_FAILURE, "Cannot create print-stats thread\n");
-    }
+    // static pthread_t tid;
+    // if (config.enable_stats && rte_ctrl_thread_create(&tid, "print-stats", NULL, print_stats, NULL) < 0) {
+    //     rte_exit(EXIT_FAILURE, "Cannot create print-stats thread\n");
+    // }
 
     // Start worker threads BEFORE vhost registration
     // This ensures TX queues are initialized before vhost can send packets
