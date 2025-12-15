@@ -6,6 +6,7 @@
 #include <rte_malloc.h>
 #include <sys/queue.h>
 
+#include "src/fast/network.h"
 #include "src/vhost/vhost.h"
 
 vhost_state_t vhost = {
@@ -192,6 +193,9 @@ int register_vhost_drivers() {
             printf("failed to start vhost driver.\n");
             return -1;
         }
+        // testing only
+        rte_eth_promiscuous_enable(net_port_id);
+        printf("Promiscuous mode enabled for port %d\n", net_port_id);
     }
 
     printf("Vhost drivers started, waiting for connections...\n");
