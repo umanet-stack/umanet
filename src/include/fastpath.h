@@ -30,8 +30,8 @@
 
 #include <rte_interrupts.h>
 
-// #include "../../include/tas_memif.h"
-// #include "../../include/utils_rng.h"
+#include "../../include/tas_memif.h"
+#include "../../include/utils_rng.h"
 
 #define BATCH_SIZE 16
 #define BUFCACHE_SIZE 128
@@ -57,7 +57,7 @@ struct qman_thread {
     uint32_t nolimit_tail_idx;
     uint32_t ts_real;
     uint32_t ts_virtual;
-    // struct utils_rng rng;
+    struct utils_rng rng;
     bool nolimit_first;
 };
 
@@ -71,7 +71,7 @@ struct dataplane_context {
 
     /********************************************************/
     /* arx cache */
-    // struct flextcp_pl_arx arx_cache[BATCH_SIZE];
+    struct flextcp_pl_arx arx_cache[BATCH_SIZE];
     uint16_t arx_ctx[BATCH_SIZE];
     uint16_t arx_num;
 
