@@ -96,6 +96,7 @@ void dataplane_loop(struct dataplane_context *ctx) {
     while (1) {
         sleep(1);
         printf("Draining mbuf table...\n");
+        // tx_flush
         drain_mbuf_table(tx_q); // drain if timeout has elapsed
 
         /*
@@ -117,11 +118,13 @@ void dataplane_loop(struct dataplane_context *ctx) {
 
             if (likely(vdev->ready == DEVICE_RX)) {
                 printf("Draining eth rx...\n");
+                // poll_rx
                 drain_eth_rx(vdev); // receive packets from physical NIC and forward them to a VM
             }
 
             if (likely(!vdev->remove)) { // device is not being removed (double-check)
                 printf("Draining virtio tx...\n");
+                // poll_queues
                 drain_virtio_tx(vdev, ctx); // receive packets from VM's TX queue, route them to the correct destination
             }
         }
