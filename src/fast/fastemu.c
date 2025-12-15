@@ -1,8 +1,57 @@
 
+#include "src/fast/fastemu.h"
+#include "src/fast/internal.h"
 #include "src/fast/network.h"
+#include "src/fast/tcp_common.h"
+#include "src/include/fastpath.h"
 #include "src/include/tas.h"
 #include "src/vhost/vhost.h"
 #include <unistd.h>
+
+#define DATAPLANE_TSCS
+
+#ifdef DATAPLANE_STATS
+#ifdef DATAPLANE_TSCS
+#define STATS_TS(n) uint64_t n = rte_get_tsc_cycles()
+#define STATS_TSADD(c, f, n) __sync_fetch_and_add(&c->stat_##f, n)
+#else
+#define STATS_TS(n)                                                                                                    \
+    do {                                                                                                               \
+    } while (0)
+#define STATS_TSADD(c, f, n)                                                                                           \
+    do {                                                                                                               \
+    } while (0)
+#endif
+#define STATS_ADD(c, f, n) __sync_fetch_and_add(&c->stat_##f, n)
+#else
+#define STATS_TS(n)                                                                                                    \
+    do {                                                                                                               \
+    } while (0)
+#define STATS_TSADD(c, f, n)                                                                                           \
+    do {                                                                                                               \
+    } while (0)
+#define STATS_ADD(c, f, n)                                                                                             \
+    do {                                                                                                               \
+    } while (0)
+#endif
+
+static void dataplane_block(struct dataplane_context *ctx, uint32_t ts);
+static unsigned poll_rx(struct dataplane_context *ctx, uint32_t ts, uint64_t tsc) __attribute__((noinline));
+static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) __attribute__((noinline));
+static unsigned poll_kernel(struct dataplane_context *ctx, uint32_t ts) __attribute__((noinline));
+static unsigned poll_qman(struct dataplane_context *ctx, uint32_t ts) __attribute__((noinline));
+static unsigned poll_qman_fwd(struct dataplane_context *ctx, uint32_t ts) __attribute__((noinline));
+static void poll_scale(struct dataplane_context *ctx);
+
+static inline uint8_t bufcache_prealloc(struct dataplane_context *ctx, uint16_t num,
+                                        struct network_buf_handle ***handles);
+static inline void bufcache_alloc(struct dataplane_context *ctx, uint16_t num);
+static inline void bufcache_free(struct dataplane_context *ctx, struct network_buf_handle *handle);
+
+static inline void tx_flush(struct dataplane_context *ctx);
+static inline void tx_send(struct dataplane_context *ctx, struct network_buf_handle *nbh, uint16_t off, uint16_t len);
+
+static void arx_cache_flush(struct dataplane_context *ctx, uint64_t tsc) __attribute__((noinline));
 
 int dataplane_init(void) {
     if (FLEXNIC_INTERNAL_MEM_SIZE < sizeof(struct flextcp_pl_mem)) {
@@ -67,22 +116,12 @@ int dataplane_context_init(struct dataplane_context *ctx) {
 
 void dataplane_context_destroy(struct dataplane_context *ctx) {}
 
-/*
- * Main function of dataplane. It basically does:
- *
- * for each vhost device {
- *    - drain_eth_rx():
- *      Which drains the host eth Rx queue linked to the vhost device,
- *      and deliver all of them to guest virito Rx ring associated with
- *      this vhost device.
- *
- *    - drain_virtio_tx()
- *      Which drains the guest virtio Tx queue and deliver all of them
- *      to the target, which could be another vhost device, or the
- *      physical eth dev. The route is done in function "virtio_tx_route".
- * }
- */
 void dataplane_loop(struct dataplane_context *ctx) {
+    struct notify_blockstate nbs;
+    uint32_t ts;
+    uint64_t cyc, prev_cyc;
+    int was_idle = 1;
+
     unsigned lcore_id = rte_lcore_id();
     struct vhost_dev *vdev;
     struct mbuf_table *tx_q;
@@ -93,7 +132,30 @@ void dataplane_loop(struct dataplane_context *ctx) {
     // Use ctx->id which matches the initialized TX queue ID
     tx_q->txq_id = ctx->id;
 
-    while (1) {
+    while (!exited) {
+        // work counter used to determine if the core was idle.
+        // unsigned n = 0;
+
+        // /* count cycles of previous iteration if it was busy */
+        // prev_cyc = cyc;
+        // cyc = rte_get_tsc_cycles();
+        // if (!was_idle)
+        //     ctx->loadmon_cyc_busy += cyc - prev_cyc;
+
+        // ts = qman_timestamp(cyc);
+        // STATS_TS(start);
+
+        // // n += poll_rx(ctx, ts, cyc);
+        // STATS_TS(rx);
+        // // Flush TX buffer (send pkt)
+        // // tx_flush(ctx);
+
+        // n += poll_vhost_rx(ctx, ts);
+        // STATS_TS(qs);
+        // STATS_TSADD(ctx, cyc_qs, qs - qm);
+
+        // n += poll_rx(ctx, ts, cyc);      // Physical NIC - external traffic (later)
+        // n += poll_vhost_rx(ctx, ts);      // Vhost - VM traffic
         sleep(1);
         printf("Draining mbuf table...\n");
         // tx_flush
@@ -130,3 +192,54 @@ void dataplane_loop(struct dataplane_context *ctx) {
         }
     }
 }
+
+// Poll vhost RX queues for incoming packets
+// static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) {
+//     struct network_buf_handle *bhs[BATCH_SIZE];
+//     void *fss[BATCH_SIZE];
+//     struct tcp_opts tcpopts[BATCH_SIZE];
+//     unsigned n = 0, i, j, total = 0;
+//     int ret;
+//     // struct vhost_context *vhost = &ctx->vhost;
+
+//     // Poll multiple vhost devices/queues per core (round-robin)
+//     for (j = 0; j < vhost->num_devices && total < BATCH_SIZE; j++) {
+//         uint16_t dev_idx = (vhost->poll_next_device + j) % vhost->num_devices;
+//         struct rte_vhost_vring *vring = vhost->vrings[dev_idx];
+
+//         // Poll RX virtqueue for this vhost device
+//         ret = rte_vhost_dequeue_burst(vring, ctx->id, (struct rte_mbuf **)(bhs + total), BATCH_SIZE - total);
+//         if (ret <= 0)
+//             continue;
+
+//         n = ret;
+//         total += n;
+
+//         // Look up flow states
+//         fast_flows_packet_fss(ctx, bhs + (total - n), fss + (total - n), n);
+
+//         // Parse TCP headers
+//         fast_flows_packet_parse(ctx, bhs + (total - n), fss + (total - n), tcpopts + (total - n), n);
+
+//         // Process packets
+//         for (i = total - n; i < total; i++) {
+//             if (fss[i] != NULL) {
+//                 ret = fast_flows_packet(ctx, bhs[i], fss[i], &tcpopts[i], ts);
+//                 // Instead of writing to shared RX buffer, queue for vhost TX
+//                 if (ret > 0) {
+//                     // Determine which vhost device this packet came from
+//                     vhost_tx_enqueue(vring, ctx->id, bhs[i]);
+//                 }
+//             } else {
+//                 // New connection - send to slowpath
+//                 fast_kernel_packet(ctx, bhs[i]);
+//             }
+//         }
+//     }
+
+//     // Update round-robin pointer
+//     if (total > 0)
+//         vhost->poll_next_device = (vhost->poll_next_device + 1) % vhost->num_devices;
+
+//     return total;
+// }

@@ -33,11 +33,11 @@ struct device_statistics {
 
 // https://www.redhat.com/en/blog/journey-vhost-users-realm
 // https://www.redhat.com/en/blog/virtqueues-and-virtio-ring-how-data-travels
-struct vhost_queue {
-    struct rte_vhost_vring vr; // DPDK vhost vring
-    uint16_t last_avail_idx;   // last processed available descriptor index
-    uint16_t last_used_idx;    // last processed used descriptor index
-};
+// struct vhost_queue {
+//     struct rte_vhost_vring vr; // DPDK vhost vring
+//     uint16_t last_avail_idx;   // last processed available descriptor index
+//     uint16_t last_used_idx;    // last processed used descriptor index
+// };
 
 struct vhost_dev { // vhost device
     /**< Number of memory regions for gpa to hpa translation. */
@@ -64,8 +64,8 @@ struct vhost_dev { // vhost device
     TAILQ_ENTRY(vhost_dev) global_vdev_entry; // Global list entry
     TAILQ_ENTRY(vhost_dev) lcore_vdev_entry;  // Per-core list entry
 
-#define MAX_QUEUE_PAIRS 4
-    struct vhost_queue queues[MAX_QUEUE_PAIRS * 2]; // 4 pairs of RX/TX queues
+    // #define MAX_QUEUE_PAIRS 4
+    //     struct vhost_queue queues[MAX_QUEUE_PAIRS * 2]; // 4 pairs of RX/TX queues
 
     // NEW: TCP offload support
     int tcp_offload_enabled;
