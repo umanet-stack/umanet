@@ -79,3 +79,18 @@ sudo cloud-hypervisor \
   --disk path=/tmp/noble-server-cloudimg-amd64.raw path=/tmp/cloudinit-vm0-dpdk.img \
   --net mac=52:54:00:02:d9:01,vhost_user=true,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=2048
 ```
+
+### VM packets
+eth0/ens4 always send ARP pkt every sec, great for testing vhost connectivity
+- **Linux refuses to send ICMP** until ARP resolves.
+- pretend VM’s gateway is `02:00:00:00:00:01`
+
+```bash
+sudo ip neigh replace 10.10.1.1 lladdr 02:00:00:00:00:01 dev ens4 nud permanent
+# or
+sudo ip neigh del 10.10.1.1 dev ens4
+sudo ip neigh add 10.10.1.1 lladdr 02:00:00:00:00:01 dev ens4 nud permanent
+
+```
+- vm will now send TCP/UDP pkts asking for 8.8.8.8
+    - pinging pkts will also show
