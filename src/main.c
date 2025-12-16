@@ -54,7 +54,10 @@ static void *print_stats(__rte_unused void *arg) {
 
         for (int i = 0; i < fp_cores_max; i++) {
             struct dataplane_context *ctx = ctxs[i];
-            TAILQ_FOREACH(vdev, &ctx->vhost.vdev_list, lcore_vdev_entry) {
+            for (int j = 0; j < ctx->vhost.device_num; j++) {
+                vdev = ctx->vhost.vdev_list[j];
+                if (vdev == NULL)
+                    continue;
                 tx_total = vdev->stats.tx_total;
                 tx = vdev->stats.tx;
                 tx_dropped = tx_total - tx;

@@ -91,12 +91,11 @@ struct vhost_dev { // vhost device
     uint16_t nr_vrings;           // Number of virtio rings
     struct rte_vhost_memory *mem; // Guest memory mapping
     struct device_statistics stats;
-    TAILQ_ENTRY(vhost_dev) lcore_vdev_entry; // Per-core list entry
 } __rte_cache_aligned;
 
-TAILQ_HEAD(vhost_dev_tailq_list, vhost_dev);
+#define MAX_PKT_BURST 32              /* Max packets processed per burst (RX/TX) */
+#define MAX_VHOST_DEVICES_PER_CORE 64 /* Max vhost devices per dataplane core */
 
-#define MAX_PKT_BURST 32 /* Max packets processed per burst (RX/TX) */
 /* Used for queueing bursts of TX packets. */
 struct mbuf_table {
     unsigned len;
@@ -110,8 +109,11 @@ struct vhost_info {
     /* Flag to synchronize device removal. */
     volatile uint8_t dev_removal_flag;
 
-    // list of devices on this core
-    struct vhost_dev_tailq_list vdev_list;
+    // Array of device pointers for round-robin polling
+    struct vhost_dev *vdev_list[MAX_VHOST_DEVICES_PER_CORE];
+
+    // Round-robin index for polling devices
+    uint32_t poll_next_device;
 
     struct mbuf_table tx_q;
 };

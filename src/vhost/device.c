@@ -14,8 +14,9 @@ struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
 
     for (int i = 0; i < fp_cores_max; i++) {
         struct dataplane_context *ctx = ctxs[i];
-        TAILQ_FOREACH(vdev, &ctx->vhost.vdev_list, lcore_vdev_entry) {
-            if (vdev->ready == DEVICE_RX && rte_is_same_ether_addr(mac, &vdev->mac_address))
+        for (int j = 0; j < ctx->vhost.device_num; j++) {
+            vdev = ctx->vhost.vdev_list[j];
+            if (vdev != NULL && vdev->ready == DEVICE_RX && rte_is_same_ether_addr(mac, &vdev->mac_address))
                 return vdev;
         }
     }
@@ -32,10 +33,20 @@ struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
 static void destroy_device(int vid) {
     struct vhost_dev *vdev = NULL;
     int lcore;
-    struct dataplane_context *ctx = ctxs[rte_lcore_id()];
+    struct dataplane_context *ctx = NULL;
+    int dev_idx = -1;
 
-    TAILQ_FOREACH(vdev, &ctx->vhost.vdev_list, lcore_vdev_entry) {
-        if (vdev->vid == vid)
+    // Find the device across all contexts
+    for (int i = 0; i < fp_cores_max; i++) {
+        for (int j = 0; j < ctxs[i]->vhost.device_num; j++) {
+            if (ctxs[i]->vhost.vdev_list[j] != NULL && ctxs[i]->vhost.vdev_list[j]->vid == vid) {
+                vdev = ctxs[i]->vhost.vdev_list[j];
+                ctx = ctxs[i];
+                dev_idx = j;
+                break;
+            }
+        }
+        if (vdev != NULL)
             break;
     }
     if (!vdev)
@@ -46,8 +57,14 @@ static void destroy_device(int vid) {
         rte_pause();
     }
 
-    // Remove device from its assigned lcore's device list
-    TAILQ_REMOVE(&ctx->vhost.vdev_list, vdev, lcore_vdev_entry);
+    // Remove device from array by shifting remaining elements
+    if (ctx != NULL && dev_idx >= 0) {
+        for (int j = dev_idx; j < ctx->vhost.device_num - 1; j++) {
+            ctx->vhost.vdev_list[j] = ctx->vhost.vdev_list[j + 1];
+        }
+        ctx->vhost.vdev_list[ctx->vhost.device_num - 1] = NULL;
+        ctx->vhost.device_num--;
+    }
 
     // tells worker cores to acknowledge they've seen the removal at their next safe point
     /* Set the dev_removal_flag on each lcore. */
@@ -113,7 +130,13 @@ static int new_device(int vid) {
 
     vdev->coreid = ctx->id;
 
-    TAILQ_INSERT_TAIL(&ctx->vhost.vdev_list, vdev, lcore_vdev_entry);
+    // Add device to array
+    if (ctx->vhost.device_num >= MAX_VHOST_DEVICES_PER_CORE) {
+        printf("(%d) too many devices on core %d (max %d)\n", vid, ctx->id, MAX_VHOST_DEVICES_PER_CORE);
+        rte_free(vdev);
+        return -1;
+    }
+    ctx->vhost.vdev_list[ctx->vhost.device_num] = vdev;
     ctx->vhost.device_num++;
 
     /* Disable notifications. */

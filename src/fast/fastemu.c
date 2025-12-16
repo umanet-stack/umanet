@@ -6,6 +6,7 @@
 #include "src/include/fastpath.h"
 #include "src/include/tas.h"
 #include "src/vhost/vhost.h"
+#include <string.h>
 #include <sys/queue.h>
 #include <unistd.h>
 
@@ -112,10 +113,11 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     // assert(r == 0);
     // fp_state->kctx[ctx->id].evfd = ctx->evfd;
 
-    /* Initialize vhost device list for this context */
-    TAILQ_INIT(&ctx->vhost.vdev_list);
+    /* Initialize vhost device array for this context */
+    memset(ctx->vhost.vdev_list, 0, sizeof(ctx->vhost.vdev_list));
     ctx->vhost.device_num = 0;
     ctx->vhost.dev_removal_flag = 0;
+    ctx->vhost.poll_next_device = 0;
 
     return 0;
 }
@@ -177,10 +179,21 @@ void dataplane_loop(struct dataplane_context *ctx) {
         /*
          * Process vhost devices
          */
-        TAILQ_FOREACH(vdev, &ctx->vhost.vdev_list, lcore_vdev_entry) {
+        for (int i = 0; i < ctx->vhost.device_num; i++) {
+            vdev = ctx->vhost.vdev_list[i];
+            if (vdev == NULL)
+                continue;
+
             if (unlikely(vdev->remove)) { // device is marked for removal
                 unlink_vmdq(vdev);
                 vdev->ready = DEVICE_SAFE_REMOVE;
+                // Remove from array by shifting remaining elements
+                for (int j = i; j < ctx->vhost.device_num - 1; j++) {
+                    ctx->vhost.vdev_list[j] = ctx->vhost.vdev_list[j + 1];
+                }
+                ctx->vhost.vdev_list[ctx->vhost.device_num - 1] = NULL;
+                ctx->vhost.device_num--;
+                i--; // Adjust index after removal
                 continue;
             }
 
@@ -200,52 +213,63 @@ void dataplane_loop(struct dataplane_context *ctx) {
 }
 
 // Poll vhost RX queues for incoming packets
-// static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) {
-//     struct network_buf_handle *bhs[BATCH_SIZE];
-//     void *fss[BATCH_SIZE];
-//     struct tcp_opts tcpopts[BATCH_SIZE];
-//     unsigned n = 0, i, j, total = 0;
-//     int ret;
-//     // struct vhost_context *vhost = &ctx->vhost;
+static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) {
+    struct network_buf_handle *bhs[BATCH_SIZE];
+    void *fss[BATCH_SIZE];
+    struct tcp_opts tcpopts[BATCH_SIZE];
+    struct vhost_dev *vdev;
+    unsigned n = 0, i, j, total = 0;
+    int ret;
 
-//     // Poll multiple vhost devices/queues per core (round-robin)
-//     for (j = 0; j < vhost->num_devices && total < BATCH_SIZE; j++) {
-//         uint16_t dev_idx = (vhost->poll_next_device + j) % vhost->num_devices;
-//         struct rte_vhost_vring *vring = vhost->vrings[dev_idx];
+    // Poll multiple vhost devices/queues per core (round-robin)
+    if (ctx->vhost.device_num == 0)
+        return 0;
 
-//         // Poll RX virtqueue for this vhost device
-//         ret = rte_vhost_dequeue_burst(vring, ctx->id, (struct rte_mbuf **)(bhs + total), BATCH_SIZE - total);
-//         if (ret <= 0)
-//             continue;
+    for (j = 0; j < ctx->vhost.device_num && total < BATCH_SIZE; j++) {
+        uint16_t dev_idx = (ctx->vhost.poll_next_device + j) % ctx->vhost.device_num;
+        vdev = ctx->vhost.vdev_list[dev_idx];
+        if (vdev == NULL)
+            continue;
 
-//         n = ret;
-//         total += n;
+        // Poll RX virtqueue for this vhost device (VIRTIO_TXQ = packets from VM)
+        struct rte_mbuf *pkts[MAX_PKT_BURST];
+        ret = rte_vhost_dequeue_burst(vdev->vid, VIRTIO_TXQ, ctx->net.pool, pkts, MAX_PKT_BURST);
+        if (ret <= 0)
+            continue;
 
-//         // Look up flow states
-//         fast_flows_packet_fss(ctx, bhs + (total - n), fss + (total - n), n);
+        n = ret;
+        total += n;
 
-//         // Parse TCP headers
-//         fast_flows_packet_parse(ctx, bhs + (total - n), fss + (total - n), tcpopts + (total - n), n);
+        for (int k = 0; k < ret && total < BATCH_SIZE; k++) {
+            bhs[total] = (struct network_buf_handle *)pkts[k];
+            total++;
+        }
 
-//         // Process packets
-//         for (i = total - n; i < total; i++) {
-//             if (fss[i] != NULL) {
-//                 ret = fast_flows_packet(ctx, bhs[i], fss[i], &tcpopts[i], ts);
-//                 // Instead of writing to shared RX buffer, queue for vhost TX
-//                 if (ret > 0) {
-//                     // Determine which vhost device this packet came from
-//                     vhost_tx_enqueue(vring, ctx->id, bhs[i]);
-//                 }
-//             } else {
-//                 // New connection - send to slowpath
-//                 fast_kernel_packet(ctx, bhs[i]);
-//             }
-//         }
-//     }
+        // Look up flow states
+        fast_flows_packet_fss(ctx, bhs + (total - n), fss + (total - n), n);
 
-//     // Update round-robin pointer
-//     if (total > 0)
-//         vhost->poll_next_device = (vhost->poll_next_device + 1) % vhost->num_devices;
+        // Parse TCP headers
+        fast_flows_packet_parse(ctx, bhs + (total - n), fss + (total - n), tcpopts + (total - n), n);
 
-//     return total;
-// }
+        // Process packets
+        for (i = total - n; i < total; i++) {
+            if (fss[i] != NULL) {
+                ret = fast_flows_packet(ctx, bhs[i], fss[i], &tcpopts[i], ts);
+                // Instead of writing to shared RX buffer, queue for vhost TX
+                if (ret > 0) {
+                    // Determine which vhost device this packet came from
+                    // vhost_tx_enqueue(vring, ctx->id, bhs[i]);
+                }
+            } else {
+                // New connection - send to slowpath
+                fast_kernel_packet(ctx, bhs[i]);
+            }
+        }
+    }
+
+    // Update round-robin pointer
+    if (total > 0 && ctx->vhost.device_num > 0)
+        ctx->vhost.poll_next_device = (ctx->vhost.poll_next_device + 1) % ctx->vhost.device_num;
+
+    return total;
+}

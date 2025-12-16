@@ -197,8 +197,9 @@ void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, struct mbuf_tab
 
         for (int i = 0; i < fp_cores_max; i++) {
             struct dataplane_context *ctx = ctxs[i];
-            TAILQ_FOREACH(vdev2, &ctx->vhost.vdev_list, lcore_vdev_entry) {
-                if (vdev2 != vdev)
+            for (int j = 0; j < ctx->vhost.device_num; j++) {
+                vdev2 = ctx->vhost.vdev_list[j];
+                if (vdev2 != NULL && vdev2 != vdev)
                     virtio_xmit(vdev2, vdev, m);
             }
         }
