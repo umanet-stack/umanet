@@ -6,6 +6,7 @@
 #include "src/include/fastpath.h"
 #include "src/include/tas.h"
 #include "src/vhost/vhost.h"
+#include <sys/queue.h>
 #include <unistd.h>
 
 #define DATAPLANE_TSCS
@@ -111,6 +112,11 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     // assert(r == 0);
     // fp_state->kctx[ctx->id].evfd = ctx->evfd;
 
+    /* Initialize vhost device list for this context */
+    TAILQ_INIT(&ctx->vhost.vdev_list);
+    ctx->vhost.device_num = 0;
+    ctx->vhost.dev_removal_flag = 0;
+
     return 0;
 }
 
@@ -122,15 +128,15 @@ void dataplane_loop(struct dataplane_context *ctx) {
     uint64_t cyc, prev_cyc;
     int was_idle = 1;
 
-    unsigned lcore_id = rte_lcore_id();
+    unsigned lcore_id = ctx->id;
     struct vhost_dev *vdev;
     struct mbuf_table *tx_q;
 
-    RTE_LOG(INFO, VHOST_DATA, "Procesing on Core %u started\n", lcore_id);
+    printf("Procesing on Core %u started\n", lcore_id);
 
-    tx_q = &vhost.lcore_tx_queue[lcore_id];
-    // Use ctx->id which matches the initialized TX queue ID
+    tx_q = &ctx->vhost.tx_q;
     tx_q->txq_id = ctx->id;
+    printf("TX queue ID: %u\n", tx_q->txq_id);
 
     while (!exited) {
         // work counter used to determine if the core was idle.
@@ -165,13 +171,13 @@ void dataplane_loop(struct dataplane_context *ctx) {
          * Inform the configuration core that we have exited the
          * linked list and that no devices are in use if requested.
          */
-        if (vhost.vhost[lcore_id].dev_removal_flag == REQUEST_DEV_REMOVAL)
-            vhost.vhost[lcore_id].dev_removal_flag = ACK_DEV_REMOVAL;
+        if (ctx->vhost.dev_removal_flag == REQUEST_DEV_REMOVAL)
+            ctx->vhost.dev_removal_flag = ACK_DEV_REMOVAL;
 
         /*
          * Process vhost devices
          */
-        TAILQ_FOREACH(vdev, &vhost.vhost[lcore_id].vdev_list, lcore_vdev_entry) {
+        TAILQ_FOREACH(vdev, &ctx->vhost.vdev_list, lcore_vdev_entry) {
             if (unlikely(vdev->remove)) { // device is marked for removal
                 unlink_vmdq(vdev);
                 vdev->ready = DEVICE_SAFE_REMOVE;

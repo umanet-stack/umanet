@@ -25,6 +25,7 @@
 #ifndef FASTPATH_H_
 #define FASTPATH_H_
 
+#include <rte_ether.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -61,6 +62,60 @@ struct qman_thread {
     bool nolimit_first;
 };
 
+struct device_statistics {
+    uint64_t tx;
+    uint64_t tx_total;
+    rte_atomic64_t rx_atomic;
+    rte_atomic64_t rx_total_atomic;
+};
+
+struct vhost_dev { // vhost device
+    /**< Number of memory regions for gpa to hpa translation. */
+    uint32_t nregions_hpa;
+    /**< Device MAC address (Obtained on first TX packet). */
+    struct rte_ether_addr mac_address;
+    /**< RX VMDQ (VM device queue) queue number. */
+    uint16_t vmdq_rx_q; // stores the RX queue number assigned to each vhost device
+    /**< Vlan tag assigned to the pool */
+    uint32_t vlan_tag;
+    /**< Data core that the device is added to. */
+    uint16_t coreid;
+    /**< A device is set as ready if the MAC address has been set. */
+    volatile uint8_t ready;
+    /**< Device is marked for removal from the data core. */
+    volatile uint8_t remove;
+
+    int vid;                      // vhost device ID
+    uint64_t features;            // Virtio feature flags
+    size_t hdr_len;               // Header length
+    uint16_t nr_vrings;           // Number of virtio rings
+    struct rte_vhost_memory *mem; // Guest memory mapping
+    struct device_statistics stats;
+    TAILQ_ENTRY(vhost_dev) lcore_vdev_entry; // Per-core list entry
+} __rte_cache_aligned;
+
+TAILQ_HEAD(vhost_dev_tailq_list, vhost_dev);
+
+#define MAX_PKT_BURST 32 /* Max packets processed per burst (RX/TX) */
+/* Used for queueing bursts of TX packets. */
+struct mbuf_table {
+    unsigned len;
+    unsigned txq_id;
+    struct rte_mbuf *m_table[MAX_PKT_BURST];
+};
+
+struct vhost_info {
+    uint32_t device_num;
+
+    /* Flag to synchronize device removal. */
+    volatile uint8_t dev_removal_flag;
+
+    // list of devices on this core
+    struct vhost_dev_tailq_list vdev_list;
+
+    struct mbuf_table tx_q;
+};
+
 struct dataplane_context {
     struct network_thread net;
     struct qman_thread qman;
@@ -68,6 +123,9 @@ struct dataplane_context {
     uint16_t id;
     int evfd;
     struct rte_epoll_event ev;
+
+    // vhost
+    struct vhost_info vhost;
 
     /********************************************************/
     /* arx cache */

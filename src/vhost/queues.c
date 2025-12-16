@@ -8,6 +8,7 @@
 
 #include "src/config/config.h"
 #include "src/fast/network.h"
+#include "src/include/tas.h"
 #include "src/vhost/vhost.h"
 
 /*
@@ -22,7 +23,7 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
     pkt_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
     if (find_vhost_dev(&pkt_hdr->s_addr)) {
-        RTE_LOG(ERR, VHOST_DATA, "(%d) device is using a registered MAC!\n", vdev->vid);
+        printf("(%d) device is using a registered MAC!\n", vdev->vid);
         return -1;
     }
 
@@ -35,15 +36,15 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
     vdev->vlan_tag = vlan_tags[vdev->vid];
 
     /* Print out VMDQ registration info. */
-    RTE_LOG(INFO, VHOST_DATA, "(%d) mac %02x:%02x:%02x:%02x:%02x:%02x and vlan %d registered\n", vdev->vid,
-            vdev->mac_address.addr_bytes[0], vdev->mac_address.addr_bytes[1], vdev->mac_address.addr_bytes[2],
-            vdev->mac_address.addr_bytes[3], vdev->mac_address.addr_bytes[4], vdev->mac_address.addr_bytes[5],
-            vdev->vlan_tag);
+    printf("(%d) mac %02x:%02x:%02x:%02x:%02x:%02x and vlan %d registered\n", vdev->vid,
+           vdev->mac_address.addr_bytes[0], vdev->mac_address.addr_bytes[1], vdev->mac_address.addr_bytes[2],
+           vdev->mac_address.addr_bytes[3], vdev->mac_address.addr_bytes[4], vdev->mac_address.addr_bytes[5],
+           vdev->vlan_tag);
 
     /* Register the MAC address without pool */
     ret = rte_eth_dev_mac_addr_add(net_port_id, &vdev->mac_address, 0);
     if (ret)
-        RTE_LOG(ERR, VHOST_DATA, "(%d) failed to add device MAC address\n", vdev->vid);
+        printf("(%d) failed to add device MAC address\n", vdev->vid);
 
     /* Set device as ready for RX. */
     // Changes state from DEVICE_MAC_LEARNING to DEVICE_RX
@@ -117,14 +118,14 @@ static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rt
         return -1;
 
     if (vdev->vid == dst_vdev->vid) {
-        RTE_LOG_DP(DEBUG, VHOST_DATA, "(%d) TX: src and dst MAC is same. Dropping packet.\n", vdev->vid);
+        printf("(%d) TX: src and dst MAC is same. Dropping packet.\n", vdev->vid);
         return 0;
     }
 
-    RTE_LOG_DP(DEBUG, VHOST_DATA, "(%d) TX: MAC address is local\n", dst_vdev->vid);
+    printf("(%d) TX: MAC address is local\n", dst_vdev->vid);
 
     if (unlikely(dst_vdev->remove)) {
-        RTE_LOG_DP(DEBUG, VHOST_DATA, "(%d) device is marked for removal\n", dst_vdev->vid);
+        printf("(%d) device is marked for removal\n", dst_vdev->vid);
         return 0;
     }
 
@@ -187,20 +188,21 @@ void do_drain_mbuf_table(struct mbuf_table *tx_q) {
  * may be a local device or the physical port.
  */
 // determines where to send packet from VM to NIC or another VM
-void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, uint16_t vlan_tag) {
-    struct mbuf_table *tx_q;
-    const uint16_t lcore_id = rte_lcore_id(); // current core (each core has its own tx queue)
+void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, struct mbuf_table *tx_q, uint16_t vlan_tag) {
     struct rte_ether_hdr *nh;
 
-    nh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);         // get the Ethernet header
-    if (unlikely(rte_is_broadcast_ether_addr(&nh->d_addr))) { // if dest MAC is broadcast
+    nh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *); // get the Ethernet header
+    if (unlikely(rte_is_broadcast_ether_addr(&nh->d_addr))) {
         struct vhost_dev *vdev2;
 
-        TAILQ_FOREACH(vdev2, &vhost.vhost_dev_list, global_vdev_entry) { // iterate over all vhost devices
-            if (vdev2 != vdev)                                           // if not the same device
-                virtio_xmit(vdev2, vdev, m);
+        for (int i = 0; i < fp_cores_max; i++) {
+            struct dataplane_context *ctx = ctxs[i];
+            TAILQ_FOREACH(vdev2, &ctx->vhost.vdev_list, lcore_vdev_entry) {
+                if (vdev2 != vdev)
+                    virtio_xmit(vdev2, vdev, m);
+            }
         }
-        goto queue2nic; // also go to NIC
+        goto queue2nic;
     }
 
     /*check if destination is local VM (same host)*/
@@ -209,14 +211,10 @@ void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, uint16_t vlan_t
         return;
     }
 
-    RTE_LOG_DP(DEBUG, VHOST_DATA, "(%d) TX: MAC address is external\n", vdev->vid);
+    printf("(%d) TX: MAC address is external\n", vdev->vid);
     // sending to NIC
 
 queue2nic:
-
-    /*Add packet to the port tx queue*/
-    tx_q = &vhost.lcore_tx_queue[lcore_id];
-
     nh = rte_pktmbuf_mtod(
         m, struct rte_ether_hdr *); // Re-extract Ethernet header (might have been modified in VM2VM processing)
     if (unlikely(nh->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))) {

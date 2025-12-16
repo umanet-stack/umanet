@@ -3,7 +3,6 @@
  */
 
 #include "config.h"
-#include "../include/tas.h"
 #include <getopt.h>
 #include <rte_ethdev.h>
 #include <rte_log.h>
@@ -114,7 +113,7 @@ static struct option options[] = {
  * Display usage
  */
 static void us_vhost_usage(const char *prgname) {
-    RTE_LOG(INFO, VHOST_CONFIG,
+    fprintf(stderr,
             "%s [EAL options] -- --portmask PORTMASK\n"
             "		--vm2vm [0|1|2]\n"
             "		--rx_retry [0|1] --mergeable [0|1] --stats [0-N]\n"

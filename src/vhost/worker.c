@@ -8,11 +8,11 @@
 #include "src/vhost/vhost.h"
 
 #include <generic/rte_cycles.h>
+#include <netinet/in.h>
 #include <rte_ethdev.h>
+#include <rte_ip.h>
 #include <rte_malloc.h>
 #include <rte_mbuf_core.h>
-#include <rte_ip.h>
-#include <netinet/in.h>
 
 const uint16_t vlan_tags[64] = {
     1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014, 1015,
@@ -62,19 +62,18 @@ void drain_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
 
     // copy pkt from guest vring buffer to DPDK mbuf (vm -> dpdk)
     count = rte_vhost_dequeue_burst(vdev->vid, VIRTIO_TXQ, ctx->net.pool, pkts, MAX_PKT_BURST);
-    
+
     // Debug: print device state
     if (count > 0) {
-        printf("[Device vid=%d state=%d] Received %d packets from VM's TX queue\n", 
-               vdev->vid, vdev->ready, count);
+        printf("[Device vid=%d state=%d] Received %d packets from VM's TX queue\n", vdev->vid, vdev->ready, count);
     }
-    
+
     for (int i = 0; i < count; i++) {
         struct rte_ether_hdr *eth = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
         uint16_t ether_type = rte_be_to_cpu_16(eth->ether_type);
-        
+
         printf("Packet %d: len=%u, ether_type=0x%04x", i, pkts[i]->pkt_len, ether_type);
-        
+
         // Identify common packet types
         if (ether_type == RTE_ETHER_TYPE_ARP) {
             printf(" (ARP)");
@@ -107,15 +106,13 @@ void drain_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
             // Print IP addresses (network byte order)
             uint32_t src_ip = rte_be_to_cpu_32(ipv4->src_addr);
             uint32_t dst_ip = rte_be_to_cpu_32(ipv4->dst_addr);
-            printf(" src_ip=%u.%u.%u.%u dst_ip=%u.%u.%u.%u",
-                   (src_ip >> 24) & 0xff, (src_ip >> 16) & 0xff,
-                   (src_ip >> 8) & 0xff, src_ip & 0xff,
-                   (dst_ip >> 24) & 0xff, (dst_ip >> 16) & 0xff,
+            printf(" src_ip=%u.%u.%u.%u dst_ip=%u.%u.%u.%u", (src_ip >> 24) & 0xff, (src_ip >> 16) & 0xff,
+                   (src_ip >> 8) & 0xff, src_ip & 0xff, (dst_ip >> 24) & 0xff, (dst_ip >> 16) & 0xff,
                    (dst_ip >> 8) & 0xff, dst_ip & 0xff);
         } else if (ether_type == RTE_ETHER_TYPE_IPV6) {
             printf(" (IPv6)");
         }
-        
+
         printf(" src=");
         for (int j = 0; j < 6; j++) {
             printf("%02x%s", eth->s_addr.addr_bytes[j], j < 5 ? ":" : "");
@@ -130,7 +127,7 @@ void drain_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
     /* setup VMDq for the first packet */
     if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) { // device in MAC learning
         printf("[Device vid=%d] In MAC learning mode, processing first packet\n", vdev->vid);
-        if (vdev->remove || link_vmdq(vdev, pkts[0]) == -1) {      // failed to learn MAC from first packet
+        if (vdev->remove || link_vmdq(vdev, pkts[0]) == -1) { // failed to learn MAC from first packet
             printf("[Device vid=%d] MAC learning failed, dropping %d packets\n", vdev->vid, count);
             free_pkts(pkts, count);
             return; // Early return after freeing packets
@@ -138,8 +135,8 @@ void drain_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
         printf("[Device vid=%d] MAC learning successful, device now in RX mode\n", vdev->vid);
     }
 
-    for (i = 0; i < count; ++i) {                             // loop received packets
-        virtio_tx_route(vdev, pkts[i], vlan_tags[vdev->vid]); // route each to correct destination
+    for (i = 0; i < count; ++i) {                                               // loop received packets
+        virtio_tx_route(vdev, pkts[i], &ctx->vhost.tx_q, vlan_tags[vdev->vid]); // route each to correct destination
     }
 }
 
@@ -156,7 +153,7 @@ void drain_mbuf_table(struct mbuf_table *tx_q) {
         // time elapsed since last drain exceeds threshold
         prev_tsc = cur_tsc;
 
-        RTE_LOG_DP(DEBUG, VHOST_DATA, "TX queue drained after timeout with burst size %u\n", tx_q->len);
+        printf("TX queue drained after timeout with burst size %u\n", tx_q->len);
         do_drain_mbuf_table(tx_q);
     }
 }
