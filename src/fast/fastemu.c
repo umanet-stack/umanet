@@ -216,6 +216,7 @@ void dataplane_loop(struct dataplane_context *ctx) {
 static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) {
     int ret;
     unsigned n = 0, i, j, total = 0;
+    uint8_t freebuf[BATCH_SIZE];
     void *fss[BATCH_SIZE];
     struct tcp_opts tcpopts[BATCH_SIZE];
     struct network_buf_handle *bhs[BATCH_SIZE];
@@ -236,33 +237,53 @@ static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) {
         ret = vhost_poll(&ctx->net, n, vdev->vid, bhs);
         if (ret <= 0)
             continue;
-        total += n;
-
-        // Look up flow states
-        fast_flows_packet_fss(ctx, bhs + (total - n), fss + (total - n), n);
-
-        // Parse TCP headers
-        fast_flows_packet_parse(ctx, bhs + (total - n), fss + (total - n), tcpopts + (total - n), n);
-
-        // Process packets
-        for (i = total - n; i < total; i++) {
-            if (fss[i] != NULL) {
-                ret = fast_flows_packet(ctx, bhs[i], fss[i], &tcpopts[i], ts);
-                // Instead of writing to shared RX buffer, queue for vhost TX
-                if (ret > 0) {
-                    // Determine which vhost device this packet came from
-                    // vhost_tx_enqueue(vring, ctx->id, bhs[i]);
-                }
-            } else {
-                // New connection - send to slowpath
-                fast_kernel_packet(ctx, bhs[i]);
-            }
-        }
+        total += ret;
     }
 
     // Update round-robin pointer
     if (total > 0 && ctx->vhost.device_num > 0)
         ctx->vhost.poll_next_device = (ctx->vhost.poll_next_device + 1) % ctx->vhost.device_num;
 
+    /* prefetch packet contents (1st cache line) */
+    for (i = 0; i < total; i++) {
+        rte_prefetch0(network_buf_bufoff(bhs[i]));
+    }
+
+    // flow state stored in fss (flow states)
+    fast_flows_packet_fss(ctx, bhs, fss, total);
+
+    /* prefetch packet contents (2nd cache line, TS opt overlaps) */
+    // TCP header continuation, TCP options
+    for (i = 0; i < total; i++) {
+        rte_prefetch0(network_buf_bufoff(bhs[i]) + 64);
+    }
+
+    /* parse packets TCP headers (just timestamp option) to tcpopts */
+    fast_flows_packet_parse(ctx, bhs, fss, tcpopts, n);
+
+    for (i = 0; i < n; i++) {
+        if (fss[i] != NULL) {
+            /* run fast-path for flows with flow state */
+            ret = fast_flows_packet(ctx, bhs[i], fss[i], &tcpopts[i], ts);
+
+        } else {
+            ret = -1;
+        }
+
+        if (ret > 0) {
+            freebuf[i] = 1;
+        } else if (ret < 0) {
+            // Send to slowpath (if no flow or new connection)
+            fast_kernel_packet(ctx, bhs[i]);
+        }
+    }
+
+    /* free received buffers */
+    for (i = 0; i < n; i++) {
+        if (freebuf[i] == 0)
+            bufcache_free(ctx, bhs[i]);
+    }
+
+    // no. of pkts processed
     return total;
 }
