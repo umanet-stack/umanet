@@ -214,36 +214,29 @@ void dataplane_loop(struct dataplane_context *ctx) {
 
 // Poll vhost RX queues for incoming packets
 static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) {
-    struct network_buf_handle *bhs[BATCH_SIZE];
+    int ret;
+    unsigned n = 0, i, j, total = 0;
     void *fss[BATCH_SIZE];
     struct tcp_opts tcpopts[BATCH_SIZE];
+    struct network_buf_handle *bhs[BATCH_SIZE];
     struct vhost_dev *vdev;
-    unsigned n = 0, i, j, total = 0;
-    int ret;
+
+    n = BATCH_SIZE;
+    // Check if the TX buffer has enough free slots, avoid overflow
+    if (TXBUF_SIZE - ctx->tx_num < n)
+        n = TXBUF_SIZE - ctx->tx_num;
 
     // Poll multiple vhost devices/queues per core (round-robin)
-    if (ctx->vhost.device_num == 0)
-        return 0;
-
-    for (j = 0; j < ctx->vhost.device_num && total < BATCH_SIZE; j++) {
+    for (j = 0; j < ctx->vhost.device_num && total < n; j++) {
         uint16_t dev_idx = (ctx->vhost.poll_next_device + j) % ctx->vhost.device_num;
         vdev = ctx->vhost.vdev_list[dev_idx];
         if (vdev == NULL)
             continue;
 
-        // Poll RX virtqueue for this vhost device (VIRTIO_TXQ = packets from VM)
-        struct rte_mbuf *pkts[MAX_PKT_BURST];
-        ret = rte_vhost_dequeue_burst(vdev->vid, VIRTIO_TXQ, ctx->net.pool, pkts, MAX_PKT_BURST);
+        ret = vhost_poll(&ctx->net, n, vdev->vid, bhs);
         if (ret <= 0)
             continue;
-
-        n = ret;
         total += n;
-
-        for (int k = 0; k < ret && total < BATCH_SIZE; k++) {
-            bhs[total] = (struct network_buf_handle *)pkts[k];
-            total++;
-        }
 
         // Look up flow states
         fast_flows_packet_fss(ctx, bhs + (total - n), fss + (total - n), n);

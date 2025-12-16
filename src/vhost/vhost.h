@@ -54,4 +54,15 @@ void drain_mbuf_table(struct mbuf_table *tx_q);
 
 void unregister_vhost_drivers(int socket_num, const char *path);
 int register_vhost_drivers();
+
+static inline unsigned vhost_poll(struct network_thread *t, unsigned num, unsigned vid,
+                                  struct network_buf_handle **bhs) {
+    struct rte_mbuf **mbs = (struct rte_mbuf **)bhs;
+
+    num = rte_vhost_dequeue_burst(vid, VIRTIO_TXQ, t->pool, mbs, num);
+    if (num == 0)
+        return 0;
+
+    return num;
+}
 #endif
