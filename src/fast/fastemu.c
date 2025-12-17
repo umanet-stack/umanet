@@ -6,6 +6,7 @@
 #include "src/include/fastpath.h"
 #include "src/include/tas.h"
 #include "src/vhost/vhost.h"
+#include <rte_mbuf_core.h>
 #include <string.h>
 #include <sys/queue.h>
 #include <unistd.h>
@@ -37,23 +38,17 @@
     } while (0)
 #endif
 
-static void dataplane_block(struct dataplane_context *ctx, uint32_t ts);
 static unsigned poll_rx(struct dataplane_context *ctx, uint32_t ts, uint64_t tsc) __attribute__((noinline));
 static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) __attribute__((noinline));
-static unsigned poll_kernel(struct dataplane_context *ctx, uint32_t ts) __attribute__((noinline));
-static unsigned poll_qman(struct dataplane_context *ctx, uint32_t ts) __attribute__((noinline));
-static unsigned poll_qman_fwd(struct dataplane_context *ctx, uint32_t ts) __attribute__((noinline));
-static void poll_scale(struct dataplane_context *ctx);
 
-static inline uint8_t bufcache_prealloc(struct dataplane_context *ctx, uint16_t num,
-                                        struct network_buf_handle ***handles);
 static inline void bufcache_alloc(struct dataplane_context *ctx, uint16_t num);
 static inline void bufcache_free(struct dataplane_context *ctx, struct network_buf_handle *handle);
 
 static inline void tx_flush(struct dataplane_context *ctx);
 static inline void tx_send(struct dataplane_context *ctx, struct network_buf_handle *nbh, uint16_t off, uint16_t len);
 
-static void arx_cache_flush(struct dataplane_context *ctx, uint64_t tsc) __attribute__((noinline));
+static inline uint16_t pick_vhost_queue(struct dataplane_context *ctx, struct rte_mbuf *pkt);
+static inline void drain_vhost_tx(struct mbuf_table *tx_q);
 
 int dataplane_init(void) {
     if (FLEXNIC_INTERNAL_MEM_SIZE < sizeof(struct flextcp_pl_mem)) {
@@ -92,12 +87,6 @@ int dataplane_context_init(struct dataplane_context *ctx) {
         return -1;
     }
 
-    /* initialize queue manager */
-    // if (qman_thread_init(ctx) != 0) {
-    //     fprintf(stderr, "initializing qman thread failed\n");
-    //     return -1;
-    // }
-
     /* initialize network queue */
     if (network_thread_init(ctx) != 0) {
         fprintf(stderr, "initializing rx thread failed\n");
@@ -105,13 +94,6 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     }
 
     ctx->poll_next_ctx = ctx->id;
-
-    // ctx->evfd = eventfd(0, EFD_NONBLOCK);
-    // assert(ctx->evfd != -1);
-    // ctx->ev.epdata.event = EPOLLIN;
-    // int r = rte_epoll_ctl(RTE_EPOLL_PER_THREAD, EPOLL_CTL_ADD, ctx->evfd, &ctx->ev);
-    // assert(r == 0);
-    // fp_state->kctx[ctx->id].evfd = ctx->evfd;
 
     /* Initialize vhost device array for this context */
     memset(ctx->vhost.vdev_list, 0, sizeof(ctx->vhost.vdev_list));
@@ -141,8 +123,48 @@ void dataplane_loop(struct dataplane_context *ctx) {
     printf("TX queue ID: %u\n", tx_q->txq_id);
 
     while (!exited) {
-        // work counter used to determine if the core was idle.
-        // unsigned n = 0;
+        sleep(1);
+        printf("Draining TX queue into NIC...\n");
+        if (tx_q->len > 0)
+            drain_vhost_tx(tx_q);
+
+        /*
+         * Inform the configuration core that we have exited the
+         * linked list and that no devices are in use if requested.
+         */
+        if (ctx->vhost.dev_removal_flag == REQUEST_DEV_REMOVAL)
+            ctx->vhost.dev_removal_flag = ACK_DEV_REMOVAL;
+
+        for (int i = 0; i < ctx->vhost.device_num; i++) {
+            vdev = ctx->vhost.vdev_list[i];
+            if (vdev == NULL)
+                continue;
+
+            if (unlikely(vdev->remove)) { // device is marked for removal
+                unlink_vmdq(vdev);
+                vdev->ready = DEVICE_SAFE_REMOVE;
+                // Remove from array by shifting remaining elements
+                for (int j = i; j < ctx->vhost.device_num - 1; j++) {
+                    ctx->vhost.vdev_list[j] = ctx->vhost.vdev_list[j + 1];
+                }
+                ctx->vhost.vdev_list[ctx->vhost.device_num - 1] = NULL;
+                ctx->vhost.device_num--;
+                i--;
+                continue;
+            }
+
+            if (likely(vdev->ready == DEVICE_RX)) {
+                printf("Draining eth rx...\n");
+                // poll_rx
+                drain_eth_rx(vdev); // receive packets from physical NIC and forward them to a VM
+            }
+
+            if (likely(!vdev->remove)) { // device is not being removed (double-check)
+                printf("Draining virtio tx...\n");
+                // poll_queues
+                drain_virtio_tx(vdev, ctx); // receive packets from VM's TX queue, route them to the correct destination
+            }
+        }
 
         // /* count cycles of previous iteration if it was busy */
         // prev_cyc = cyc;
@@ -164,62 +186,14 @@ void dataplane_loop(struct dataplane_context *ctx) {
 
         // n += poll_rx(ctx, ts, cyc);      // Physical NIC - external traffic (later)
         // n += poll_vhost_rx(ctx, ts);      // Vhost - VM traffic
-        sleep(1);
-        printf("Draining mbuf table...\n");
-        // tx_flush
-        drain_mbuf_table(tx_q); // drain if timeout has elapsed
-
-        /*
-         * Inform the configuration core that we have exited the
-         * linked list and that no devices are in use if requested.
-         */
-        if (ctx->vhost.dev_removal_flag == REQUEST_DEV_REMOVAL)
-            ctx->vhost.dev_removal_flag = ACK_DEV_REMOVAL;
-
-        /*
-         * Process vhost devices
-         */
-        for (int i = 0; i < ctx->vhost.device_num; i++) {
-            vdev = ctx->vhost.vdev_list[i];
-            if (vdev == NULL)
-                continue;
-
-            if (unlikely(vdev->remove)) { // device is marked for removal
-                unlink_vmdq(vdev);
-                vdev->ready = DEVICE_SAFE_REMOVE;
-                // Remove from array by shifting remaining elements
-                for (int j = i; j < ctx->vhost.device_num - 1; j++) {
-                    ctx->vhost.vdev_list[j] = ctx->vhost.vdev_list[j + 1];
-                }
-                ctx->vhost.vdev_list[ctx->vhost.device_num - 1] = NULL;
-                ctx->vhost.device_num--;
-                i--; // Adjust index after removal
-                continue;
-            }
-
-            if (likely(vdev->ready == DEVICE_RX)) {
-                printf("Draining eth rx...\n");
-                // poll_rx
-                drain_eth_rx(vdev); // receive packets from physical NIC and forward them to a VM
-            }
-
-            if (likely(!vdev->remove)) { // device is not being removed (double-check)
-                printf("Draining virtio tx...\n");
-                // poll_queues
-                drain_virtio_tx(vdev, ctx); // receive packets from VM's TX queue, route them to the correct destination
-            }
-        }
     }
 }
 
 // Poll vhost RX queues for incoming packets
 static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) {
     int ret;
-    unsigned n = 0, i, j, total = 0;
-    uint8_t freebuf[BATCH_SIZE];
-    void *fss[BATCH_SIZE];
-    struct tcp_opts tcpopts[BATCH_SIZE];
-    struct network_buf_handle *bhs[BATCH_SIZE];
+    unsigned n = 0, total = 0;
+    struct rte_mbuf *mbs[BATCH_SIZE];
     struct vhost_dev *vdev;
 
     n = BATCH_SIZE;
@@ -228,13 +202,13 @@ static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) {
         n = TXBUF_SIZE - ctx->tx_num;
 
     // Poll multiple vhost devices/queues per core (round-robin)
-    for (j = 0; j < ctx->vhost.device_num && total < n; j++) {
-        uint16_t dev_idx = (ctx->vhost.poll_next_device + j) % ctx->vhost.device_num;
+    for (int i = 0; i < ctx->vhost.device_num && total < n; i++) {
+        uint16_t dev_idx = (ctx->vhost.poll_next_device + i) % ctx->vhost.device_num;
         vdev = ctx->vhost.vdev_list[dev_idx];
         if (vdev == NULL)
             continue;
 
-        ret = vhost_poll(&ctx->net, n, vdev->vid, bhs);
+        ret = vhost_poll(&ctx->net, n, vdev->vid, mbs);
         if (ret <= 0)
             continue;
         total += ret;
@@ -244,46 +218,39 @@ static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) {
     if (total > 0 && ctx->vhost.device_num > 0)
         ctx->vhost.poll_next_device = (ctx->vhost.poll_next_device + 1) % ctx->vhost.device_num;
 
-    /* prefetch packet contents (1st cache line) */
-    for (i = 0; i < total; i++) {
-        rte_prefetch0(network_buf_bufoff(bhs[i]));
-    }
-
-    // flow state stored in fss (flow states)
-    fast_flows_packet_fss(ctx, bhs, fss, total);
-
-    /* prefetch packet contents (2nd cache line, TS opt overlaps) */
-    // TCP header continuation, TCP options
-    for (i = 0; i < total; i++) {
-        rte_prefetch0(network_buf_bufoff(bhs[i]) + 64);
-    }
-
     /* parse packets TCP headers (just timestamp option) to tcpopts */
-    fast_flows_packet_parse(ctx, bhs, fss, tcpopts, n);
+    // fast_flows_packet_parse(ctx, bhs, fss, tcpopts, n);
 
-    for (i = 0; i < n; i++) {
-        if (fss[i] != NULL) {
-            /* run fast-path for flows with flow state */
-            ret = fast_flows_packet(ctx, bhs[i], fss[i], &tcpopts[i], ts);
-
-        } else {
-            ret = -1;
+    for (int i = 0; i < n; i++) {
+        uint16_t vhost_queue = pick_vhost_queue(ctx, mbs[i]);
+        if (vhost_queue != 0) {
+            rte_vhost_enqueue_burst(vhost_queue, VIRTIO_TXQ, &mbs[i], 1);
         }
-
-        if (ret > 0) {
-            freebuf[i] = 1;
-        } else if (ret < 0) {
-            // Send to slowpath (if no flow or new connection)
-            fast_kernel_packet(ctx, bhs[i]);
-        }
-    }
-
-    /* free received buffers */
-    for (i = 0; i < n; i++) {
-        if (freebuf[i] == 0)
-            bufcache_free(ctx, bhs[i]);
     }
 
     // no. of pkts processed
     return total;
+}
+
+static inline uint16_t pick_vhost_queue(struct dataplane_context *ctx, struct rte_mbuf *pkt) {
+    struct rte_ether_hdr *eth = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+    for (int i = 0; i < ctx->vhost.device_num; i++) {
+        if (memcmp(eth->d_addr.addr_bytes, ctx->vhost.vdev_list[i]->mac_address.addr_bytes, 6) == 0)
+            return ctx->vhost.vdev_list[i]->vmdq_rx_q;
+    }
+    return 0; // optional: drop or broadcast
+}
+
+// drain into NIC if timeout has elapsed
+static inline void drain_vhost_tx(struct mbuf_table *tx_q) {
+    // static = function-scope, keeps value between function calls
+    static uint64_t prev_tsc; // previous timestamp
+
+    uint64_t cur_tsc = rte_rdtsc();
+    if (unlikely(cur_tsc - prev_tsc > MBUF_TABLE_DRAIN_TSC)) {
+        prev_tsc = cur_tsc;
+
+        printf("TX queue drained after timeout with burst size %u\n", tx_q->len);
+        flush_eth_tx(tx_q);
+    }
 }

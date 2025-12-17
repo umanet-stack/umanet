@@ -25,6 +25,7 @@ sources = files(
 	'src/fast/fastemu.c',
 	'src/shm.c',
 	'lib/utils/rng.c',
+	'src/utils/utils.c',
 )
 
 # Compiler flags

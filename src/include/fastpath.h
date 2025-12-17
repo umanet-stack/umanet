@@ -130,12 +130,6 @@ struct dataplane_context {
     struct vhost_info vhost;
 
     /********************************************************/
-    /* arx cache */
-    // struct flextcp_pl_arx arx_cache[BATCH_SIZE];
-    // uint16_t arx_ctx[BATCH_SIZE];
-    // uint16_t arx_num;
-
-    /********************************************************/
     /* send buffer */
     struct network_buf_handle *tx_handles[TXBUF_SIZE];
     uint16_t tx_num;

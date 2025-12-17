@@ -5,6 +5,7 @@
 #include "src/config/config.h"
 #include "src/fast/network.h"
 #include "src/include/fastpath.h"
+#include "src/utils/utils.h"
 #include "src/vhost/vhost.h"
 
 #include <generic/rte_cycles.h>
@@ -137,23 +138,5 @@ void drain_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
 
     for (i = 0; i < count; ++i) {                                               // loop received packets
         virtio_tx_route(vdev, pkts[i], &ctx->vhost.tx_q, vlan_tags[vdev->vid]); // route each to correct destination
-    }
-}
-
-void drain_mbuf_table(struct mbuf_table *tx_q) {
-    // static = function-scope, keeps value between function calls
-    static uint64_t prev_tsc; // previous timestamp
-    uint64_t cur_tsc;
-
-    if (tx_q->len == 0)
-        return;
-
-    cur_tsc = rte_rdtsc(); // current timestamp
-    if (unlikely(cur_tsc - prev_tsc > MBUF_TABLE_DRAIN_TSC)) {
-        // time elapsed since last drain exceeds threshold
-        prev_tsc = cur_tsc;
-
-        printf("TX queue drained after timeout with burst size %u\n", tx_q->len);
-        do_drain_mbuf_table(tx_q);
     }
 }

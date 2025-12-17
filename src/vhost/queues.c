@@ -9,6 +9,7 @@
 #include "src/config/config.h"
 #include "src/fast/network.h"
 #include "src/include/tas.h"
+#include "src/utils/utils.h"
 #include "src/vhost/vhost.h"
 
 /*
@@ -163,13 +164,8 @@ static void virtio_tx_offload(struct rte_mbuf *m) {
     tcp_hdr->cksum = get_psd_sum(l3_hdr, m->ol_flags);
 }
 
-void free_pkts(struct rte_mbuf **pkts, uint16_t n) {
-    while (n--)
-        rte_pktmbuf_free(pkts[n]);
-}
-
 // moves packets from a software staging buffer (tx_q->m_table) to the NIC's hardware TX queue/ring
-void do_drain_mbuf_table(struct mbuf_table *tx_q) {
+void flush_eth_tx(struct mbuf_table *tx_q) {
     uint16_t count;
 
     printf("do_drain_mbuf_table\n");
@@ -235,5 +231,5 @@ queue2nic:
     }
 
     if (unlikely(tx_q->len == MAX_PKT_BURST)) // if the queue is full
-        do_drain_mbuf_table(tx_q);            // drain the queue (send packets to NIC)
+        flush_eth_tx(tx_q);                   // drain the queue (send packets to NIC)
 }

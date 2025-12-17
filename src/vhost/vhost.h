@@ -45,23 +45,16 @@ struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac);
 void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, struct mbuf_table *tx_q, uint16_t vlan_tag);
 int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m);
 void unlink_vmdq(struct vhost_dev *vdev);
-void free_pkts(struct rte_mbuf **pkts, uint16_t n);
-void do_drain_mbuf_table(struct mbuf_table *tx_q);
+void flush_eth_tx(struct mbuf_table *tx_q);
 
 void drain_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx);
 void drain_eth_rx(struct vhost_dev *vdev);
-void drain_mbuf_table(struct mbuf_table *tx_q);
 
 void unregister_vhost_drivers(int socket_num, const char *path);
 int register_vhost_drivers();
 
-static inline unsigned vhost_poll(struct network_thread *t, unsigned num, unsigned vid,
-                                  struct network_buf_handle **bhs) {
-    struct rte_mbuf **mbs = (struct rte_mbuf **)bhs;
-
+static inline unsigned vhost_poll(struct network_thread *t, unsigned num, unsigned vid, struct rte_mbuf **mbs) {
     num = rte_vhost_dequeue_burst(vid, VIRTIO_TXQ, t->pool, mbs, num);
-    if (num == 0)
-        return 0;
 
     return num;
 }
