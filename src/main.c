@@ -176,7 +176,30 @@ int main(int argc, char *argv[]) {
     }
 
     printf("Waiting for worker threads to initialize TX/RX queues...\n");
-    sleep(1);
+
+    // Wait for all contexts to be initialized
+    int max_wait = 10; // 10 seconds max
+    int all_ready = 0;
+    for (int wait = 0; wait < max_wait && !all_ready; wait++) {
+        sleep(1);
+        all_ready = 1;
+        for (int i = 0; i < fp_cores_max; i++) {
+            if (ctxs[i] == NULL) {
+                printf("Waiting for context %d to initialize...\n", i);
+                all_ready = 0;
+                break;
+            }
+        }
+    }
+
+    if (!all_ready) {
+        res = EXIT_FAILURE;
+        fprintf(stderr, "ERROR: Not all dataplane contexts initialized after %d seconds\n", max_wait);
+        goto error_dataplane_cleanup;
+    }
+
+    printf("All %d dataplane contexts initialized successfully\n", fp_cores_max);
+
     if (register_vhost_drivers() != 0) {
         res = EXIT_FAILURE;
         fprintf(stderr, "register_vhost_drivers failed\n");

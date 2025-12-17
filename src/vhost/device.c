@@ -4,6 +4,7 @@
 
 #include "../include/tas.h"
 #include <rte_malloc.h>
+#include <unistd.h>
 
 #include "src/fast/network.h"
 #include "src/vhost/vhost.h"
@@ -35,6 +36,8 @@ static void destroy_device(int vid) {
     struct dataplane_context *ctx = NULL;
     int dev_idx = -1;
 
+    printf("destroy_device called for vid=%d\n", vid);
+
     // Find the device across all contexts
     for (int i = 0; i < fp_cores_max; i++) {
         for (int j = 0; j < ctxs[i]->vhost.device_num; j++) {
@@ -48,22 +51,37 @@ static void destroy_device(int vid) {
         if (vdev != NULL)
             break;
     }
-    if (!vdev)
+    if (!vdev) {
+        printf("Warning: device vid=%d not found during destroy\n", vid);
         return;
-    /*set the remove flag. */
-    vdev->remove = 1;
-    while (vdev->ready != DEVICE_SAFE_REMOVE) {
-        rte_pause();
     }
 
-    // Remove device from array by shifting remaining elements
-    if (ctx != NULL && dev_idx >= 0) {
-        for (int j = dev_idx; j < ctx->vhost.device_num - 1; j++) {
-            ctx->vhost.vdev_list[j] = ctx->vhost.vdev_list[j + 1];
-        }
-        ctx->vhost.vdev_list[ctx->vhost.device_num - 1] = NULL;
-        ctx->vhost.device_num--;
+    printf("Found device vid=%d on core %d, marking for removal\n", vid, ctx->id);
+
+    /* Set the remove flag with memory barrier to ensure visibility */
+    __sync_synchronize();
+    vdev->remove = 1;
+    __sync_synchronize();
+
+    /* Wait for dataplane to acknowledge removal (with timeout) */
+    // Give dataplane time to wake up and process removal (dataplane sleeps 100ms)
+    int max_wait_ms = 5000; // 5 seconds max
+    int wait_ms = 0;
+    while (vdev->ready != DEVICE_SAFE_REMOVE && wait_ms < max_wait_ms) {
+        usleep(10000); // Sleep 10ms between checks
+        wait_ms += 10;
     }
+
+    if (wait_ms >= max_wait_ms) {
+        printf("Warning: Timeout waiting for device vid=%d removal acknowledgment after %dms\n", vid, wait_ms);
+        // Force removal anyway to prevent resource leak
+    } else {
+        printf("Device vid=%d removal acknowledged after %dms\n", vid, wait_ms);
+    }
+
+    // NOTE: Device removal from array and device_num decrement is handled by the dataplane loop
+    // We just need to wait for the dataplane to acknowledge the removal
+    // DO NOT remove from array or decrement device_num here - it causes double decrement!
 
     // tells worker cores to acknowledge they've seen the removal at their next safe point
     /* Set the dev_removal_flag on each lcore. */
@@ -81,9 +99,8 @@ static void destroy_device(int vid) {
             rte_pause();
     }
 
-    ctx->vhost.device_num--;
-
-    printf("(%d) device has been removed from data core\n", vdev->vid);
+    printf("(%d) device has been removed from data core %d (device_num now=%d)\n", vdev->vid, ctx->id,
+           ctx->vhost.device_num);
 
     rte_free(vdev);
 }
@@ -114,7 +131,17 @@ static int new_device(int vid) {
     vdev->remove = 0;
 
     /* Find a suitable context (lcore) to add the device. */
+    printf("(%d) Searching for suitable context (fp_cores_max=%d)...\n", vid, fp_cores_max);
+
     for (int i = 0; i < fp_cores_max; i++) {
+        // Validate context pointer before dereferencing
+        if (ctxs[i] == NULL) {
+            printf("(%d) Warning: ctxs[%d] is NULL, skipping\n", vid, i);
+            continue;
+        }
+
+        printf("(%d) Context %d has %d devices\n", vid, i, ctxs[i]->vhost.device_num);
+
         if (ctxs[i]->vhost.device_num < device_num_min) {
             device_num_min = ctxs[i]->vhost.device_num;
             ctx = ctxs[i];
@@ -122,19 +149,36 @@ static int new_device(int vid) {
     }
 
     if (ctx == NULL) {
-        printf("(%d) couldn't find suitable context\n", vid);
+        if (fp_cores_max == 0) {
+            printf("(%d) ERROR: fp_cores_max is 0, no dataplane cores configured!\n", vid);
+        } else {
+            printf("(%d) couldn't find suitable context (fp_cores_max=%d, all contexts NULL or full)\n", vid,
+                   fp_cores_max);
+            printf(
+                "(%d) This might be a timing issue - contexts may not be initialized yet. VM connection will retry.\n",
+                vid);
+        }
         rte_free(vdev);
         return -1;
     }
 
+    printf("(%d) Selected context %d (device_num=%d)\n", vid, ctx->id, ctx->vhost.device_num);
     vdev->coreid = ctx->id;
 
-    // Add device to array
+    // Add device to array with bounds checking
+    if (ctx->vhost.device_num < 0) {
+        printf("(%d) ERROR: device_num is negative (%d) - memory corruption or double-decrement bug!\n", vid,
+               ctx->vhost.device_num);
+        printf("(%d) Resetting device_num to 0\n", vid);
+        ctx->vhost.device_num = 0;
+    }
+
     if (ctx->vhost.device_num >= MAX_VHOST_DEVICES_PER_CORE) {
         printf("(%d) too many devices on core %d (max %d)\n", vid, ctx->id, MAX_VHOST_DEVICES_PER_CORE);
         rte_free(vdev);
         return -1;
     }
+
     ctx->vhost.vdev_list[ctx->vhost.device_num] = vdev;
     ctx->vhost.device_num++;
 

@@ -2,14 +2,14 @@
  * Copyright(c) 2010-2017 Intel Corporation
  */
 
-#include "src/include/fastpath.h"
-#include "src/utils/utils.h"
-#include "src/vhost/vhost.h"
-
 #include <rte_ethdev.h>
 #include <rte_ip.h>
 #include <rte_malloc.h>
 #include <rte_mbuf_core.h>
+
+#include "src/include/fastpath.h"
+#include "src/utils/utils.h"
+#include "src/vhost/vhost.h"
 
 const uint16_t vlan_tags[64] = {
     1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014, 1015,
@@ -31,8 +31,34 @@ void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
     uint16_t count;
     uint16_t i;
 
+    // Validate device pointer and state before accessing
+    if (unlikely(vdev == NULL)) {
+        printf("Error: NULL vdev in poll_virtio_tx\n");
+        return;
+    }
+
+    // Check for obviously invalid vid (could indicate freed/corrupted memory)
+    if (unlikely(vdev->vid < 0 || vdev->vid >= 64)) {
+        printf("Error: Invalid vid=%d in poll_virtio_tx (possible use-after-free)\n", vdev->vid);
+        return;
+    }
+
+    if (unlikely(vdev->remove || vdev->ready == DEVICE_SAFE_REMOVE)) {
+        printf("Warning: Attempting to poll device vid=%d marked for removal (ready=%d, remove=%d)\n", vdev->vid,
+               vdev->ready, vdev->remove);
+        return;
+    }
+
     // copy pkt from guest vring buffer to DPDK mbuf (vm -> dpdk)
+    // This can fail if the vhost connection is broken
     count = rte_vhost_dequeue_burst(vdev->vid, VIRTIO_TXQ, ctx->net.pool, pkts, MAX_PKT_BURST);
+
+    // Check for error condition (negative return value indicates error)
+    if (unlikely((int16_t)count < 0)) {
+        printf("Error: rte_vhost_dequeue_burst failed for vid=%d (device may be disconnected)\n", vdev->vid);
+        vdev->remove = 1; // Mark device for removal
+        return;
+    }
 
     if (count > 0) {
         printf("[Device vid=%d state=%d] Received %d packets from VM's TX queue\n", vdev->vid, vdev->ready, count);
@@ -168,7 +194,22 @@ queue2nic:
 // Transmits a packet to vhost device via virtqueue.
 static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf *m) {
     uint16_t ret;
+
+    // Validate destination device before attempting transmission
+    if (unlikely(dst_vdev == NULL || dst_vdev->remove || dst_vdev->ready != DEVICE_RX)) {
+        printf("Warning: Cannot transmit to invalid/removed device\n");
+        rte_pktmbuf_free(m); // Free the packet to avoid memory leak
+        return;
+    }
+
     ret = rte_vhost_enqueue_burst(dst_vdev->vid, VIRTIO_RXQ, &m, 1);
+
+    // If enqueue fails (ret == 0), the mbuf is still owned by us and should be freed
+    if (unlikely(ret == 0)) {
+        printf("Warning: Failed to enqueue packet to vid=%d\n", dst_vdev->vid);
+        rte_pktmbuf_free(m);
+        return;
+    }
 
     // dest stats use atomic operations (multiple cores may write)
     // source stats don't (single core writes)

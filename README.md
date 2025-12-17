@@ -71,13 +71,28 @@ sudo vhost-switch -l 2-3 -n 4 -b 0000:01:00.0 -- --portmask 0x1 --socket-file /m
 - `./build_and_run.sh` to check it builds and runs
 - spin up a CH VM to test the TCP stack works
 ```bash
+cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm0-img.raw
+cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm1-img.raw
+cp /tmp/vmlinux.bin /tmp/vm0-kernel.bin
+cp /tmp/vmlinux.bin /tmp/vm1-kernel.bin
+
+# vm0
 sudo cloud-hypervisor \
   --cpus boot=1 \
   --memory size=512M,hugepages=on,shared=true \
-  --kernel /tmp/vmlinux.bin \
+  --kernel /tmp/vm0-kernel.bin \
   --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
-  --disk path=/tmp/noble-server-cloudimg-amd64.raw path=/tmp/cloudinit-vm0-dpdk.img \
+  --disk path=/tmp/vm0-img.raw path=/tmp/cloudinit-vm0-dpdk.img \
   --net mac=52:54:00:02:d9:01,vhost_user=true,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=2048
+
+# vm1
+sudo cloud-hypervisor \
+  --cpus boot=1 \
+  --memory size=512M,hugepages=on,shared=true \
+  --kernel /tmp/vm1-kernel.bin \
+  --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
+  --disk path=/tmp/vm1-img.raw path=/tmp/cloudinit-vm1-dpdk.img \
+  --net mac=52:54:20:11:C5:02,vhost_user=true,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=2048
 ```
 
 ### VM packets

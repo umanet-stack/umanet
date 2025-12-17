@@ -40,6 +40,9 @@ enum { VIRTIO_RXQ, VIRTIO_TXQ, VIRTIO_QNUM };
 extern const struct vhost_device_ops virtio_net_device_ops;
 extern const uint16_t vlan_tags[64];
 
+// Forward declarations
+void free_pkts(struct rte_mbuf **pkts, uint16_t n);
+
 void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx);
 
 void flush_eth_tx(struct mbuf_table *tx_q);
