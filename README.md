@@ -71,19 +71,17 @@ sudo vhost-switch -l 2-3 -n 4 -b 0000:01:00.0 -- --portmask 0x1 --socket-file /m
 ```bash
 # c6525-25g
 ./setup/vanilla/setup_node.sh 0 enp65s0f0np0
-./setup/vanilla/setup_node.sh 1 enp65s0f0np0
 
 # xl170
 ./setup/vanilla/setup_node.sh 0 ens1f1np1
-./setup/vanilla/setup_node.sh 1 ens1f1np1
 
 sudo cloud-hypervisor \
 	--cpus boot=1 \
 	--memory size=512M \
 	--kernel /tmp/vmlinux.bin \
 	--cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
-	--disk path=/tmp/noble-server-cloudimg-amd64.raw path=/tmp/ubuntu-cloudinit.img \
-	--net "tap=tap0,mac=12:34:56:78:90:ab" 
+	--disk path=/tmp/noble-server-cloudimg-amd64.raw path=/tmp/cloudinit-vm0.img \
+	--net "tap=tap0,mac=52:54:00:02:d9:01" 
 
 sudo apt update
 
@@ -107,14 +105,14 @@ sudo cloud-hypervisor \
   --disk path=/tmp/vm0-img.raw path=/tmp/cloudinit-vm0-dpdk.img \
   --net mac=52:54:00:02:d9:01,vhost_user=true,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=2048
 
-# vm1
+# vm1 - NOTE: Uses sock1 (different from vm0)
 sudo cloud-hypervisor \
   --cpus boot=1 \
   --memory size=512M,hugepages=on,shared=true \
   --kernel /tmp/vm1-kernel.bin \
   --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
   --disk path=/tmp/vm1-img.raw path=/tmp/cloudinit-vm1-dpdk.img \
-  --net mac=52:54:20:11:C5:02,vhost_user=true,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=2048
+  --net mac=52:54:20:11:C5:02,vhost_user=true,socket=/mnt/huge/sock1,num_queues=2,vhost_mode=client,queue_size=2048
 ```
 
 ### VM packets
