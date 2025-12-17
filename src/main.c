@@ -29,6 +29,8 @@ unsigned fp_cores_max;
 volatile unsigned fp_cores_cur = 1;
 volatile unsigned fp_scale_to = 0;
 
+int exited;
+
 struct dataplane_context **ctxs = NULL;
 struct core_load *core_loads = NULL;
 
@@ -50,24 +52,30 @@ static void *print_stats(__rte_unused void *arg) {
         printf("%s%s\n", clr, top_left);
         printf("Device statistics =================================\n");
 
-        TAILQ_FOREACH(vdev, &vhost.vhost_dev_list, global_vdev_entry) {
-            tx_total = vdev->stats.tx_total;
-            tx = vdev->stats.tx;
-            tx_dropped = tx_total - tx;
+        for (int i = 0; i < fp_cores_max; i++) {
+            struct dataplane_context *ctx = ctxs[i];
+            for (int j = 0; j < ctx->vhost.device_num; j++) {
+                vdev = ctx->vhost.vdev_list[j];
+                if (vdev == NULL)
+                    continue;
+                tx_total = vdev->stats.tx_total;
+                tx = vdev->stats.tx;
+                tx_dropped = tx_total - tx;
 
-            rx_total = rte_atomic64_read(&vdev->stats.rx_total_atomic);
-            rx = rte_atomic64_read(&vdev->stats.rx_atomic);
-            rx_dropped = rx_total - rx;
+                rx_total = rte_atomic64_read(&vdev->stats.rx_total_atomic);
+                rx = rte_atomic64_read(&vdev->stats.rx_atomic);
+                rx_dropped = rx_total - rx;
 
-            printf("Statistics for device %d\n"
-                   "-----------------------\n"
-                   "TX total:              %" PRIu64 "\n"
-                   "TX dropped:            %" PRIu64 "\n"
-                   "TX successful:         %" PRIu64 "\n"
-                   "RX total:              %" PRIu64 "\n"
-                   "RX dropped:            %" PRIu64 "\n"
-                   "RX successful:         %" PRIu64 "\n",
-                   vdev->vid, tx_total, tx_dropped, tx, rx_total, rx_dropped, rx);
+                printf("Statistics for device %d\n"
+                       "-----------------------\n"
+                       "TX total:              %" PRIu64 "\n"
+                       "TX dropped:            %" PRIu64 "\n"
+                       "TX successful:         %" PRIu64 "\n"
+                       "RX total:              %" PRIu64 "\n"
+                       "RX dropped:            %" PRIu64 "\n"
+                       "RX successful:         %" PRIu64 "\n",
+                       vdev->vid, tx_total, tx_dropped, tx, rx_total, rx_dropped, rx);
+            }
         }
 
         printf("===================================================\n");
@@ -153,10 +161,10 @@ int main(int argc, char *argv[]) {
     shm_set_ready();
 
     /* Enable stats if the user option is set. */
-    static pthread_t tid;
-    if (config.enable_stats && rte_ctrl_thread_create(&tid, "print-stats", NULL, print_stats, NULL) < 0) {
-        rte_exit(EXIT_FAILURE, "Cannot create print-stats thread\n");
-    }
+    // static pthread_t tid;
+    // if (config.enable_stats && rte_ctrl_thread_create(&tid, "print-stats", NULL, print_stats, NULL) < 0) {
+    //     rte_exit(EXIT_FAILURE, "Cannot create print-stats thread\n");
+    // }
 
     // Start worker threads BEFORE vhost registration
     // This ensures TX queues are initialized before vhost can send packets

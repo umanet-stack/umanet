@@ -7,8 +7,25 @@
 
 #include "../include/tas.h"
 #include "src/include/fastpath.h"
+#include <rte_ether.h>
+#include <rte_vhost.h>
+#include <sys/queue.h>
 
-/* State of virtio device. */
+// rte = runtime env (dpdk)
+// queue type identifiers: receive, transmit, total count
+enum { VIRTIO_RXQ, VIRTIO_TXQ, VIRTIO_QNUM };
+
+// https://www.redhat.com/en/blog/journey-vhost-users-realm
+// https://www.redhat.com/en/blog/virtqueues-and-virtio-ring-how-data-travels
+// struct vhost_queue {
+//     struct rte_vhost_vring vr; // DPDK vhost vring
+//     uint16_t last_avail_idx;   // last processed available descriptor index
+//     uint16_t last_used_idx;    // last processed used descriptor index
+// };
+
+#define REQUEST_DEV_REMOVAL 1
+#define ACK_DEV_REMOVAL 0
+
 #define DEVICE_MAC_LEARNING 0
 #define DEVICE_RX 1
 #define DEVICE_SAFE_REMOVE 2
@@ -16,29 +33,16 @@
 #define BURST_TX_DRAIN_US 100 /* TX drain every ~100us */
 #define MBUF_TABLE_DRAIN_TSC ((rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US)
 
-/* Used for queueing bursts of TX packets. */
-struct mbuf_table {
-    unsigned len;
-    unsigned txq_id;
-    struct rte_mbuf *m_table[MAX_PKT_BURST];
-};
+// typedef struct {
+//     unsigned dev_to_core_id[64];
+// } vhost_state_t;
 
-typedef struct {
-    struct lcore_info lcore_info[RTE_MAX_LCORE];
-    struct vhost_dev_tailq_list vhost_dev_list;
-
-    /* TX queue for each data core. */
-    struct mbuf_table lcore_tx_queue[RTE_MAX_LCORE];
-
-    unsigned lcore_ids[RTE_MAX_LCORE];
-} vhost_state_t;
-
-extern vhost_state_t vhost;
+// extern vhost_state_t vhost;
 extern const struct vhost_device_ops virtio_net_device_ops;
 extern const uint16_t vlan_tags[64];
 
 struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac);
-void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, uint16_t vlan_tag);
+void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, struct mbuf_table *tx_q, uint16_t vlan_tag);
 int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m);
 void unlink_vmdq(struct vhost_dev *vdev);
 void free_pkts(struct rte_mbuf **pkts, uint16_t n);
@@ -50,4 +54,15 @@ void drain_mbuf_table(struct mbuf_table *tx_q);
 
 void unregister_vhost_drivers(int socket_num, const char *path);
 int register_vhost_drivers();
+
+static inline unsigned vhost_poll(struct network_thread *t, unsigned num, unsigned vid,
+                                  struct network_buf_handle **bhs) {
+    struct rte_mbuf **mbs = (struct rte_mbuf **)bhs;
+
+    num = rte_vhost_dequeue_burst(vid, VIRTIO_TXQ, t->pool, mbs, num);
+    if (num == 0)
+        return 0;
+
+    return num;
+}
 #endif

@@ -6,18 +6,19 @@
 #include <rte_malloc.h>
 #include <sys/queue.h>
 
+#include "src/fast/network.h"
 #include "src/vhost/vhost.h"
-
-vhost_state_t vhost = {
-    .vhost_dev_list = TAILQ_HEAD_INITIALIZER(vhost.vhost_dev_list),
-};
 
 struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
     struct vhost_dev *vdev;
 
-    TAILQ_FOREACH(vdev, &vhost.vhost_dev_list, global_vdev_entry) {
-        if (vdev->ready == DEVICE_RX && rte_is_same_ether_addr(mac, &vdev->mac_address))
-            return vdev;
+    for (int i = 0; i < fp_cores_max; i++) {
+        struct dataplane_context *ctx = ctxs[i];
+        for (int j = 0; j < ctx->vhost.device_num; j++) {
+            vdev = ctx->vhost.vdev_list[j];
+            if (vdev != NULL && vdev->ready == DEVICE_RX && rte_is_same_ether_addr(mac, &vdev->mac_address))
+                return vdev;
+        }
     }
 
     return NULL;
@@ -32,9 +33,20 @@ struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
 static void destroy_device(int vid) {
     struct vhost_dev *vdev = NULL;
     int lcore;
+    struct dataplane_context *ctx = NULL;
+    int dev_idx = -1;
 
-    TAILQ_FOREACH(vdev, &vhost.vhost_dev_list, global_vdev_entry) {
-        if (vdev->vid == vid)
+    // Find the device across all contexts
+    for (int i = 0; i < fp_cores_max; i++) {
+        for (int j = 0; j < ctxs[i]->vhost.device_num; j++) {
+            if (ctxs[i]->vhost.vdev_list[j] != NULL && ctxs[i]->vhost.vdev_list[j]->vid == vid) {
+                vdev = ctxs[i]->vhost.vdev_list[j];
+                ctx = ctxs[i];
+                dev_idx = j;
+                break;
+            }
+        }
+        if (vdev != NULL)
             break;
     }
     if (!vdev)
@@ -45,15 +57,19 @@ static void destroy_device(int vid) {
         rte_pause();
     }
 
-    // Remove device from its assigned lcore's device list
-    TAILQ_REMOVE(&vhost.lcore_info[vdev->coreid].vdev_list, vdev, lcore_vdev_entry);
-    // Remove device from global device list
-    TAILQ_REMOVE(&vhost.vhost_dev_list, vdev, global_vdev_entry);
+    // Remove device from array by shifting remaining elements
+    if (ctx != NULL && dev_idx >= 0) {
+        for (int j = dev_idx; j < ctx->vhost.device_num - 1; j++) {
+            ctx->vhost.vdev_list[j] = ctx->vhost.vdev_list[j + 1];
+        }
+        ctx->vhost.vdev_list[ctx->vhost.device_num - 1] = NULL;
+        ctx->vhost.device_num--;
+    }
 
     // tells worker cores to acknowledge they've seen the removal at their next safe point
     /* Set the dev_removal_flag on each lcore. */
     RTE_LCORE_FOREACH_SLAVE(lcore)
-    vhost.lcore_info[lcore].dev_removal_flag = REQUEST_DEV_REMOVAL;
+    ctx->vhost.dev_removal_flag = REQUEST_DEV_REMOVAL;
 
     /*
      * Once each core has set the dev_removal_flag to ACK_DEV_REMOVAL
@@ -62,13 +78,13 @@ static void destroy_device(int vid) {
      */
     RTE_LCORE_FOREACH_SLAVE(lcore) {
         // busy-wait until it acknowledges removal
-        while (vhost.lcore_info[lcore].dev_removal_flag != ACK_DEV_REMOVAL)
+        while (ctx->vhost.dev_removal_flag != ACK_DEV_REMOVAL)
             rte_pause();
     }
 
-    vhost.lcore_info[vdev->coreid].device_num--;
+    ctx->vhost.device_num--;
 
-    RTE_LOG(INFO, VHOST_DATA, "(%d) device has been removed from data core\n", vdev->vid);
+    printf("(%d) device has been removed from data core\n", vdev->vid);
 
     rte_free(vdev);
 }
@@ -77,20 +93,20 @@ static void destroy_device(int vid) {
  * A new device is added to a data core. First the device is added to the main linked list
  * and then allocated to a specific data core.
  */
+// dpdk automatically assigns vid (0, 1, 2, ...) to each device
 static int new_device(int vid) {
-    int lcore, core_add = 0;
     uint32_t device_num_min = 64;
     struct vhost_dev *vdev;
+    struct dataplane_context *ctx = NULL;
 
     // RTE_CACHE_LINE_SIZE: Align to cache line (64 bytes typically) to avoid false sharing between cores
     vdev = rte_zmalloc("vhost device", sizeof(*vdev), RTE_CACHE_LINE_SIZE);
     if (vdev == NULL) {
-        RTE_LOG(INFO, VHOST_DATA, "(%d) couldn't allocate memory for vhost dev\n", vid);
+        printf("(%d) couldn't allocate memory for vhost dev\n", vid);
         return -1;
     }
     vdev->vid = vid;
 
-    TAILQ_INSERT_TAIL(&vhost.vhost_dev_list, vdev, global_vdev_entry);
     // Each device gets 1 RX queue
     vdev->vmdq_rx_q = vid;
 
@@ -98,17 +114,30 @@ static int new_device(int vid) {
     vdev->ready = DEVICE_MAC_LEARNING;
     vdev->remove = 0;
 
-    /* Find a suitable lcore to add the device. */
-    RTE_LCORE_FOREACH_SLAVE(lcore) {
-        if (vhost.lcore_info[lcore].device_num < device_num_min) {
-            device_num_min = vhost.lcore_info[lcore].device_num;
-            core_add = lcore;
+    /* Find a suitable context (lcore) to add the device. */
+    for (int i = 0; i < fp_cores_max; i++) {
+        if (ctxs[i]->vhost.device_num < device_num_min) {
+            device_num_min = ctxs[i]->vhost.device_num;
+            ctx = ctxs[i];
         }
     }
-    vdev->coreid = core_add;
 
-    TAILQ_INSERT_TAIL(&vhost.lcore_info[vdev->coreid].vdev_list, vdev, lcore_vdev_entry);
-    vhost.lcore_info[vdev->coreid].device_num++;
+    if (ctx == NULL) {
+        printf("(%d) couldn't find suitable context\n", vid);
+        rte_free(vdev);
+        return -1;
+    }
+
+    vdev->coreid = ctx->id;
+
+    // Add device to array
+    if (ctx->vhost.device_num >= MAX_VHOST_DEVICES_PER_CORE) {
+        printf("(%d) too many devices on core %d (max %d)\n", vid, ctx->id, MAX_VHOST_DEVICES_PER_CORE);
+        rte_free(vdev);
+        return -1;
+    }
+    ctx->vhost.vdev_list[ctx->vhost.device_num] = vdev;
+    ctx->vhost.device_num++;
 
     /* Disable notifications. */
     // Normally, guest would send interrupt when it adds packets to TX queue or consumes packets from RX queue
@@ -117,7 +146,7 @@ static int new_device(int vid) {
     rte_vhost_enable_guest_notification(vid, VIRTIO_RXQ, 0);
     rte_vhost_enable_guest_notification(vid, VIRTIO_TXQ, 0);
 
-    RTE_LOG(INFO, VHOST_DATA, "(%d) device has been added to data core %d\n", vid, vdev->coreid);
+    printf("(%d) device has been added to data core %d\n", vid, vdev->coreid);
 
     return 0;
 }
@@ -138,20 +167,15 @@ void unregister_vhost_drivers(int socket_num, const char *path) {
         // each path is PATH_MAX bytes apart
         ret = rte_vhost_driver_unregister(path + i * PATH_MAX);
         if (ret != 0)
-            RTE_LOG(ERR, VHOST_CONFIG, "Fail to unregister vhost driver for %s.\n", path + i * PATH_MAX);
+            printf("Fail to unregister vhost driver for %s.\n", path + i * PATH_MAX);
     }
 }
 
 int register_vhost_drivers() {
-    unsigned lcore_id, core_id = 0;
     uint64_t flags = 0;
 
-    for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
-        TAILQ_INIT(&vhost.lcore_info[lcore_id].vdev_list); // init first,last dev list
-
-        if (rte_lcore_is_enabled(lcore_id))
-            vhost.lcore_ids[core_id++] = lcore_id;
-    }
+    // Note: vdev_list is already initialized in dataplane_context_init()
+    // No need to initialize here
 
     if (config.client_mode)
         flags |= RTE_VHOST_USER_CLIENT;
@@ -192,6 +216,9 @@ int register_vhost_drivers() {
             printf("failed to start vhost driver.\n");
             return -1;
         }
+        // testing only
+        rte_eth_promiscuous_enable(net_port_id);
+        printf("Promiscuous mode enabled for port %d\n", net_port_id);
     }
 
     printf("Vhost drivers started, waiting for connections...\n");
