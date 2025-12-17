@@ -2,7 +2,6 @@
  * Copyright(c) 2010-2017 Intel Corporation
  */
 
-#include <generic/rte_cycles.h>
 #include <rte_ethdev.h>
 #include <rte_mbuf_core.h>
 

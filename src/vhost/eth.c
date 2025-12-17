@@ -1,14 +1,10 @@
-#include "src/config/config.h"
 #include "src/fast/network.h"
 #include "src/include/fastpath.h"
 #include "src/utils/utils.h"
 #include "src/vhost/vhost.h"
 
 #include <generic/rte_cycles.h>
-#include <netinet/in.h>
 #include <rte_ethdev.h>
-#include <rte_ip.h>
-#include <rte_malloc.h>
 #include <rte_mbuf_core.h>
 
 // receive packets from physical NIC and forward them to a VM

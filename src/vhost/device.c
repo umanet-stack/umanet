@@ -4,7 +4,6 @@
 
 #include "../include/tas.h"
 #include <rte_malloc.h>
-#include <sys/queue.h>
 
 #include "src/fast/network.h"
 #include "src/vhost/vhost.h"
