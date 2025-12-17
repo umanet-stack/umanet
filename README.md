@@ -67,15 +67,37 @@ sudo ninja -C build install
 sudo vhost-switch -l 2-3 -n 4 -b 0000:01:00.0 -- --portmask 0x1 --socket-file /mnt/huge/sock0 --stats 1
 ```
 
-## Development
-- `./build_and_run.sh` to check it builds and runs
-- spin up a CH VM to test the TCP stack works
+## Setup VM img/fs
 ```bash
+# c6525-25g
+./setup/vanilla/setup_node.sh 0 enp65s0f0np0
+./setup/vanilla/setup_node.sh 1 enp65s0f0np0
+
+# xl170
+./setup/vanilla/setup_node.sh 0 ens1f1np1
+./setup/vanilla/setup_node.sh 1 ens1f1np1
+
+sudo cloud-hypervisor \
+	--cpus boot=1 \
+	--memory size=512M \
+	--kernel /tmp/vmlinux.bin \
+	--cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
+	--disk path=/tmp/noble-server-cloudimg-amd64.raw path=/tmp/ubuntu-cloudinit.img \
+	--net "tap=tap0,mac=12:34:56:78:90:ab" 
+
+sudo apt update
+
 cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm0-img.raw
 cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm1-img.raw
 cp /tmp/vmlinux.bin /tmp/vm0-kernel.bin
 cp /tmp/vmlinux.bin /tmp/vm1-kernel.bin
 
+```
+
+## Development
+- `./build_and_run.sh` to check it builds and runs
+- spin up a CH VM to test the TCP stack works
+```bash
 # vm0
 sudo cloud-hypervisor \
   --cpus boot=1 \

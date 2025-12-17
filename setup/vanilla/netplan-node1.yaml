@@ -1,0 +1,9 @@
+network:
+  version: 2
+  ethernets:
+    # ens1f1np1:
+    enp65s0f0np0:
+      addresses: [10.10.1.2/24]
+      routes:
+          - to: 192.168.100.0/24
+            via: 10.10.1.1
