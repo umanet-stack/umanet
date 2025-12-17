@@ -123,14 +123,21 @@ static int new_device(int vid) {
     }
     vdev->vid = vid;
 
-    // Each device gets 1 RX queue
-    vdev->vmdq_rx_q = vid;
+    // Multiple VMs share RX queues using modulo
+    // e.g., with 8 queues: VM 0,8,16,24 share queue 0; VM 1,9,17,25 share queue 1; etc.
+    vdev->vmdq_rx_q = vid % fp_cores_max;
 
     /*reset ready flag*/
     vdev->ready = DEVICE_MAC_LEARNING;
     vdev->remove = 0;
 
-    /* Find a suitable context (lcore) to add the device. */
+    /* Find a suitable context (lcore) to add the device using load balancing.
+     * With N cores and M VMs (M > N):
+     * - RX queues: VMs share queues via modulo (e.g., VMs 0,8,16,24 share queue 0 with 8 cores)
+     * - Core assignment: Load-balanced across cores (any core can handle any VM)
+     * Example with 8 cores, 32 VMs: Each core handles ~4 VMs, but VMs sharing an RX queue
+     * may be on different cores.
+     */
     printf("(%d) Searching for suitable context (fp_cores_max=%d)...\n", vid, fp_cores_max);
 
     for (int i = 0; i < fp_cores_max; i++) {
