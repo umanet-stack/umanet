@@ -84,6 +84,7 @@ sudo cloud-hypervisor \
 	--net "tap=tap0,mac=52:54:00:02:d9:01" 
 
 sudo apt update
+sudo apt install -y iperf sockperf
 
 cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm0-img.raw
 cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm1-img.raw
@@ -96,6 +97,8 @@ cp /tmp/vmlinux.bin /tmp/vm1-kernel.bin
 - `./build_and_run.sh` to check it builds and runs
 - spin up a CH VM to test the TCP stack works
 ```bash
+./setup/vanilla/setup_node.sh 0 enp65s0f0np0
+
 # vm0
 sudo cloud-hypervisor \
   --cpus boot=1 \

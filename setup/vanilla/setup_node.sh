@@ -58,4 +58,7 @@ sudo iptables -t nat -A POSTROUTING -s 192.168.100.0/24 -j MASQUERADE
 sudo iptables -A FORWARD -i br0 -o $(ip route | grep default | awk '{print $5}') -j ACCEPT
 sudo iptables -A FORWARD -i $(ip route | grep default | awk '{print $5}') -o br0 -m state --state RELATED,ESTABLISHED -j ACCEPT
 
+${SCRIPT_DIR}/../clean-disk-state.sh
+${SCRIPT_DIR}/../create-cloud-init.sh
+
 echo "✅ Node ${NODE_ID} setup complete"
