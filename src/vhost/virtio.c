@@ -20,6 +20,13 @@ const uint16_t vlan_tags[64] = {
     1048, 1049, 1050, 1051, 1052, 1053, 1054, 1055, 1056, 1057, 1058, 1059, 1060, 1061, 1062, 1063,
 };
 
+static inline void print_pkts(struct rte_mbuf **pkts, uint16_t count);
+static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf *m);
+static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, struct mbuf_table *tx_q,
+                                   uint16_t vlan_tag);
+static void virtio_tx_offload(struct rte_mbuf *m);
+static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rte_mbuf *m);
+
 // receive packets from VM's TX queue, route them to the correct destination
 void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
     struct rte_mbuf *pkts[MAX_PKT_BURST];
@@ -29,11 +36,28 @@ void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
     // copy pkt from guest vring buffer to DPDK mbuf (vm -> dpdk)
     count = rte_vhost_dequeue_burst(vdev->vid, VIRTIO_TXQ, ctx->net.pool, pkts, MAX_PKT_BURST);
 
-    // Debug: print device state
     if (count > 0) {
         printf("[Device vid=%d state=%d] Received %d packets from VM's TX queue\n", vdev->vid, vdev->ready, count);
     }
+    print_pkts(pkts, count);
 
+    /* setup VMDq for the first packet */
+    if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) { // device in MAC learning
+        printf("[Device vid=%d] In MAC learning mode, processing first packet\n", vdev->vid);
+        if (vdev->remove || link_vmdq(vdev, pkts[0]) == -1) { // failed to learn MAC from first packet
+            printf("[Device vid=%d] MAC learning failed, dropping %d packets\n", vdev->vid, count);
+            free_pkts(pkts, count);
+            return; // Early return after freeing packets
+        }
+        printf("[Device vid=%d] MAC learning successful, device now in RX mode\n", vdev->vid);
+    }
+
+    for (i = 0; i < count; ++i) {
+        virtio_tx_route(vdev, pkts[i], &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
+    }
+}
+
+static inline void print_pkts(struct rte_mbuf **pkts, uint16_t count) {
     for (int i = 0; i < count; i++) {
         struct rte_ether_hdr *eth = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
         uint16_t ether_type = rte_be_to_cpu_16(eth->ether_type);
@@ -89,19 +113,131 @@ void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
         }
         printf("\n");
     }
+}
 
-    /* setup VMDq for the first packet */
-    if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) { // device in MAC learning
-        printf("[Device vid=%d] In MAC learning mode, processing first packet\n", vdev->vid);
-        if (vdev->remove || link_vmdq(vdev, pkts[0]) == -1) { // failed to learn MAC from first packet
-            printf("[Device vid=%d] MAC learning failed, dropping %d packets\n", vdev->vid, count);
-            free_pkts(pkts, count);
-            return; // Early return after freeing packets
+// determines whether to send packet from VM to NIC or local VM
+static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, struct mbuf_table *tx_q,
+                                   uint16_t vlan_tag) {
+    struct rte_ether_hdr *nh;
+
+    nh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *); // get the Ethernet header
+    if (unlikely(rte_is_broadcast_ether_addr(&nh->d_addr))) {
+        struct vhost_dev *vdev2;
+
+        for (int i = 0; i < fp_cores_max; i++) {
+            struct dataplane_context *ctx = ctxs[i];
+            for (int j = 0; j < ctx->vhost.device_num; j++) {
+                vdev2 = ctx->vhost.vdev_list[j];
+                if (vdev2 != NULL && vdev2 != vdev)
+                    virtio_tx(vdev2, vdev, m);
+            }
         }
-        printf("[Device vid=%d] MAC learning successful, device now in RX mode\n", vdev->vid);
+        goto queue2nic;
     }
 
-    for (i = 0; i < count; ++i) {                                               // loop received packets
-        virtio_tx_route(vdev, pkts[i], &ctx->vhost.tx_q, vlan_tags[vdev->vid]); // route each to correct destination
+    /*check if destination is local VM (same host)*/
+    if (virtio_tx_local(vdev, m) == 0) {
+        rte_pktmbuf_free(m); //  If delivered locally, free the mbuf (no need to send to NIC)
+        return;
     }
+
+    printf("(%d) TX: MAC address is external\n", vdev->vid);
+    // sending to NIC
+
+queue2nic:
+    nh = rte_pktmbuf_mtod(
+        m, struct rte_ether_hdr *); // Re-extract Ethernet header (might have been modified in VM2VM processing)
+    if (unlikely(nh->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))) {
+        // packet doesn't have VLAN tag yet
+        m->ol_flags |= PKT_TX_VLAN_PKT; // offload flag indicating NIC should insert VLAN tag
+        m->vlan_tci = vlan_tag;         // Tag Control Information
+    }
+
+    if (m->ol_flags & PKT_TX_TCP_SEG) // if TCP segmentation offload is enabled
+        virtio_tx_offload(m);         // prepare checksum offloads
+
+    // Add packet to the TX queue's mbuf table
+    tx_q->m_table[tx_q->len++] = m;
+    if (config.enable_stats) {
+        vdev->stats.tx_total++;
+        vdev->stats.tx++;
+    }
+
+    if (unlikely(tx_q->len == MAX_PKT_BURST)) // if the queue is full
+        flush_eth_tx(tx_q);                   // drain the queue (send packets to NIC)
+}
+
+// Transmits a packet to vhost device via virtqueue.
+static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf *m) {
+    uint16_t ret;
+    ret = rte_vhost_enqueue_burst(dst_vdev->vid, VIRTIO_RXQ, &m, 1);
+
+    // dest stats use atomic operations (multiple cores may write)
+    // source stats don't (single core writes)
+    if (config.enable_stats) {
+        rte_atomic64_inc(&dst_vdev->stats.rx_total_atomic);
+        rte_atomic64_add(&dst_vdev->stats.rx_atomic, ret);
+        src_vdev->stats.tx_total++;
+        src_vdev->stats.tx += ret;
+    }
+}
+
+/*
+ * Check if the packet destination MAC address is for a local (same host) device. If so then put
+ * the packet on that devices RX queue. If not then return.
+ */
+static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rte_mbuf *m) {
+    struct rte_ether_hdr *pkt_hdr;
+    struct vhost_dev *dst_vdev;
+
+    pkt_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+
+    dst_vdev = find_vhost_dev(&pkt_hdr->d_addr);
+    if (!dst_vdev)
+        return -1;
+
+    if (vdev->vid == dst_vdev->vid) {
+        printf("(%d) TX: src and dst MAC is same. Dropping packet.\n", vdev->vid);
+        return 0;
+    }
+
+    printf("(%d) TX: MAC address is local\n", dst_vdev->vid);
+
+    if (unlikely(dst_vdev->remove)) {
+        printf("(%d) device is marked for removal\n", dst_vdev->vid);
+        return 0;
+    }
+
+    virtio_tx(dst_vdev, vdev, m);
+    return 0;
+}
+
+// pseudo header checksum
+static uint16_t get_psd_sum(void *l3_hdr, uint64_t ol_flags) {
+    if (ol_flags & PKT_TX_IPV4)
+        return rte_ipv4_phdr_cksum(l3_hdr, ol_flags);
+    else /* assume ethertype == RTE_ETHER_TYPE_IPV6 */
+        return rte_ipv6_phdr_cksum(l3_hdr, ol_flags);
+}
+
+// prepare checksum offloads
+static void virtio_tx_offload(struct rte_mbuf *m) {
+    void *l3_hdr;
+    struct rte_ipv4_hdr *ipv4_hdr = NULL;
+    struct rte_tcp_hdr *tcp_hdr = NULL;
+    struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+
+    // l3 header position
+    l3_hdr = (char *)eth_hdr + m->l2_len;
+
+    if (m->ol_flags & PKT_TX_IPV4) {
+        ipv4_hdr = l3_hdr;
+        ipv4_hdr->hdr_checksum = 0;     // hw will calculate checksum
+        m->ol_flags |= PKT_TX_IP_CKSUM; // tell NIC hw to compute checksum
+    }
+
+    // l4 header position
+    tcp_hdr = (struct rte_tcp_hdr *)((char *)l3_hdr + m->l3_len);
+    // hardware will complete the full TCP checksum calculation
+    tcp_hdr->cksum = get_psd_sum(l3_hdr, m->ol_flags);
 }

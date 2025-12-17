@@ -37,25 +37,25 @@ enum { VIRTIO_RXQ, VIRTIO_TXQ, VIRTIO_QNUM };
 //     unsigned dev_to_core_id[64];
 // } vhost_state_t;
 
-// extern vhost_state_t vhost;
 extern const struct vhost_device_ops virtio_net_device_ops;
 extern const uint16_t vlan_tags[64];
 
-struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac);
-void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, struct mbuf_table *tx_q, uint16_t vlan_tag);
-int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m);
-void unlink_vmdq(struct vhost_dev *vdev);
-void flush_eth_tx(struct mbuf_table *tx_q);
-
 void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx);
+
+void flush_eth_tx(struct mbuf_table *tx_q);
 void poll_eth_rx(struct vhost_dev *vdev);
 
+struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac);
 void unregister_vhost_drivers(int socket_num, const char *path);
 int register_vhost_drivers();
+
+int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m);
+void unlink_vmdq(struct vhost_dev *vdev);
 
 static inline unsigned vhost_poll(struct network_thread *t, unsigned num, unsigned vid, struct rte_mbuf **mbs) {
     num = rte_vhost_dequeue_burst(vid, VIRTIO_TXQ, t->pool, mbs, num);
 
     return num;
 }
+
 #endif

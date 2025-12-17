@@ -1,9 +1,7 @@
 
-#include "src/fast/fastemu.h"
+#include "src/include/fastpath.h"
 #include "src/fast/internal.h"
 #include "src/fast/network.h"
-#include "src/fast/tcp_common.h"
-#include "src/include/fastpath.h"
 #include "src/include/tas.h"
 #include "src/vhost/vhost.h"
 #include <rte_mbuf_core.h>
@@ -38,16 +36,6 @@
     } while (0)
 #endif
 
-static unsigned poll_rx(struct dataplane_context *ctx, uint32_t ts, uint64_t tsc) __attribute__((noinline));
-static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) __attribute__((noinline));
-
-static inline void bufcache_alloc(struct dataplane_context *ctx, uint16_t num);
-static inline void bufcache_free(struct dataplane_context *ctx, struct network_buf_handle *handle);
-
-static inline void tx_flush(struct dataplane_context *ctx);
-static inline void tx_send(struct dataplane_context *ctx, struct network_buf_handle *nbh, uint16_t off, uint16_t len);
-
-static inline uint16_t pick_vhost_queue(struct dataplane_context *ctx, struct rte_mbuf *pkt);
 static inline void drain_vhost_tx(struct mbuf_table *tx_q);
 
 int dataplane_init(void) {
@@ -136,7 +124,8 @@ void dataplane_loop(struct dataplane_context *ctx) {
             ctx->vhost.dev_removal_flag = ACK_DEV_REMOVAL;
 
         for (int i = 0; i < ctx->vhost.device_num; i++) {
-            vdev = ctx->vhost.vdev_list[i];
+            uint16_t dev_idx = (ctx->vhost.poll_next_device + i) % ctx->vhost.device_num;
+            vdev = ctx->vhost.vdev_list[dev_idx];
             if (vdev == NULL)
                 continue;
 
@@ -166,14 +155,15 @@ void dataplane_loop(struct dataplane_context *ctx) {
             }
         }
 
+        // Update round-robin pointer
+        if (ctx->vhost.device_num > 0)
+            ctx->vhost.poll_next_device = (ctx->vhost.poll_next_device + 1) % ctx->vhost.device_num;
+
         // /* count cycles of previous iteration if it was busy */
         // prev_cyc = cyc;
         // cyc = rte_get_tsc_cycles();
         // if (!was_idle)
         //     ctx->loadmon_cyc_busy += cyc - prev_cyc;
-
-        // ts = qman_timestamp(cyc);
-        // STATS_TS(start);
 
         // // n += poll_rx(ctx, ts, cyc);
         // STATS_TS(rx);

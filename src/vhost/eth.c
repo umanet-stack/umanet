@@ -20,7 +20,7 @@ void poll_eth_rx(struct vhost_dev *vdev) {
     rx_count = rte_eth_rx_burst(net_port_id, vdev->vmdq_rx_q, pkts, MAX_PKT_BURST);
     if (!rx_count)
         return;
-    printf("Received %d packets from physical NIC\n", rx_count);
+    // printf("Received %d packets from physical NIC\n", rx_count);
 
     // send packets to guest virtio RX ring
     enqueue_count = rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, pkts, rx_count);
@@ -42,4 +42,19 @@ void poll_eth_rx(struct vhost_dev *vdev) {
     }
 
     free_pkts(pkts, rx_count);
+}
+
+// moves packets from a software staging buffer (tx_q->m_table) to the NIC's hardware TX queue/ring
+void flush_eth_tx(struct mbuf_table *tx_q) {
+    uint16_t count;
+
+    printf("do_drain_mbuf_table\n");
+    printf("txq_id: %d\n", tx_q->txq_id);
+    printf("len: %d\n", tx_q->len);
+    count = rte_eth_tx_burst(net_port_id, tx_q->txq_id, tx_q->m_table, tx_q->len);
+    printf("count: %d\n", count);
+    if (unlikely(count < tx_q->len))                         // fewer packets were sent than attempted
+        free_pkts(&tx_q->m_table[count], tx_q->len - count); // free the unsent packets
+
+    tx_q->len = 0; // reset the queue length
 }

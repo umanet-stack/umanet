@@ -23,7 +23,7 @@ sources = files(
 	'src/vhost/virtio.c',
 	'src/vhost/eth.c',
 	'src/fast/network.c',
-	'src/fast/fastemu.c',
+	'src/fast/fastpath.c',
 	'src/shm.c',
 	'lib/utils/rng.c',
 	'src/utils/utils.c',
