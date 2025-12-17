@@ -47,8 +47,8 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m);
 void unlink_vmdq(struct vhost_dev *vdev);
 void flush_eth_tx(struct mbuf_table *tx_q);
 
-void drain_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx);
-void drain_eth_rx(struct vhost_dev *vdev);
+void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx);
+void poll_eth_rx(struct vhost_dev *vdev);
 
 void unregister_vhost_drivers(int socket_num, const char *path);
 int register_vhost_drivers();

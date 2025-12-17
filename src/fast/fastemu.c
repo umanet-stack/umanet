@@ -154,15 +154,15 @@ void dataplane_loop(struct dataplane_context *ctx) {
             }
 
             if (likely(vdev->ready == DEVICE_RX)) {
-                printf("Draining eth rx...\n");
-                // poll_rx
-                drain_eth_rx(vdev); // receive packets from physical NIC and forward them to a VM
+                printf("Polling eth rx...\n");
+                // receive packets from physical NIC and forward them to a VM
+                poll_eth_rx(vdev);
             }
 
             if (likely(!vdev->remove)) { // device is not being removed (double-check)
-                printf("Draining virtio tx...\n");
-                // poll_queues
-                drain_virtio_tx(vdev, ctx); // receive packets from VM's TX queue, route them to the correct destination
+                printf("Polling virtio tx...\n");
+                // receive packets from VM's TX queue, route them to the NIC or local VM
+                poll_virtio_tx(vdev, ctx);
             }
         }
 
@@ -221,12 +221,12 @@ static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) {
     /* parse packets TCP headers (just timestamp option) to tcpopts */
     // fast_flows_packet_parse(ctx, bhs, fss, tcpopts, n);
 
-    for (int i = 0; i < n; i++) {
-        uint16_t vhost_queue = pick_vhost_queue(ctx, mbs[i]);
-        if (vhost_queue != 0) {
-            rte_vhost_enqueue_burst(vhost_queue, VIRTIO_TXQ, &mbs[i], 1);
-        }
-    }
+    // for (int i = 0; i < n; i++) {
+    //     uint16_t vhost_queue = pick_vhost_queue(ctx, mbs[i]);
+    //     if (vhost_queue != 0) {
+    //         rte_vhost_enqueue_burst(vhost_queue, VIRTIO_TXQ, &mbs[i], 1);
+    //     }
+    // }
 
     // no. of pkts processed
     return total;

@@ -2,8 +2,6 @@
  * Copyright(c) 2010-2017 Intel Corporation
  */
 
-#include "src/config/config.h"
-#include "src/fast/network.h"
 #include "src/include/fastpath.h"
 #include "src/utils/utils.h"
 #include "src/vhost/vhost.h"
@@ -22,41 +20,8 @@ const uint16_t vlan_tags[64] = {
     1048, 1049, 1050, 1051, 1052, 1053, 1054, 1055, 1056, 1057, 1058, 1059, 1060, 1061, 1062, 1063,
 };
 
-// receive packets from physical NIC and forward them to a VM
-void drain_eth_rx(struct vhost_dev *vdev) {
-    uint16_t rx_count, enqueue_count;
-    struct rte_mbuf *pkts[MAX_PKT_BURST];
-
-    // receive packets from physical NIC
-    rx_count = rte_eth_rx_burst(net_port_id, vdev->vmdq_rx_q, pkts, MAX_PKT_BURST);
-    if (!rx_count)
-        return;
-    printf("Received %d packets from physical NIC\n", rx_count);
-
-    // send packets to guest virtio RX ring
-    enqueue_count = rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, pkts, rx_count);
-
-    /* Retry if necessary */
-    if (config.enable_retry && unlikely(enqueue_count < rx_count)) {
-        uint32_t retry = 0;
-
-        while (enqueue_count < rx_count && retry++ < config.burst_rx_retry_num) { // max 4 retries
-            rte_delay_us(config.burst_rx_delay_time);
-            enqueue_count +=
-                rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, &pkts[enqueue_count], rx_count - enqueue_count);
-        }
-    }
-
-    if (config.enable_stats) {
-        rte_atomic64_add(&vdev->stats.rx_total_atomic, rx_count);
-        rte_atomic64_add(&vdev->stats.rx_atomic, enqueue_count);
-    }
-
-    free_pkts(pkts, rx_count);
-}
-
 // receive packets from VM's TX queue, route them to the correct destination
-void drain_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
+void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
     struct rte_mbuf *pkts[MAX_PKT_BURST];
     uint16_t count;
     uint16_t i;
