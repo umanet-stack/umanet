@@ -82,17 +82,17 @@ static inline uint16_t tx_xsum_enable(struct network_buf_handle *nbh, struct ip_
     return network_buf_tcpxsums(nbh, sizeof(struct eth_hdr), sizeof(*iph), iph, ip_s, ip_d, IP_PROTO_TCP, l3_paylen);
 }
 
-static inline void arx_cache_add(struct dataplane_context *ctx, uint16_t ctx_id, uint64_t opaque, uint32_t rx_bump,
-                                 uint32_t rx_pos, uint32_t tx_bump, uint16_t type_flags) {
-    uint16_t id = ctx->arx_num++;
+// static inline void arx_cache_add(struct dataplane_context *ctx, uint16_t ctx_id, uint64_t opaque, uint32_t rx_bump,
+//                                  uint32_t rx_pos, uint32_t tx_bump, uint16_t type_flags) {
+//     uint16_t id = ctx->arx_num++;
 
-    ctx->arx_ctx[id] = ctx_id;
-    ctx->arx_cache[id].type = type_flags & 0xff;
-    ctx->arx_cache[id].msg.connupdate.opaque = opaque;
-    ctx->arx_cache[id].msg.connupdate.rx_bump = rx_bump;
-    ctx->arx_cache[id].msg.connupdate.rx_pos = rx_pos;
-    ctx->arx_cache[id].msg.connupdate.tx_bump = tx_bump;
-    ctx->arx_cache[id].msg.connupdate.flags = type_flags >> 8;
-}
+//     ctx->arx_ctx[id] = ctx_id;
+//     ctx->arx_cache[id].type = type_flags & 0xff;
+//     ctx->arx_cache[id].msg.connupdate.opaque = opaque;
+//     ctx->arx_cache[id].msg.connupdate.rx_bump = rx_bump;
+//     ctx->arx_cache[id].msg.connupdate.rx_pos = rx_pos;
+//     ctx->arx_cache[id].msg.connupdate.tx_bump = tx_bump;
+//     ctx->arx_cache[id].msg.connupdate.flags = type_flags >> 8;
+// }
 
 #endif /* ndef FASTEMU_H_ */

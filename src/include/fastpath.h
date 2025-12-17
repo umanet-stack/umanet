@@ -131,9 +131,9 @@ struct dataplane_context {
 
     /********************************************************/
     /* arx cache */
-    struct flextcp_pl_arx arx_cache[BATCH_SIZE];
-    uint16_t arx_ctx[BATCH_SIZE];
-    uint16_t arx_num;
+    // struct flextcp_pl_arx arx_cache[BATCH_SIZE];
+    // uint16_t arx_ctx[BATCH_SIZE];
+    // uint16_t arx_num;
 
     /********************************************************/
     /* send buffer */
