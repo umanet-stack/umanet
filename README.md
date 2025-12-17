@@ -86,6 +86,7 @@ sudo cloud-hypervisor \
 sudo apt update
 sudo apt install -y iperf sockperf
 
+sudo rm -f /tmp/vm*-img.raw /tmp/vm*-kernel.bin
 cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm0-img.raw
 cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm1-img.raw
 cp /tmp/vmlinux.bin /tmp/vm0-kernel.bin
@@ -116,6 +117,8 @@ sudo cloud-hypervisor \
   --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
   --disk path=/tmp/vm1-img.raw path=/tmp/cloudinit-vm1-dpdk.img \
   --net mac=52:54:20:11:C5:02,vhost_user=true,socket=/mnt/huge/sock1,num_queues=2,vhost_mode=client,queue_size=2048
+
+ps aux | grep cloud-hypervisor | grep -v grep | awk '{print $2}' | xargs kill -9
 ```
 
 ### VM packets
@@ -132,3 +135,9 @@ sudo ip neigh add 10.10.1.1 lladdr 02:00:00:00:00:01 dev ens4 nud permanent
 ```
 - vm will now send TCP/UDP pkts asking for 8.8.8.8
     - pinging pkts will also show
+    
+### Testing
+```bash
+iperf -s
+iperf -c 10.10.1.1
+```
