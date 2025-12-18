@@ -114,10 +114,9 @@ void dataplane_loop(struct dataplane_context *ctx) {
     LOG_INFO("TX queue ID: %u\n", tx_q->txq_id);
 
     while (!exited) {
-        // Use usleep for more responsive device removal handling
-        // 100ms sleep instead of 1 second
-        // usleep(100000); // 100ms
+#ifdef DEBUG
         sleep(1);
+#endif
 
         LOG_INFO("Draining TX queue into NIC...\n");
         if (tx_q->len > 0)

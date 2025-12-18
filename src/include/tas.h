@@ -73,9 +73,8 @@ void notify_canblock_reset(struct notify_blockstate *nbs);
 
 #define LOG_ERROR(fmt, ...) log_error(fmt, ##__VA_ARGS__)
 #define LOG_WARN(fmt, ...) log_warn(fmt, ##__VA_ARGS__)
-#define DEBUG
-#ifdef DEBUG
 
+#ifdef DEBUG
 #define LOG_ETH_IN(fmt, ...) log_eth_in(fmt, ##__VA_ARGS__)
 #define LOG_ETH_OUT(fmt, ...) log_eth_out(fmt, ##__VA_ARGS__)
 #define LOG_VM_IN(fmt, ...) log_vm_in(fmt, ##__VA_ARGS__)

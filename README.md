@@ -57,6 +57,9 @@ sudo rm -f /dev/hugepages/tas_memory
 ## Running
 ```bash
 # c6525-25g nodes
+# debug
+sudo ./build_and_run.sh 0000:41:00.0 debug
+# test
 sudo ./build_and_run.sh 0000:41:00.0
 
 # kill process
@@ -99,6 +102,8 @@ cp /tmp/vmlinux.bin /tmp/vm1-kernel.bin
 - `./build_and_run.sh` to check it builds and runs
 - spin up a CH VM to test the TCP stack works
 ```bash
+sudo ip addr del 10.10.1.10/24 dev ens4
+
 sudo ip link set ens4 up
 sudo ip addr add 10.10.1.10/24 dev ens4
 sudo ip route add default via 10.10.1.1
