@@ -7,7 +7,7 @@ if [ -z "$PCI_ADDR" ]; then
 fi
 
 # The executable will be at `build/vhost-switch`.
-meson setup build
+meson setup build -Dc_args="-DDEBUG"
 ninja -C build
 
 

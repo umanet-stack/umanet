@@ -74,4 +74,28 @@ void notify_canblock_reset(struct notify_blockstate *nbs);
 #define FLEXNIC_INTERNAL_MEM_SIZE (1024 * 1024 * 32)
 #define FLEXNIC_NUM_QMQUEUES (128 * 1024)
 
+#define LOG_ERROR(fmt, ...) log_error(fmt, ##__VA_ARGS__)
+#define LOG_WARN(fmt, ...) log_warn(fmt, ##__VA_ARGS__)
+#define DEBUG
+#ifdef DEBUG
+
+#define LOG_PKT_IN(fmt, ...) log_pkt_in(fmt, ##__VA_ARGS__)
+#define LOG_PKT_OUT(fmt, ...) log_pkt_out(fmt, ##__VA_ARGS__)
+#define LOG_INFO(fmt, ...) log_info(fmt, ##__VA_ARGS__)
+#define PRINT_PKTS(pkts, count, level) print_pkts(pkts, count, level)
+#else
+#define LOG_PKT_IN(fmt, ...)                                                                                           \
+    do {                                                                                                               \
+    } while (0)
+#define LOG_PKT_OUT(fmt, ...)                                                                                          \
+    do {                                                                                                               \
+    } while (0)
+#define LOG_INFO(fmt, ...)                                                                                             \
+    do {                                                                                                               \
+    } while (0)
+#define PRINT_PKTS(pkts, count, level)                                                                                 \
+    do {                                                                                                               \
+    } while (0)
+#endif
+
 #endif /* ndef TAS_H_ */

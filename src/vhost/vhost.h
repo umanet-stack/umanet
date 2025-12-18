@@ -19,8 +19,9 @@ void log_error(const char *fmt, ...);
 void log_warn(const char *fmt, ...);
 void log_pkt_in(const char *fmt, ...);
 void log_pkt_out(const char *fmt, ...);
-void free_pkts(struct rte_mbuf **pkts, uint16_t n);
 void print_pkts(struct rte_mbuf **pkts, uint16_t count, enum log_level level);
+
+void free_pkts(struct rte_mbuf **pkts, uint16_t n);
 
 // rte = runtime env (dpdk)
 // queue type identifiers: receive, transmit, total count

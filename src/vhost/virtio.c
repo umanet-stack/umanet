@@ -37,23 +37,25 @@ void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
     count = rte_vhost_dequeue_burst(vdev->vid, VIRTIO_TXQ, ctx->net.pool, pkts, MAX_PKT_BURST);
 
     if (unlikely((int16_t)count < 0)) {
-        log_error("Error: rte_vhost_dequeue_burst failed for vid=%d (device may be disconnected)\n", vdev->vid);
+        LOG_ERROR("Error: rte_vhost_dequeue_burst failed for vid=%d (device may be disconnected)\n", vdev->vid);
         vdev->remove = 1; // Mark device for removal
         return;
     }
 
-    log_pkt_in("[Device vid=%d state=%d] Received %d packets from VM's TX queue\n", vdev->vid, vdev->ready, count);
-    print_pkts(pkts, count, LOG_PKT_IN);
+    if (count > 0) {
+        LOG_PKT_IN("[vid=%d] Received %d packets from VM's TX queue\n", vdev->vid, count);
+        PRINT_PKTS(pkts, count, LOG_PKT_IN);
+    }
 
     /* setup VMDq for the first packet */
     if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) { // device in MAC learning
-        log_info("[Device vid=%d] In MAC learning mode, processing first packet\n", vdev->vid);
+        LOG_INFO("[vid=%d] In MAC learning mode, processing first packet\n", vdev->vid);
         if (vdev->remove || link_vmdq(vdev, pkts[0]) == -1) { // failed to learn MAC from first packet
-            log_error("[Device vid=%d] MAC learning failed, dropping %d packets\n", vdev->vid, count);
+            LOG_ERROR("[vid=%d] MAC learning failed, dropping %d packets\n", vdev->vid, count);
             free_pkts(pkts, count);
             return; // Early return after freeing packets
         }
-        log_info("[Device vid=%d] MAC learning successful, device now in RX mode\n", vdev->vid);
+        LOG_INFO("[vid=%d] MAC learning successful, device now in RX mode\n", vdev->vid);
     }
 
     for (i = 0; i < count; ++i) {
@@ -64,10 +66,11 @@ void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
 // determines whether to send packet from VM to NIC or local VM
 static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, struct mbuf_table *tx_q,
                                    uint16_t vlan_tag) {
-    struct rte_ether_hdr *nh;
+    struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
-    nh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *); // get the Ethernet header
-    if (unlikely(rte_is_broadcast_ether_addr(&nh->d_addr))) {
+    // process_arp()
+
+    if (unlikely(rte_is_broadcast_ether_addr(&eth_hdr->d_addr))) {
         struct vhost_dev *vdev2;
 
         for (int i = 0; i < fp_cores_max; i++) {
@@ -87,13 +90,13 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, s
         return;
     }
 
-    printf("(%d) TX: MAC address is external\n", vdev->vid);
+    LOG_INFO("(%d) TX: MAC address is external\n", vdev->vid);
     // sending to NIC
 
 queue2nic:
-    nh = rte_pktmbuf_mtod(
+    eth_hdr = rte_pktmbuf_mtod(
         m, struct rte_ether_hdr *); // Re-extract Ethernet header (might have been modified in VM2VM processing)
-    if (unlikely(nh->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))) {
+    if (unlikely(eth_hdr->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))) {
         // packet doesn't have VLAN tag yet
         m->ol_flags |= PKT_TX_VLAN_PKT; // offload flag indicating NIC should insert VLAN tag
         m->vlan_tci = vlan_tag;         // Tag Control Information
@@ -117,9 +120,7 @@ queue2nic:
 static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf *m) {
     uint16_t ret;
 
-    // Validate destination device before attempting transmission
-    if (unlikely(dst_vdev == NULL || dst_vdev->remove || dst_vdev->ready != DEVICE_RX)) {
-        printf("Warning: Cannot transmit to invalid/removed device\n");
+    if (unlikely(check_device_state(dst_vdev) != 0)) {
         rte_pktmbuf_free(m); // Free the packet to avoid memory leak
         return;
     }
@@ -128,7 +129,7 @@ static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vho
 
     // If enqueue fails (ret == 0), the mbuf is still owned by us and should be freed
     if (unlikely(ret == 0)) {
-        printf("Warning: Failed to enqueue packet to vid=%d\n", dst_vdev->vid);
+        LOG_WARN("Warning: Failed to enqueue packet to vid=%d\n", dst_vdev->vid);
         rte_pktmbuf_free(m);
         return;
     }
@@ -151,23 +152,21 @@ static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rt
     struct rte_ether_hdr *pkt_hdr;
     struct vhost_dev *dst_vdev;
 
+    if (unlikely(check_device_state(vdev) != 0))
+        return -1;
+
     pkt_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
     dst_vdev = find_vhost_dev(&pkt_hdr->d_addr);
-    if (!dst_vdev)
+    if (unlikely(check_device_state(dst_vdev) != 0))
         return -1;
 
     if (vdev->vid == dst_vdev->vid) {
-        printf("(%d) TX: src and dst MAC is same. Dropping packet.\n", vdev->vid);
+        LOG_INFO("(%d) TX: src and dst MAC is same. Dropping packet.\n", vdev->vid);
         return 0;
     }
 
-    printf("(%d) TX: MAC address is local\n", dst_vdev->vid);
-
-    if (unlikely(dst_vdev->remove)) {
-        printf("(%d) device is marked for removal\n", dst_vdev->vid);
-        return 0;
-    }
+    LOG_INFO("(%d) TX: MAC address is local\n", dst_vdev->vid);
 
     virtio_tx(dst_vdev, vdev, m);
     return 0;

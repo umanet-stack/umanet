@@ -14,7 +14,6 @@
 
 enum log_level { LOG_INFO, LOG_ERROR, LOG_WARN, LOG_PKT_IN, LOG_PKT_OUT };
 
-void log_msg(enum log_level level, const char *fmt, ...);
 void log_pkt_in(const char *fmt, ...);
 void log_pkt_out(const char *fmt, ...);
 void log_info(const char *fmt, ...);

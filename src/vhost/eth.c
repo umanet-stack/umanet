@@ -17,15 +17,15 @@ void poll_eth_rx(struct vhost_dev *vdev) {
     rx_count = rte_eth_rx_burst(net_port_id, vdev->rx_queue, pkts, MAX_PKT_BURST);
     if (!rx_count)
         return;
-    log_pkt_in("Received %d packets from physical NIC\n", rx_count);
-    print_pkts(pkts, rx_count, LOG_PKT_IN);
+    LOG_PKT_IN("Received %d packets from physical NIC\n", rx_count);
+    PRINT_PKTS(pkts, rx_count, LOG_PKT_IN);
 
     enqueue_count = rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, pkts, rx_count);
-    log_pkt_out("Enqueued %d packets to guest virtio RX ring\n", enqueue_count);
-    print_pkts(pkts, enqueue_count, LOG_PKT_OUT);
+    LOG_PKT_OUT("Enqueued %d packets to guest virtio RX ring\n", enqueue_count);
+    PRINT_PKTS(pkts, enqueue_count, LOG_PKT_OUT);
 
     if (unlikely(enqueue_count == 0 && rx_count > 0)) {
-        log_warn("Warning: Failed to enqueue any packets to vid=%d (may be disconnected)\n", vdev->vid);
+        LOG_WARN("Warning: Failed to enqueue any packets to vid=%d (may be disconnected)\n", vdev->vid);
         free_pkts(pkts, rx_count);
         vdev->remove = 1; // Mark device for removal
         return;
@@ -54,7 +54,7 @@ void poll_eth_rx(struct vhost_dev *vdev) {
 void flush_eth_tx(struct mbuf_table *tx_q) {
     uint16_t count;
     if (unlikely(tx_q == NULL)) {
-        log_error("Error: NULL tx_q in flush_eth_tx\n");
+        LOG_ERROR("Error: NULL tx_q in flush_eth_tx\n");
         return;
     }
 
@@ -69,8 +69,8 @@ void flush_eth_tx(struct mbuf_table *tx_q) {
     }
 
     count = rte_eth_tx_burst(net_port_id, tx_q->txq_id, tx_q->m_table, tx_q->len);
-    log_pkt_out("(%d) Sent %d packets to NIC\n", tx_q->txq_id, count);
-    print_pkts(tx_q->m_table, count, LOG_PKT_OUT);
+    LOG_PKT_OUT("(%d) Sent %d packets to NIC\n", tx_q->txq_id, count);
+    PRINT_PKTS(tx_q->m_table, count, LOG_PKT_OUT);
 
     if (unlikely(count < tx_q->len))                         // fewer packets were sent than attempted
         free_pkts(&tx_q->m_table[count], tx_q->len - count); // free the unsent packets

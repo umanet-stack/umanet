@@ -19,9 +19,9 @@ void log_error(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
 
-    printf(RED_PREFIX "[ERROR] ");
-    vprintf(fmt, args);
-    printf(RESET_COLOR);
+    fprintf(stderr, RED_PREFIX "[ERROR] ");
+    vfprintf(stderr, fmt, args);
+    fprintf(stderr, RESET_COLOR);
 
     va_end(args);
 }
@@ -31,9 +31,9 @@ void log_warn(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
 
-    printf(YELLOW_PREFIX "[WARN] ");
-    vprintf(fmt, args);
-    printf(RESET_COLOR);
+    fprintf(stderr, YELLOW_PREFIX "[WARN] ");
+    vfprintf(stderr, fmt, args);
+    fprintf(stderr, RESET_COLOR);
 
     va_end(args);
 }
@@ -58,34 +58,6 @@ void log_pkt_out(const char *fmt, ...) {
     printf(GREEN_PREFIX "[PKT OUT] ");
     vprintf(fmt, args);
     printf(RESET_COLOR);
-
-    va_end(args);
-}
-
-void log_msg(enum log_level level, const char *fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-
-    switch (level) {
-    case LOG_INFO:
-        log_info(fmt, args);
-        break;
-    case LOG_ERROR:
-        log_error(fmt, args);
-        break;
-    case LOG_WARN:
-        log_warn(fmt, args);
-        break;
-    case LOG_PKT_IN:
-        log_pkt_in(fmt, args);
-        break;
-    case LOG_PKT_OUT:
-        log_pkt_out(fmt, args);
-        break;
-    default:
-        log_error("Invalid log level: %d", level);
-        break;
-    }
 
     va_end(args);
 }

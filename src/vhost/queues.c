@@ -21,7 +21,7 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
     pkt_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
     if (find_vhost_dev(&pkt_hdr->s_addr)) {
-        printf("(%d) device is using a registered MAC!\n", vdev->vid);
+        LOG_WARN("(%d) device is using a registered MAC!\n", vdev->vid);
         return -1;
     }
 
@@ -29,14 +29,14 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
     for (i = 0; i < RTE_ETHER_ADDR_LEN; i++)
         vdev->mac_address.addr_bytes[i] = pkt_hdr->s_addr.addr_bytes[i];
 
-    printf("(%d) mac %02x:%02x:%02x:%02x:%02x:%02x registered\n", vdev->vid, vdev->mac_address.addr_bytes[0],
-           vdev->mac_address.addr_bytes[1], vdev->mac_address.addr_bytes[2], vdev->mac_address.addr_bytes[3],
-           vdev->mac_address.addr_bytes[4], vdev->mac_address.addr_bytes[5]);
+    LOG_INFO("(%d) mac %02x:%02x:%02x:%02x:%02x:%02x registered\n", vdev->vid, vdev->mac_address.addr_bytes[0],
+             vdev->mac_address.addr_bytes[1], vdev->mac_address.addr_bytes[2], vdev->mac_address.addr_bytes[3],
+             vdev->mac_address.addr_bytes[4], vdev->mac_address.addr_bytes[5]);
 
     /* Register the MAC address without pool */
     ret = rte_eth_dev_mac_addr_add(net_port_id, &vdev->mac_address, 0);
     if (ret)
-        printf("(%d) failed to add device MAC address\n", vdev->vid);
+        LOG_ERROR("(%d) failed to add device MAC address\n", vdev->vid);
 
     /* Set device as ready for RX. */
     // Changes state from DEVICE_MAC_LEARNING to DEVICE_RX

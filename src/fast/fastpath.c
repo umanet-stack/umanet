@@ -41,25 +41,22 @@ static inline void cleanup_tx_queue_for_device(struct mbuf_table *tx_q, struct v
 
 int dataplane_init(void) {
     if (FLEXNIC_INTERNAL_MEM_SIZE < sizeof(struct flextcp_pl_mem)) {
-        fprintf(stderr,
-                "dataplane_init: internal flexnic memory size not "
-                "sufficient (got %x, need %zx)\n",
-                FLEXNIC_INTERNAL_MEM_SIZE, sizeof(struct flextcp_pl_mem));
+        LOG_ERROR("dataplane_init: internal flexnic memory size not "
+                  "sufficient (got %x, need %zx)\n",
+                  FLEXNIC_INTERNAL_MEM_SIZE, sizeof(struct flextcp_pl_mem));
         return -1;
     }
 
     if (fp_cores_max > FLEXNIC_PL_APPST_CTX_MCS) {
-        fprintf(stderr,
-                "dataplane_init: more cores than FLEXNIC_PL_APPST_CTX_MCS "
-                "(%u)\n",
-                FLEXNIC_PL_APPST_CTX_MCS);
+        LOG_ERROR("dataplane_init: more cores than FLEXNIC_PL_APPST_CTX_MCS "
+                  "(%u)\n",
+                  FLEXNIC_PL_APPST_CTX_MCS);
         return -1;
     }
     if (FLEXNIC_PL_FLOWST_NUM > FLEXNIC_NUM_QMQUEUES) {
-        fprintf(stderr,
-                "dataplane_init: more flow states than queue manager queues"
-                "(%u > %u)\n",
-                FLEXNIC_PL_FLOWST_NUM, FLEXNIC_NUM_QMQUEUES);
+        LOG_ERROR("dataplane_init: more flow states than queue manager queues"
+                  "(%u > %u)\n",
+                  FLEXNIC_PL_FLOWST_NUM, FLEXNIC_NUM_QMQUEUES);
         return -1;
     }
 
@@ -72,13 +69,13 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     /* initialize forwarding queue */
     sprintf(name, "qman_fwd_ring_%u", ctx->id);
     if ((ctx->qman_fwd_ring = rte_ring_create(name, 32 * 1024, rte_socket_id(), RING_F_SC_DEQ)) == NULL) {
-        fprintf(stderr, "initializing rte_ring_create");
+        LOG_ERROR("initializing rte_ring_create failed\n");
         return -1;
     }
 
     /* initialize network queue */
     if (network_thread_init(ctx) != 0) {
-        fprintf(stderr, "initializing rx thread failed\n");
+        LOG_ERROR("initializing rx thread failed\n");
         return -1;
     }
 
@@ -110,11 +107,11 @@ void dataplane_loop(struct dataplane_context *ctx) {
     struct vhost_dev *vdev;
     struct mbuf_table *tx_q;
 
-    printf("Procesing on Core %u started\n", lcore_id);
+    LOG_INFO("Procesing on Core %u started\n", lcore_id);
 
     tx_q = &ctx->vhost.tx_q;
     tx_q->txq_id = ctx->id;
-    printf("TX queue ID: %u\n", tx_q->txq_id);
+    LOG_INFO("TX queue ID: %u\n", tx_q->txq_id);
 
     while (!exited) {
         // Use usleep for more responsive device removal handling
@@ -122,7 +119,7 @@ void dataplane_loop(struct dataplane_context *ctx) {
         // usleep(100000); // 100ms
         sleep(1);
 
-        printf("Draining TX queue into NIC...\n");
+        LOG_INFO("Draining TX queue into NIC...\n");
         if (tx_q->len > 0)
             drain_vhost_tx(tx_q);
 
@@ -154,13 +151,13 @@ void dataplane_loop(struct dataplane_context *ctx) {
 
             // Add robust null check
             if (vdev == NULL) {
-                printf("Warning: NULL vdev at index %d (device_num=%d)\n", dev_idx, current_device_num);
+                LOG_WARN("Warning: NULL vdev at index %d (device_num=%d)\n", dev_idx, current_device_num);
                 continue;
             }
 
             if (unlikely(vdev->remove)) { // device is marked for removal
-                printf("Removing device vid=%d from dataplane (current device_num=%d)\n", vdev->vid,
-                       ctx->vhost.device_num);
+                LOG_INFO("Removing device vid=%d from dataplane (current device_num=%d)\n", vdev->vid,
+                         ctx->vhost.device_num);
 
                 // Clean up any pending TX packets for this device
                 cleanup_tx_queue_for_device(&ctx->vhost.tx_q, vdev);
@@ -180,7 +177,7 @@ void dataplane_loop(struct dataplane_context *ctx) {
                     ctx->vhost.poll_next_device = 0;
                 }
 
-                printf("Device removed, new device_num=%d\n", ctx->vhost.device_num);
+                LOG_INFO("Device removed, new device_num=%d\n", ctx->vhost.device_num);
 
                 // Update cached value to prevent accessing removed device
                 current_device_num = ctx->vhost.device_num;
@@ -197,19 +194,19 @@ void dataplane_loop(struct dataplane_context *ctx) {
 
             // Validate device is in a valid state before polling
             if (vdev->ready != DEVICE_RX && vdev->ready != DEVICE_MAC_LEARNING) {
-                printf("Warning: Device vid=%d in invalid state %d, skipping\n", vdev->vid, vdev->ready);
+                LOG_WARN("Warning: Device vid=%d in invalid state %d, skipping\n", vdev->vid, vdev->ready);
                 continue;
             }
 
             if (likely(vdev->ready == DEVICE_RX)) {
-                printf("Polling eth rx...\n");
+                LOG_INFO("Polling eth rx...\n");
                 // receive packets from physical NIC and forward them to a VM
                 poll_eth_rx(vdev);
             }
 
             // Double-check device is still valid before polling TX
             if (likely(!vdev->remove && vdev->ready != DEVICE_SAFE_REMOVE)) {
-                printf("Polling virtio tx...\n");
+                LOG_INFO("Polling virtio tx...\n");
                 // receive packets from VM's TX queue, route them to the NIC or local VM
                 poll_virtio_tx(vdev, ctx);
             }
@@ -301,12 +298,12 @@ static inline void cleanup_tx_queue_for_device(struct mbuf_table *tx_q, struct v
         return;
     }
 
-    printf("Cleaning up TX queue for device vid=%d (current queue len=%u)\n", vdev->vid, tx_q->len);
+    LOG_INFO("Cleaning up TX queue for device vid=%d (current queue len=%u)\n", vdev->vid, tx_q->len);
 
     // Note: We can't easily identify which packets belong to which device,
     // so we flush all pending packets to the NIC before device removal
     if (tx_q->len > 0) {
-        printf("Flushing %u pending packets before device removal\n", tx_q->len);
+        LOG_INFO("Flushing %u pending packets before device removal\n", tx_q->len);
         flush_eth_tx(tx_q);
     }
 }
@@ -320,7 +317,7 @@ static inline void drain_vhost_tx(struct mbuf_table *tx_q) {
     if (unlikely(cur_tsc - prev_tsc > MBUF_TABLE_DRAIN_TSC)) {
         prev_tsc = cur_tsc;
 
-        printf("TX queue drained after timeout with burst size %u\n", tx_q->len);
+        LOG_INFO("TX queue drained after timeout with burst size %u\n", tx_q->len);
         flush_eth_tx(tx_q);
     }
 }
