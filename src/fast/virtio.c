@@ -10,6 +10,7 @@
 
 #include "src/fast/internal.h"
 #include "src/include/fastpath.h"
+#include "src/include/tas.h"
 #include "src/vhost/vhost.h"
 
 const uint16_t vlan_tags[64] = {
@@ -21,8 +22,8 @@ const uint16_t vlan_tags[64] = {
 
 static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev,
                                           struct rte_mbuf **pkts, uint16_t count);
-static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, struct mbuf_table *tx_q,
-                                   uint16_t vlan_tag);
+static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count,
+                                   struct mbuf_table *tx_q, uint16_t vlan_tag);
 static void virtio_tx_offload(struct rte_mbuf *m);
 static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rte_mbuf *m);
 
@@ -30,7 +31,6 @@ static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rt
 void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
     struct rte_mbuf *pkts[MAX_PKT_BURST];
     uint16_t count;
-    uint16_t i;
 
     if (unlikely(check_device_state(vdev, "poll_virtio_tx") != 0))
         return;
@@ -61,75 +61,90 @@ void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
         LOG_INFO("[vid=%d] MAC learning successful, device now in RX mode\n", vdev->vid);
     }
 
-    for (i = 0; i < count; ++i) {
-        virtio_tx_route(vdev, pkts[i], &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
-    }
+    virtio_tx_route(vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
 }
 
-// determines whether to send packet from VM to NIC or local VM
-static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, struct mbuf_table *tx_q,
-                                   uint16_t vlan_tag) {
-    struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count,
+                                   struct mbuf_table *tx_q, uint16_t vlan_tag) {
+    struct rte_mbuf *broadcast_pkts[MAX_PKT_BURST];
+    struct rte_mbuf *external_pkts[MAX_PKT_BURST];
+    uint16_t broadcast_count = 0;
+    uint16_t external_count = 0;
 
-    // Intercept ARP requests for the gateway (vhost-switch acts as gateway)
-    if (unlikely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP))) {
-        LOG_INFO("(%d) TX: ARP packet received. Processing...\n", vdev->vid);
-        if (process_arp(vdev, m) == 0) {
-            rte_pktmbuf_free(m);
-            return;
+    for (int i = 0; i < count; i++) {
+        struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
+        // Intercept ARP requests for the gateway (vhost-switch acts as gateway)
+        if (unlikely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP))) {
+            LOG_INFO("(%d) TX: ARP packet received. Processing...\n", vdev->vid);
+            if (process_arp(vdev, pkts[i]) == 0) {
+                rte_pktmbuf_free(pkts[i]);
+                continue;
+            }
+            LOG_INFO("(%d) TX: Broadcasting ARP to other VMs\n", vdev->vid);
         }
-        LOG_INFO("(%d) TX: Broadcasting ARP to other VMs\n", vdev->vid);
+
+        if (unlikely(rte_is_broadcast_ether_addr(&eth_hdr->d_addr))) {
+            // broadcast is sent first, then external (it will free pkts)
+            broadcast_pkts[broadcast_count++] = pkts[i];
+            external_pkts[external_count++] = rte_pktmbuf_clone(pkts[i], pkts[i]->pool);
+            continue;
+        }
+
+        if (virtio_tx_local(vdev, pkts[i]) == 0) {
+            rte_pktmbuf_free(pkts[i]);
+            continue;
+        }
+
+        LOG_INFO("(%d) TX: MAC address is external\n", vdev->vid);
+        external_pkts[external_count++] = pkts[i];
     }
 
-    if (unlikely(rte_is_broadcast_ether_addr(&eth_hdr->d_addr))) {
+    // broadcast packets
+    if (unlikely(broadcast_count > 0)) {
         struct vhost_dev *vdev2;
-
-        for (int i = 0; i < fp_cores_max; i++) {
-            struct dataplane_context *ctx = ctxs[i];
-            for (int j = 0; j < ctx->vhost.device_num; j++) {
-                vdev2 = ctx->vhost.vdev_list[j];
+        for (int j = 0; j < fp_cores_max; j++) {
+            struct dataplane_context *ctx = ctxs[j];
+            for (int k = 0; k < ctx->vhost.device_num; k++) {
+                vdev2 = ctx->vhost.vdev_list[k];
                 if (vdev2 != NULL && vdev2 != vdev) {
-                    // Clone the packet for each destination VM
-                    struct rte_mbuf *m_clone = rte_pktmbuf_clone(m, m->pool);
-                    if (unlikely(m_clone == NULL)) {
-                        LOG_WARN("Failed to clone packet for broadcast to vid=%d\n", vdev2->vid);
-                        continue;
+                    struct rte_mbuf *clone_pkts[broadcast_count];
+                    uint16_t clone_count = 0;
+                    for (int l = 0; l < broadcast_count; l++) {
+                        struct rte_mbuf *clone_pkt = rte_pktmbuf_clone(broadcast_pkts[l], broadcast_pkts[l]->pool);
+                        if (unlikely(clone_pkt == NULL)) {
+                            LOG_WARN("Failed to clone packet for broadcast to vid=%d\n", vdev2->vid);
+                            continue;
+                        }
+                        clone_pkts[clone_count++] = clone_pkt;
                     }
-                    virtio_tx(vdev2, vdev, &m_clone, 1);
+                    virtio_tx(vdev2, vdev, clone_pkts, clone_count);
                 }
             }
         }
-        goto queue2nic;
     }
 
-    /*check if destination is local VM (same host)*/
-    if (virtio_tx_local(vdev, m) == 0) {
-        rte_pktmbuf_free(m);
-        return;
-    }
-
-    LOG_INFO("(%d) TX: MAC address is external\n", vdev->vid);
-
-queue2nic:
+    // send to NIC
     // uint32_t nat_ip = (128 << 24) | (110 << 16) | (219 << 8) | 130; // 128.110.219.130
     // nat_translate_outbound(m, vdev->vid, nat_ip);
+    struct rte_ether_hdr *eth_hdr;
+    for (int i = 0; i < external_count; i++) {
+        eth_hdr = rte_pktmbuf_mtod(external_pkts[i], struct rte_ether_hdr *);
+        if (unlikely(eth_hdr->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))) {
+            external_pkts[i]->ol_flags |= PKT_TX_VLAN_PKT; // offload flag indicating NIC should insert VLAN tag
+            external_pkts[i]->vlan_tci = vlan_tag;         // Tag Control Information
+        }
 
-    eth_hdr = rte_pktmbuf_mtod(
-        m, struct rte_ether_hdr *); // Re-extract Ethernet header (might have been modified in VM2VM processing)
-    if (unlikely(eth_hdr->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))) {
-        // packet doesn't have VLAN tag yet
-        m->ol_flags |= PKT_TX_VLAN_PKT; // offload flag indicating NIC should insert VLAN tag
-        m->vlan_tci = vlan_tag;         // Tag Control Information
-    }
+        if (external_pkts[i]->ol_flags & PKT_TX_TCP_SEG) // if TCP segmentation offload is enabled
+            virtio_tx_offload(external_pkts[i]);         // prepare checksum offloads
 
-    if (m->ol_flags & PKT_TX_TCP_SEG) // if TCP segmentation offload is enabled
-        virtio_tx_offload(m);         // prepare checksum offloads
-
-    // Add packet to the TX queue's mbuf table
-    tx_q->m_table[tx_q->len++] = m;
-    if (config.enable_stats) {
-        vdev->stats.tx_total++;
-        vdev->stats.tx++;
+        // Add packet to the TX queue's mbuf table
+        tx_q->m_table[tx_q->len++] = external_pkts[i];
+        if (config.enable_stats) {
+            vdev->stats.tx_total++;
+            vdev->stats.tx++;
+        }
+        if (unlikely(tx_q->len == MAX_PKT_BURST)) // if the queue is full
+            flush_eth_tx(tx_q);                   // drain the queue (send packets to NIC)
     }
 
     if (unlikely(tx_q->len == MAX_PKT_BURST)) // if the queue is full
@@ -184,6 +199,7 @@ static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rt
     dst_vdev = find_vhost_dev(&pkt_hdr->d_addr);
     if (dst_vdev == NULL) {
         LOG_WARN("(%d) TX: Destination MAC address not found. Dropping packet.\n", vdev->vid);
+        PRINT_PKTS(&m, 1, LOG_WARN);
         return -1;
     }
 

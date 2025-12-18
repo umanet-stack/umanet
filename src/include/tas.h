@@ -73,6 +73,7 @@ void notify_canblock_reset(struct notify_blockstate *nbs);
 
 #define LOG_ERROR(fmt, ...) log_error(fmt, ##__VA_ARGS__)
 #define LOG_WARN(fmt, ...) log_warn(fmt, ##__VA_ARGS__)
+#define PRINT_PKTS(pkts, count, level) print_pkts(pkts, count, level)
 
 #ifdef DEBUG
 #define LOG_ETH_IN(fmt, ...) log_eth_in(fmt, ##__VA_ARGS__)
@@ -80,7 +81,6 @@ void notify_canblock_reset(struct notify_blockstate *nbs);
 #define LOG_VM_IN(fmt, ...) log_vm_in(fmt, ##__VA_ARGS__)
 #define LOG_VM_OUT(fmt, ...) log_vm_out(fmt, ##__VA_ARGS__)
 #define LOG_INFO(fmt, ...) log_info(fmt, ##__VA_ARGS__)
-#define PRINT_PKTS(pkts, count, level) print_pkts(pkts, count, level)
 #else
 #define LOG_ETH_IN(fmt, ...)                                                                                           \
     do {                                                                                                               \
@@ -95,9 +95,6 @@ void notify_canblock_reset(struct notify_blockstate *nbs);
     do {                                                                                                               \
     } while (0)
 #define LOG_INFO(fmt, ...)                                                                                             \
-    do {                                                                                                               \
-    } while (0)
-#define PRINT_PKTS(pkts, count, level)                                                                                 \
     do {                                                                                                               \
     } while (0)
 #endif
