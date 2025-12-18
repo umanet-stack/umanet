@@ -44,6 +44,16 @@ struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
     return NULL;
 }
 
+struct vhost_dev *find_vhost_dev_core(struct dataplane_context *ctx, struct rte_ether_addr *mac) {
+    struct vhost_dev *vdev;
+    for (int j = 0; j < ctx->vhost.device_num; j++) {
+        vdev = ctx->vhost.vdev_list[j];
+        if (vdev != NULL && vdev->ready == DEVICE_RX && rte_is_same_ether_addr(mac, &vdev->mac_address))
+            return vdev;
+    }
+    return NULL;
+}
+
 /*
  * Remove a device from the specific data core linked list and from the
  * main linked list. Synchonization  occurs through the use of the

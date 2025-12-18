@@ -51,6 +51,7 @@ extern const struct vhost_device_ops virtio_net_device_ops;
 
 int check_device_state(struct vhost_dev *vdev, const char *func);
 struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac);
+struct vhost_dev *find_vhost_dev_core(struct dataplane_context *ctx, struct rte_ether_addr *mac);
 void unregister_vhost_drivers(int socket_num, const char *path);
 int register_vhost_drivers();
 

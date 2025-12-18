@@ -81,7 +81,7 @@ struct vhost_dev { // vhost device
     /**< Device is marked for removal from the data core. */
     volatile uint8_t remove;
 
-    int vid;                      // vhost device ID
+    int vid;                      // vhost device ID, assigned by dpdk
     uint64_t features;            // Virtio feature flags
     size_t hdr_len;               // Header length
     uint16_t nr_vrings;           // Number of virtio rings

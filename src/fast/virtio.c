@@ -9,7 +9,6 @@
 #include <stdint.h>
 
 #include "src/fast/internal.h"
-#include "src/fast/nat.h"
 #include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 
@@ -72,14 +71,12 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, s
     struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
     // Intercept ARP requests for the gateway (vhost-switch acts as gateway)
-    if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)) {
+    if (unlikely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP))) {
         LOG_INFO("(%d) TX: ARP packet received. Processing...\n", vdev->vid);
         if (process_arp(vdev, m) == 0) {
-            // Gateway ARP handled, packet consumed
             rte_pktmbuf_free(m);
             return;
         }
-        // VM-to-VM ARP, broadcast to other VMs (fall through to broadcast handling)
         LOG_INFO("(%d) TX: Broadcasting ARP to other VMs\n", vdev->vid);
     }
 
@@ -106,17 +103,15 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, s
 
     /*check if destination is local VM (same host)*/
     if (virtio_tx_local(vdev, m) == 0) {
-        rte_pktmbuf_free(m); //  If delivered locally, free the mbuf (no need to send to NIC)
+        rte_pktmbuf_free(m);
         return;
     }
 
     LOG_INFO("(%d) TX: MAC address is external\n", vdev->vid);
-    // sending to NIC
 
 queue2nic:
-    // Apply NAT for outbound packets with public IP
-    uint32_t nat_ip = (128 << 24) | (110 << 16) | (219 << 8) | 130; // 128.110.219.130
-    nat_translate_outbound(m, vdev->vid, nat_ip);
+    // uint32_t nat_ip = (128 << 24) | (110 << 16) | (219 << 8) | 130; // 128.110.219.130
+    // nat_translate_outbound(m, vdev->vid, nat_ip);
 
     eth_hdr = rte_pktmbuf_mtod(
         m, struct rte_ether_hdr *); // Re-extract Ethernet header (might have been modified in VM2VM processing)
@@ -183,9 +178,12 @@ static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rt
 
     pkt_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
+    // must search all cores (vms can be on different cores)
     dst_vdev = find_vhost_dev(&pkt_hdr->d_addr);
-    if (dst_vdev == NULL)
+    if (dst_vdev == NULL) {
+        LOG_WARN("(%d) TX: Destination MAC address not found. Dropping packet.\n", vdev->vid);
         return -1;
+    }
 
     if (vdev->vid == dst_vdev->vid) {
         LOG_INFO("(%d) TX: src and dst MAC is same. Dropping packet.\n", vdev->vid);
