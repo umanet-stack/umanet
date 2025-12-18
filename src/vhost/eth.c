@@ -31,13 +31,13 @@ void poll_eth_rx(struct vhost_dev *vdev) {
     }
 
     // Validate vmdq_rx_q is in reasonable range
-    if (unlikely(vdev->vmdq_rx_q >= 256)) {
-        printf("Error: Invalid vmdq_rx_q=%d for vid=%d\n", vdev->vmdq_rx_q, vdev->vid);
+    if (unlikely(vdev->rx_queue >= 256)) {
+        printf("Error: Invalid vmdq_rx_q=%d for vid=%d\n", vdev->rx_queue, vdev->vid);
         return;
     }
 
     // receive packets from physical NIC
-    rx_count = rte_eth_rx_burst(net_port_id, vdev->vmdq_rx_q, pkts, MAX_PKT_BURST);
+    rx_count = rte_eth_rx_burst(net_port_id, vdev->rx_queue, pkts, MAX_PKT_BURST);
     if (!rx_count)
         return;
     // printf("Received %d packets from physical NIC\n", rx_count);

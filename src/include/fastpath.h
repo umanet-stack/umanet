@@ -70,14 +70,10 @@ struct device_statistics {
 };
 
 struct vhost_dev { // vhost device
-    /**< Number of memory regions for gpa to hpa translation. */
-    uint32_t nregions_hpa;
-    /**< Device MAC address (Obtained on first TX packet). */
+    // Device MAC address (Obtained on first TX packet).
     struct rte_ether_addr mac_address;
-    /**< RX VMDQ (VM device queue) queue number. */
-    uint16_t vmdq_rx_q; // stores the RX queue number assigned to each vhost device
-    /**< Vlan tag assigned to the pool */
-    uint32_t vlan_tag;
+    // ETH RX queue number assigned to vhost device
+    uint16_t rx_queue;
     /**< Data core that the device is added to. */
     uint16_t coreid;
     /**< A device is set as ready if the MAC address has been set. */

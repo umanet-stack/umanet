@@ -319,32 +319,6 @@ static struct rte_mempool *mempool_alloc(void) {
                               rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, rte_socket_id(), 0);
 }
 
-static inline uint16_t core_min(uint16_t num) {
-    uint16_t i, i_min = 0, v_min = UINT8_MAX;
-
-    for (i = 0; i < num; i++) {
-        if (rss_core_buckets[i] < v_min) {
-            v_min = rss_core_buckets[i];
-            i_min = i;
-        }
-    }
-
-    return i_min;
-}
-
-static inline uint16_t core_max(uint16_t num) {
-    uint16_t i, i_max = 0, v_max = 0;
-
-    for (i = 0; i < num; i++) {
-        if (rss_core_buckets[i] >= v_max) {
-            v_max = rss_core_buckets[i];
-            i_max = i;
-        }
-    }
-
-    return i_max;
-}
-
 // int network_scale_up(uint16_t old, uint16_t new) {
 //     uint16_t i, j, k, c, share = rss_reta_size / new;
 //     uint16_t outer, inner;

@@ -290,7 +290,7 @@ static inline uint16_t pick_vhost_queue(struct dataplane_context *ctx, struct rt
     struct rte_ether_hdr *eth = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
     for (int i = 0; i < ctx->vhost.device_num; i++) {
         if (memcmp(eth->d_addr.addr_bytes, ctx->vhost.vdev_list[i]->mac_address.addr_bytes, 6) == 0)
-            return ctx->vhost.vdev_list[i]->vmdq_rx_q;
+            return ctx->vhost.vdev_list[i]->rx_queue;
     }
     return 0; // optional: drop or broadcast
 }

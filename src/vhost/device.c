@@ -34,7 +34,6 @@ static void destroy_device(int vid) {
     struct vhost_dev *vdev = NULL;
     int lcore;
     struct dataplane_context *ctx = NULL;
-    int dev_idx = -1;
 
     printf("destroy_device called for vid=%d\n", vid);
 
@@ -44,7 +43,6 @@ static void destroy_device(int vid) {
             if (ctxs[i]->vhost.vdev_list[j] != NULL && ctxs[i]->vhost.vdev_list[j]->vid == vid) {
                 vdev = ctxs[i]->vhost.vdev_list[j];
                 ctx = ctxs[i];
-                dev_idx = j;
                 break;
             }
         }
@@ -124,7 +122,7 @@ static int new_device(int vid) {
     vdev->vid = vid;
 
     // with 8 queues: VM 0,8,16,24 share queue 0; VM 1,9,17,25 share queue 1
-    vdev->vmdq_rx_q = vid % fp_cores_max;
+    vdev->rx_queue = vid % fp_cores_max;
 
     /*reset ready flag*/
     vdev->ready = DEVICE_MAC_LEARNING;

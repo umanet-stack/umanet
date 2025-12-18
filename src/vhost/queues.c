@@ -29,15 +29,9 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
     for (i = 0; i < RTE_ETHER_ADDR_LEN; i++)
         vdev->mac_address.addr_bytes[i] = pkt_hdr->s_addr.addr_bytes[i];
 
-    /* vlan_tag currently uses the device_id. */
-    // device 0 → VLAN 1000
-    vdev->vlan_tag = vlan_tags[vdev->vid];
-
-    /* Print out VMDQ registration info. */
-    printf("(%d) mac %02x:%02x:%02x:%02x:%02x:%02x and vlan %d registered\n", vdev->vid,
-           vdev->mac_address.addr_bytes[0], vdev->mac_address.addr_bytes[1], vdev->mac_address.addr_bytes[2],
-           vdev->mac_address.addr_bytes[3], vdev->mac_address.addr_bytes[4], vdev->mac_address.addr_bytes[5],
-           vdev->vlan_tag);
+    printf("(%d) mac %02x:%02x:%02x:%02x:%02x:%02x registered\n", vdev->vid, vdev->mac_address.addr_bytes[0],
+           vdev->mac_address.addr_bytes[1], vdev->mac_address.addr_bytes[2], vdev->mac_address.addr_bytes[3],
+           vdev->mac_address.addr_bytes[4], vdev->mac_address.addr_bytes[5]);
 
     /* Register the MAC address without pool */
     ret = rte_eth_dev_mac_addr_add(net_port_id, &vdev->mac_address, 0);
@@ -66,17 +60,15 @@ void unlink_vmdq(struct vhost_dev *vdev) {
         for (i = 0; i < 6; i++)
             vdev->mac_address.addr_bytes[i] = 0;
 
-        vdev->vlan_tag = 0;
-
         /*Clear out the receive buffers*/
-        rx_count = rte_eth_rx_burst(net_port_id, (uint16_t)vdev->vmdq_rx_q, pkts_burst, MAX_PKT_BURST);
+        rx_count = rte_eth_rx_burst(net_port_id, (uint16_t)vdev->rx_queue, pkts_burst, MAX_PKT_BURST);
 
         while (rx_count) {                 // until queue is empty
             for (i = 0; i < rx_count; i++) // Frees each packet buffer back to mbuf pool
                 rte_pktmbuf_free(pkts_burst[i]);
 
             // Receives next batch of packets from queue
-            rx_count = rte_eth_rx_burst(net_port_id, (uint16_t)vdev->vmdq_rx_q, pkts_burst, MAX_PKT_BURST);
+            rx_count = rte_eth_rx_burst(net_port_id, (uint16_t)vdev->rx_queue, pkts_burst, MAX_PKT_BURST);
         }
 
         vdev->ready = DEVICE_MAC_LEARNING;
