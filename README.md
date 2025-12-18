@@ -148,5 +148,5 @@ sudo ip neigh add 10.10.1.1 lladdr 02:00:00:00:00:01 dev ens4 nud permanent
 ### Testing
 ```bash
 iperf -s
-iperf -c 10.10.1.1
+iperf -c 10.10.1.10
 ```
