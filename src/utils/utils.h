@@ -23,4 +23,6 @@ void log_warn(const char *fmt, ...);
 void free_pkts(struct rte_mbuf **pkts, uint16_t n);
 void print_pkts(struct rte_mbuf **pkts, uint16_t count, enum log_level level);
 
+int util_parse_ipv4(const char *s, uint32_t *ip);
+
 #endif

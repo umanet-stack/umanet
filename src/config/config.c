@@ -3,6 +3,7 @@
  */
 
 #include "config.h"
+#include "src/utils/utils.h"
 #include <getopt.h>
 #include <rte_ethdev.h>
 #include <rte_log.h>
@@ -11,8 +12,10 @@
 #define BURST_RX_WAIT_US 15 /* Defines how long we wait between retries on RX */
 #define BURST_RX_RETRIES 4  /* Number of retries on RX. */
 
+static inline int parse_int8(const char *s, uint8_t *pi);
 static inline int parse_int32(const char *s, uint32_t *pi);
 static int parse_socket_path(config_t *c, const char *q_arg);
+static inline int parse_cidr(char *s, uint32_t *ip, uint8_t *prefix);
 
 void init_config(config_t *c) {
     /* ===== vhost-user ===== */
@@ -27,6 +30,9 @@ void init_config(config_t *c) {
     c->burst_rx_retry_num = BURST_RX_RETRIES;
     c->socket_files = NULL;
     c->nb_sockets = 0;
+    c->ip = 0;
+    c->ip_prefix = 0;
+    c->mac = (struct rte_ether_addr){{0x02, 0x00, 0x00, 0x00, 0x00, 0xFE}};
     /* ===== TAS ===== */
     c->shm_len = 1024 * 1024 * 1024;
     c->fp_cores_max = 1;
@@ -52,6 +58,7 @@ enum cfg_params {
     CP_CLIENT,
     CP_DEQUEUE_ZERO_COPY,
     CP_FP_CORES_MAX,
+    CP_IP_ADDR,
 };
 
 static struct option options[] = {
@@ -107,6 +114,7 @@ static struct option options[] = {
     },
     {"client", no_argument, .val = CP_CLIENT},
     {"dequeue-zero-copy", no_argument, .val = CP_DEQUEUE_ZERO_COPY},
+    {"ip-addr", required_argument, .val = CP_IP_ADDR},
 };
 
 /*
@@ -208,6 +216,13 @@ int parse_config(config_t *c, int argc, char **argv) {
             c->dequeue_zero_copy = 1;
             break;
 
+        case CP_IP_ADDR:
+            if (parse_cidr(optarg, &c->ip, &c->ip_prefix) != 0) {
+                fprintf(stderr, "Parsing IP failed\n");
+                goto failed;
+            }
+            break;
+
         default:
             fprintf(stderr, "Invalid option\n");
             goto failed;
@@ -222,6 +237,14 @@ failed:
 }
 
 static inline int parse_int32(const char *s, uint32_t *pi) {
+    char *end;
+    *pi = strtoul(s, &end, 10);
+    if (!*s || *end)
+        return -1;
+    return 0;
+}
+
+static inline int parse_int8(const char *s, uint8_t *pi) {
     char *end;
     *pi = strtoul(s, &end, 10);
     if (!*s || *end)
@@ -247,6 +270,26 @@ static int parse_socket_path(config_t *c, const char *q_arg) // path e.g. /tmp/v
 
     strlcpy(c->socket_files + c->nb_sockets * PATH_MAX, q_arg, PATH_MAX); // copies path to socket_files' new slot
     c->nb_sockets++;
+
+    return 0;
+}
+
+static inline int parse_cidr(char *s, uint32_t *ip, uint8_t *prefix) {
+    char *slash;
+
+    /* parse /prefix and replace / by \0 (if applicable)*/
+    if ((slash = strrchr(s, '/')) != NULL) {
+        if (parse_int8(slash + 1, prefix) != 0) {
+            fprintf(stderr, "parse_cidr: parsing prefix (%s) failed\n", slash);
+            return -1;
+        }
+        *slash = 0;
+    }
+
+    if (util_parse_ipv4(s, ip) != 0) {
+        fprintf(stderr, "parse_cidr: parsing IP (%s) failed\n", s);
+        return -1;
+    }
 
     return 0;
 }

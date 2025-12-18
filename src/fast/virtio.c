@@ -69,7 +69,12 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, s
                                    uint16_t vlan_tag) {
     struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
-    // process_arp()
+    if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)) {
+        LOG_INFO("(%d) TX: ARP packet received. Processing...\n", vdev->vid);
+        process_arp(vdev, m);
+        rte_pktmbuf_free(m);
+        return;
+    }
 
     if (unlikely(rte_is_broadcast_ether_addr(&eth_hdr->d_addr))) {
         struct vhost_dev *vdev2;

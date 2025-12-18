@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include <rte_byteorder.h>
 #include <rte_ethdev.h>
 #include <rte_ether.h>
@@ -10,6 +11,14 @@
 void free_pkts(struct rte_mbuf **pkts, uint16_t n) {
     while (n--)
         rte_pktmbuf_free(pkts[n]);
+}
+
+int util_parse_ipv4(const char *s, uint32_t *ip) {
+    if (inet_pton(AF_INET, s, ip) != 1) {
+        return -1;
+    }
+    *ip = htonl(*ip);
+    return 0;
 }
 
 void print_pkts(struct rte_mbuf **pkts, uint16_t count, enum log_level level) {

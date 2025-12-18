@@ -68,7 +68,7 @@ uint32_t qman_next_ts(struct qman_thread *t, uint32_t cur_ts);
 
 void *util_create_shmsiszed(const char *name, size_t size, void *addr);
 
-int process_arp(struct rte_mbuf *m);
+void process_arp(struct vhost_dev *vdev, struct rte_mbuf *m);
 
 void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx);
 

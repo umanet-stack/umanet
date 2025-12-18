@@ -5,6 +5,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 #include <rte_build_config.h>
+#include <rte_ether.h>
 #include <stdint.h>
 
 typedef struct {
@@ -26,6 +27,12 @@ typedef struct {
     /* Socket file paths. Can be set by user */
     char *socket_files;
     int nb_sockets;
+    /** IP address for this host */
+    uint32_t ip;
+    /** IP prefix length for this host */
+    uint8_t ip_prefix;
+    // mac address for this host
+    struct rte_ether_addr mac;
 
     /* ===== TAS ===== */
     /* shared memory size */
