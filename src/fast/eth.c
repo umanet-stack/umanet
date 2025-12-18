@@ -2,7 +2,6 @@
 #include <rte_ethdev.h>
 #include <rte_mbuf_core.h>
 
-#include "src/fast/nat.h"
 #include "src/fast/network.h"
 #include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
@@ -11,6 +10,7 @@
 void poll_eth_rx(struct vhost_dev *vdev) {
     uint16_t rx_count, enqueue_count;
     struct rte_mbuf *pkts[MAX_PKT_BURST];
+    struct dataplane_context *ctx = ctxs[vdev->coreid];
 
     if (unlikely(check_device_state(vdev, "poll_eth_rx") != 0))
         return;
@@ -21,94 +21,97 @@ void poll_eth_rx(struct vhost_dev *vdev) {
     LOG_ETH_IN("Received %d packets from physical NIC\n", rx_count);
     PRINT_PKTS(pkts, rx_count, LOG_ETH_IN);
 
-    // Apply reverse NAT and route to correct VM
-    uint16_t nat_count = 0;
+// Batching structure: collect packets per destination VM
+// Max VID is typically small (<32), use array for O(1) lookup
+#define MAX_VID 32
+    struct {
+        struct rte_mbuf *pkts[MAX_PKT_BURST];
+        uint16_t count;
+        struct vhost_dev *vdev;
+    } batches[MAX_VID];
+    memset(batches, 0, sizeof(batches));
+
+    uint16_t local_count = 0; // Packets for this vdev
+    struct rte_mbuf *local_pkts[MAX_PKT_BURST];
+
+    // Sort packets by destination VM (batching phase)
     for (uint16_t i = 0; i < rx_count; i++) {
         int target_vid = -1;
-        if (nat_translate_inbound(pkts[i], &target_vid) == 0) {
-            // NAT translation successful, check if it's for this vdev
-            if (target_vid == vdev->vid) {
-                pkts[nat_count++] = pkts[i];
-            } else {
-                // Packet is for a different VM, forward it to the correct one
-                struct vhost_dev *target_vdev = NULL;
-                for (int core_idx = 0; core_idx < fp_cores_max; core_idx++) {
-                    struct dataplane_context *ctx = ctxs[core_idx];
-                    for (int dev_idx = 0; dev_idx < ctx->vhost.device_num; dev_idx++) {
-                        if (ctx->vhost.vdev_list[dev_idx] != NULL && ctx->vhost.vdev_list[dev_idx]->vid == target_vid) {
-                            target_vdev = ctx->vhost.vdev_list[dev_idx];
-                            break;
-                        }
-                    }
-                    if (target_vdev != NULL)
-                        break;
-                }
+        struct vhost_dev *target_vdev = NULL;
+        // if (nat_translate_inbound(pkts[i], &target_vid) == 0) {
+        // }
+        struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
+        target_vdev = find_vhost_dev_core(ctx, &eth_hdr->d_addr);
 
-                if (target_vdev != NULL) {
-                    LOG_ETH_IN("Forwarding packet from vid=%d to vid=%d\n", vdev->vid, target_vid);
-                    if (rte_vhost_enqueue_burst(target_vid, VIRTIO_RXQ, &pkts[i], 1) == 0) {
-                        LOG_WARN("Failed to forward packet to vid=%d\n", target_vid);
-                        rte_pktmbuf_free(pkts[i]);
-                    }
-                } else {
-                    LOG_WARN("Cannot find vdev for vid=%d, dropping packet\n", target_vid);
-                    rte_pktmbuf_free(pkts[i]);
-                }
+        if (target_vdev != NULL) {
+            target_vid = target_vdev->vid;
+            if (target_vid == vdev->vid) {
+                // For this VM
+                local_pkts[local_count++] = pkts[i];
+                continue;
             }
         } else {
-            // Not a NAT'd packet (ARP, broadcast, etc.), use MAC lookup
-            struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
-            struct vhost_dev *target_vdev = find_vhost_dev(&eth_hdr->d_addr);
+            // Unknown destination - deliver to current VM
+            local_pkts[local_count++] = pkts[i];
+            continue;
+        }
 
-            if (target_vdev != NULL && target_vdev->vid != vdev->vid) {
-                // Forward to different VM
-                LOG_ETH_IN("Forwarding non-NAT packet to vid=%d\n", target_vdev->vid);
-                if (rte_vhost_enqueue_burst(target_vdev->vid, VIRTIO_RXQ, &pkts[i], 1) == 0) {
-                    LOG_WARN("Failed to forward non-NAT packet to vid=%d\n", target_vdev->vid);
-                    rte_pktmbuf_free(pkts[i]);
+        // Add to batch for target VM
+        if (target_vdev != NULL && target_vid >= 0 && target_vid < MAX_VID) {
+            batches[target_vid].pkts[batches[target_vid].count++] = pkts[i];
+            batches[target_vid].vdev = target_vdev;
+        } else {
+            LOG_WARN("Invalid target vid=%d or vdev not found, dropping packet\n", target_vid);
+            rte_pktmbuf_free(pkts[i]);
+        }
+    }
+
+    // Enqueue batches to other VMs (forwarding phase)
+    for (int vid = 0; vid < MAX_VID; vid++) {
+        if (batches[vid].count > 0) {
+            LOG_ETH_IN("Forwarding %d packets to vid=%d\n", batches[vid].count, vid);
+            uint16_t sent = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, batches[vid].pkts, batches[vid].count);
+            if (sent < batches[vid].count) {
+                LOG_WARN("Failed to forward %d/%d packets to vid=%d\n", batches[vid].count - sent, batches[vid].count,
+                         vid);
+                for (uint16_t j = sent; j < batches[vid].count; j++) {
+                    rte_pktmbuf_free(batches[vid].pkts[j]);
                 }
-            } else if (target_vdev != NULL && target_vdev->vid == vdev->vid) {
-                // For this VM, keep it
-                pkts[nat_count++] = pkts[i];
-            } else {
-                // Broadcast or unknown destination, deliver to this VM
-                LOG_ETH_IN("Unknown destination, delivering to vid=%d\n", vdev->vid);
-                pkts[nat_count++] = pkts[i];
             }
         }
     }
 
-    if (nat_count == 0)
+    if (local_count == 0)
         return;
 
-    enqueue_count = rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, pkts, nat_count);
+    enqueue_count = rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, local_pkts, local_count);
     LOG_ETH_OUT("Enqueued %d packets to guest virtio RX ring\n", enqueue_count);
-    PRINT_PKTS(pkts, enqueue_count, LOG_ETH_OUT);
+    PRINT_PKTS(local_pkts, enqueue_count, LOG_ETH_OUT);
 
-    if (unlikely(enqueue_count == 0 && nat_count > 0)) {
+    if (unlikely(enqueue_count == 0 && local_count > 0)) {
         LOG_WARN("Warning: Failed to enqueue any packets to vid=%d (may be disconnected)\n", vdev->vid);
-        free_pkts(pkts, nat_count);
+        free_pkts(local_pkts, local_count);
         vdev->remove = 1; // Mark device for removal
         return;
     }
 
     /* Retry if necessary */
-    if (config.enable_retry && unlikely(enqueue_count < nat_count)) {
+    if (config.enable_retry && unlikely(enqueue_count < local_count)) {
         uint32_t retry = 0;
 
-        while (enqueue_count < nat_count && retry++ < config.burst_rx_retry_num) { // max 4 retries
+        while (enqueue_count < local_count && retry++ < config.burst_rx_retry_num) { // max 4 retries
             rte_delay_us(config.burst_rx_delay_time);
             enqueue_count +=
-                rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, &pkts[enqueue_count], nat_count - enqueue_count);
+                rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, &local_pkts[enqueue_count], local_count - enqueue_count);
         }
     }
 
     if (config.enable_stats) {
-        rte_atomic64_add(&vdev->stats.rx_total_atomic, nat_count);
+        rte_atomic64_add(&vdev->stats.rx_total_atomic, local_count);
         rte_atomic64_add(&vdev->stats.rx_atomic, enqueue_count);
     }
 
-    free_pkts(pkts, nat_count);
+    free_pkts(local_pkts, local_count);
 }
 
 // moves packets from a software staging buffer (tx_q->m_table) to the NIC's hardware TX queue/ring
