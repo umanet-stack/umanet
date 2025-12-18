@@ -68,8 +68,10 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkt
                                    struct mbuf_table *tx_q, uint16_t vlan_tag) {
     struct rte_mbuf *broadcast_pkts[MAX_PKT_BURST];
     struct rte_mbuf *external_pkts[MAX_PKT_BURST];
+    struct rte_mbuf *local_pkts[MAX_PKT_BURST];
     uint16_t broadcast_count = 0;
     uint16_t external_count = 0;
+    uint16_t local_count = 0;
 
     for (int i = 0; i < count; i++) {
         struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
@@ -89,12 +91,13 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkt
             continue;
         }
 
-        if (virtio_tx_local(vdev, pkts[i]) == 0) {
+        if (memcmp(&eth_hdr->d_addr, &config.mac, sizeof(struct rte_ether_addr)) == 0) {
+            LOG_INFO("(%d) TX: MAC address is external\n", vdev->vid);
+            external_pkts[external_count++] = pkts[i];
             continue;
         }
 
-        LOG_INFO("(%d) TX: MAC address is external\n", vdev->vid);
-        external_pkts[external_count++] = pkts[i];
+        local_pkts[local_count++] = pkts[i];
     }
 
     // broadcast packets
@@ -147,6 +150,11 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkt
 
     if (unlikely(tx_q->len == MAX_PKT_BURST)) // if the queue is full
         flush_eth_tx(tx_q);                   // drain the queue (send packets to NIC)
+
+    // send to local VM
+    for (int i = 0; i < local_count; i++) {
+        virtio_tx_local(vdev, local_pkts[i]);
+    }
 }
 
 // Transmits a packet to vhost device via virtqueue.
