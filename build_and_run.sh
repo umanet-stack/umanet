@@ -27,7 +27,7 @@ ninja -C build
 # Note: For Mellanox NICs, binding is not required (bifurcated driver model).
 # However, use -w (whitelist) or -b (blacklist) to avoid DPDK using your SSH NIC:
 sudo ./build/vhost-switch \
-  -l 2-3 -n 4 \
+  -l 2-4 -n 4 \
   --file-prefix=vhost \
   -w $PCI_ADDR \
-  -- --fp-cores-max 1 --ip-addr 10.10.1.1/24 --socket-file /mnt/huge/sock0 --socket-file /mnt/huge/sock1 --stats 1
+  -- --fp-cores-max 2 --ip-addr 10.10.1.1/24 --socket-file /mnt/huge/sock0 --socket-file /mnt/huge/sock1 --stats 1
