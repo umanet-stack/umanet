@@ -6,8 +6,10 @@
 #include <rte_ip.h>
 #include <rte_malloc.h>
 #include <rte_mbuf_core.h>
+#include <stdint.h>
 
 #include "src/fast/internal.h"
+#include "src/fast/nat.h"
 #include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 
@@ -69,6 +71,7 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, s
                                    uint16_t vlan_tag) {
     struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
+    // Intercept ARP requests for the gateway (vhost-switch acts as gateway)
     if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)) {
         LOG_INFO("(%d) TX: ARP packet received. Processing...\n", vdev->vid);
         process_arp(vdev, m);
@@ -100,6 +103,10 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, s
     // sending to NIC
 
 queue2nic:
+    // Apply NAT for outbound packets with public IP
+    uint32_t nat_ip = (128 << 24) | (110 << 16) | (219 << 8) | 130; // 128.110.219.130
+    nat_translate_outbound(m, vdev->vid, nat_ip);
+
     eth_hdr = rte_pktmbuf_mtod(
         m, struct rte_ether_hdr *); // Re-extract Ethernet header (might have been modified in VM2VM processing)
     if (unlikely(eth_hdr->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))) {
