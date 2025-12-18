@@ -39,11 +39,11 @@ void log_warn(const char *fmt, ...) {
 }
 
 // cyan
-void log_pkt_in(const char *fmt, ...) {
+void log_eth_in(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
 
-    printf(CYAN_PREFIX "[PKT IN] ");
+    printf(CYAN_PREFIX "[ETH IN] ");
     vprintf(fmt, args);
     printf(RESET_COLOR);
 
@@ -51,13 +51,35 @@ void log_pkt_in(const char *fmt, ...) {
 }
 
 // green
-void log_pkt_out(const char *fmt, ...) {
+void log_eth_out(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
 
-    printf(GREEN_PREFIX "[PKT OUT] ");
+    printf(GREEN_PREFIX "[ETH OUT] ");
     vprintf(fmt, args);
     printf(RESET_COLOR);
 
     va_end(args);
+}
+
+// blue
+void log_vm_in(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    printf(BLUE_PREFIX "[VM IN] ");
+    vprintf(fmt, args);
+    printf(RESET_COLOR);
+
+    va_end(args);
+}
+
+// magenta
+void log_vm_out(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    printf(MAGENTA_PREFIX "[VM OUT] ");
+    vprintf(fmt, args);
+    printf(RESET_COLOR);
 }

@@ -13,12 +13,14 @@
 #include "src/include/fastpath.h"
 
 // Log level enum and function declarations
-enum log_level { LOG_INFO, LOG_ERROR, LOG_WARN, LOG_PKT_IN, LOG_PKT_OUT };
+enum log_level { LOG_INFO, LOG_ERROR, LOG_WARN, LOG_ETH_IN, LOG_ETH_OUT, LOG_VM_IN, LOG_VM_OUT };
 void log_info(const char *fmt, ...);
 void log_error(const char *fmt, ...);
 void log_warn(const char *fmt, ...);
-void log_pkt_in(const char *fmt, ...);
-void log_pkt_out(const char *fmt, ...);
+void log_eth_in(const char *fmt, ...);
+void log_eth_out(const char *fmt, ...);
+void log_vm_in(const char *fmt, ...);
+void log_vm_out(const char *fmt, ...);
 void print_pkts(struct rte_mbuf **pkts, uint16_t count, enum log_level level);
 
 void free_pkts(struct rte_mbuf **pkts, uint16_t n);

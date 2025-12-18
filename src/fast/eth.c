@@ -18,8 +18,8 @@ void poll_eth_rx(struct vhost_dev *vdev) {
     rx_count = rte_eth_rx_burst(net_port_id, vdev->rx_queue, pkts, MAX_PKT_BURST);
     if (!rx_count)
         return;
-    LOG_PKT_IN("Received %d packets from physical NIC\n", rx_count);
-    PRINT_PKTS(pkts, rx_count, LOG_PKT_IN);
+    LOG_ETH_IN("Received %d packets from physical NIC\n", rx_count);
+    PRINT_PKTS(pkts, rx_count, LOG_ETH_IN);
 
     // Apply reverse NAT to determine destination VM
     uint16_t nat_count = 0;
@@ -45,8 +45,8 @@ void poll_eth_rx(struct vhost_dev *vdev) {
         return;
 
     enqueue_count = rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, pkts, nat_count);
-    LOG_PKT_OUT("Enqueued %d packets to guest virtio RX ring\n", enqueue_count);
-    PRINT_PKTS(pkts, enqueue_count, LOG_PKT_OUT);
+    LOG_ETH_OUT("Enqueued %d packets to guest virtio RX ring\n", enqueue_count);
+    PRINT_PKTS(pkts, enqueue_count, LOG_ETH_OUT);
 
     if (unlikely(enqueue_count == 0 && nat_count > 0)) {
         LOG_WARN("Warning: Failed to enqueue any packets to vid=%d (may be disconnected)\n", vdev->vid);
@@ -96,8 +96,8 @@ void flush_eth_tx(struct mbuf_table *tx_q) {
     }
 
     count = rte_eth_tx_burst(net_port_id, tx_q->txq_id, tx_q->m_table, tx_q->len);
-    LOG_PKT_OUT("(%d) Sent %d packets to NIC\n", tx_q->txq_id, count);
-    PRINT_PKTS(tx_q->m_table, count, LOG_PKT_OUT);
+    LOG_ETH_OUT("(%d) Sent %d packets to NIC\n", tx_q->txq_id, count);
+    PRINT_PKTS(tx_q->m_table, count, LOG_ETH_OUT);
 
     if (unlikely(count < tx_q->len))                         // fewer packets were sent than attempted
         free_pkts(&tx_q->m_table[count], tx_q->len - count); // free the unsent packets

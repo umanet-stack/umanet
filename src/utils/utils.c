@@ -29,13 +29,21 @@ void print_pkts(struct rte_mbuf **pkts, uint16_t count, enum log_level level) {
     const char *prefix;
 
     switch (level) {
-    case LOG_PKT_IN:
+    case LOG_ETH_IN:
         color_code = CYAN_PREFIX;
-        prefix = "[PKT IN] ";
+        prefix = "[ETH IN] ";
         break;
-    case LOG_PKT_OUT:
+    case LOG_ETH_OUT:
         color_code = GREEN_PREFIX;
-        prefix = "[PKT OUT] ";
+        prefix = "[ETH OUT] ";
+        break;
+    case LOG_VM_IN:
+        color_code = BLUE_PREFIX;
+        prefix = "[VM IN] ";
+        break;
+    case LOG_VM_OUT:
+        color_code = MAGENTA_PREFIX;
+        prefix = "[VM OUT] ";
         break;
     case LOG_INFO:
         color_code = WHITE_PREFIX;

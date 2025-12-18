@@ -6,21 +6,20 @@
 #include <rte_mbuf_core.h>
 #include <rte_vhost.h>
 
-void process_arp(struct vhost_dev *vdev, struct rte_mbuf *m) {
+int process_arp(struct vhost_dev *vdev, struct rte_mbuf *m) {
     struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
     struct rte_arp_hdr *arp = (struct rte_arp_hdr *)(eth + 1);
     if (arp->arp_opcode != rte_cpu_to_be_16(RTE_ARP_OP_REQUEST)) {
-        LOG_WARN("(%d) ARP: Not a request (%d != %d)\n", vdev->vid, arp->arp_opcode,
-                 rte_cpu_to_be_16(RTE_ARP_OP_REQUEST));
-        return; // Not a request
+        LOG_WARN("(%d) ARP: Not a request, ignoring\n", vdev->vid);
+        return -1; // Not handled, should be forwarded
     }
 
     uint32_t req_ip = rte_be_to_cpu_32(arp->arp_data.arp_tip); // big to little endian
     if (req_ip != config.ip) {
-        LOG_WARN("(%d) ARP: Not for us (%u.%u.%u.%u != %u.%u.%u.%u)\n", vdev->vid, (req_ip >> 24) & 0xff,
-                 (req_ip >> 16) & 0xff, (req_ip >> 8) & 0xff, req_ip & 0xff, (config.ip >> 24) & 0xff,
-                 (config.ip >> 16) & 0xff, (config.ip >> 8) & 0xff, config.ip & 0xff);
-        return; // Not for us
+        // ARP request for another VM, should be broadcast to all VMs
+        LOG_INFO("(%d) ARP: Request for VM IP %u.%u.%u.%u, forwarding to other VMs\n", vdev->vid, (req_ip >> 24) & 0xff,
+                 (req_ip >> 16) & 0xff, (req_ip >> 8) & 0xff, req_ip & 0xff);
+        return -1; // Not for gateway, forward to VMs
     }
 
     // Swap Ethernet addresses
@@ -46,8 +45,8 @@ void process_arp(struct vhost_dev *vdev, struct rte_mbuf *m) {
     int ret = rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, &m, 1);
     if (unlikely(ret == 0))
         LOG_WARN("Warning: Failed to enqueue packet to vid=%d\n", vdev->vid);
-    LOG_PKT_OUT("(%d) Sent ARP reply to VM\n", vdev->vid);
-    PRINT_PKTS(&m, 1, LOG_PKT_OUT);
+    LOG_VM_OUT("(%d) Sent ARP reply to VM\n", vdev->vid);
+    PRINT_PKTS(&m, 1, LOG_VM_OUT);
 
-    return;
+    return 0; // Handled successfully
 }

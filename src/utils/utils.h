@@ -12,10 +12,12 @@
 #define WHITE_PREFIX "\033[37m"
 #define RESET_COLOR "\033[0m"
 
-enum log_level { LOG_INFO, LOG_ERROR, LOG_WARN, LOG_PKT_IN, LOG_PKT_OUT };
+enum log_level { LOG_INFO, LOG_ERROR, LOG_WARN, LOG_ETH_IN, LOG_ETH_OUT, LOG_VM_IN, LOG_VM_OUT };
 
-void log_pkt_in(const char *fmt, ...);
-void log_pkt_out(const char *fmt, ...);
+void log_eth_in(const char *fmt, ...);
+void log_eth_out(const char *fmt, ...);
+void log_vm_in(const char *fmt, ...);
+void log_vm_out(const char *fmt, ...);
 void log_info(const char *fmt, ...);
 void log_error(const char *fmt, ...);
 void log_warn(const char *fmt, ...);

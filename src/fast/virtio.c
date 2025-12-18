@@ -46,8 +46,8 @@ void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
     }
 
     if (count > 0) {
-        LOG_PKT_IN("[vid=%d] Received %d packets from VM's TX queue\n", vdev->vid, count);
-        PRINT_PKTS(pkts, count, LOG_PKT_IN);
+        LOG_VM_IN("[vid=%d] Received %d packets from VM's TX queue\n", vdev->vid, count);
+        PRINT_PKTS(pkts, count, LOG_VM_IN);
     }
 
     /* setup VMDq for the first packet */
@@ -74,9 +74,13 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, s
     // Intercept ARP requests for the gateway (vhost-switch acts as gateway)
     if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)) {
         LOG_INFO("(%d) TX: ARP packet received. Processing...\n", vdev->vid);
-        process_arp(vdev, m);
-        rte_pktmbuf_free(m);
-        return;
+        if (process_arp(vdev, m) == 0) {
+            // Gateway ARP handled, packet consumed
+            rte_pktmbuf_free(m);
+            return;
+        }
+        // VM-to-VM ARP, broadcast to other VMs (fall through to broadcast handling)
+        LOG_INFO("(%d) TX: Broadcasting ARP to other VMs\n", vdev->vid);
     }
 
     if (unlikely(rte_is_broadcast_ether_addr(&eth_hdr->d_addr))) {
@@ -139,6 +143,8 @@ static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vho
     }
 
     ret = rte_vhost_enqueue_burst(dst_vdev->vid, VIRTIO_RXQ, &m, 1);
+    LOG_VM_OUT("(%d) Sent packet to vid=%d\n", src_vdev->vid, dst_vdev->vid);
+    PRINT_PKTS(&m, 1, LOG_VM_OUT);
 
     // If enqueue fails (ret == 0), the mbuf is still owned by us and should be freed
     if (unlikely(ret == 0)) {
