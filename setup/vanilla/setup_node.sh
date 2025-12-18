@@ -42,6 +42,7 @@ sudo ip link set $NIC multicast on
 
 # create tap0, br0
 sudo ip link delete tap0 2>/dev/null || true
+sudo ip link delete tap1 2>/dev/null || true
 sudo ip link delete br0 2>/dev/null || true
 
 sudo ip link add name br0 type bridge || true
@@ -51,6 +52,10 @@ sudo ip addr add 192.168.10${NODE_ID}.1/24 dev br0 || true
 sudo ip tuntap add dev tap0 mode tap user $USER || true
 sudo ip link set tap0 master br0 || true
 sudo ip link set tap0 up || true
+
+sudo ip tuntap add dev tap1 mode tap user $USER || true
+sudo ip link set tap1 master br0 || true
+sudo ip link set tap1 up || true
 
 # Enable NAT for internet access (optional)
 sudo sysctl -w net.ipv4.ip_forward=1
