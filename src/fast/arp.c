@@ -47,6 +47,7 @@ int process_arp(struct vhost_dev *vdev, struct rte_mbuf *m) {
         LOG_WARN("Warning: Failed to enqueue packet to vid=%d\n", vdev->vid);
     LOG_VM_OUT("(%d) Sent ARP reply to VM\n", vdev->vid);
     PRINT_PKTS(&m, 1, LOG_VM_OUT);
+    rte_pktmbuf_free(m);
 
     return 0; // Handled successfully
 }

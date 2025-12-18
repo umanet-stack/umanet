@@ -77,7 +77,6 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkt
         if (unlikely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP))) {
             LOG_INFO("(%d) TX: ARP packet received. Processing...\n", vdev->vid);
             if (process_arp(vdev, pkts[i]) == 0) {
-                rte_pktmbuf_free(pkts[i]);
                 continue;
             }
             LOG_INFO("(%d) TX: Broadcasting ARP to other VMs\n", vdev->vid);
@@ -91,7 +90,6 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkt
         }
 
         if (virtio_tx_local(vdev, pkts[i]) == 0) {
-            rte_pktmbuf_free(pkts[i]);
             continue;
         }
 
