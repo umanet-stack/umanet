@@ -11,7 +11,7 @@ void poll_eth_rx(struct vhost_dev *vdev) {
     uint16_t rx_count, enqueue_count;
     struct rte_mbuf *pkts[MAX_PKT_BURST];
 
-    if (unlikely(check_device_state(vdev) != 0))
+    if (unlikely(check_device_state(vdev, "poll_eth_rx") != 0))
         return;
 
     rx_count = rte_eth_rx_burst(net_port_id, vdev->rx_queue, pkts, MAX_PKT_BURST);

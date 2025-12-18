@@ -9,19 +9,19 @@
 #include "src/fast/network.h"
 #include "src/vhost/vhost.h"
 
-int check_device_state(struct vhost_dev *vdev) {
+int check_device_state(struct vhost_dev *vdev, const char *func) {
     if (unlikely(vdev == NULL)) {
-        LOG_ERROR("Error: NULL vdev in poll_virtio_tx\n");
+        LOG_ERROR("Error: NULL vdev in %s\n", func);
         return -1;
     }
 
     if (unlikely(vdev->vid < 0 || vdev->vid >= 64)) {
-        LOG_ERROR("Error: Invalid vid=%d in poll_virtio_tx (possible use-after-free)\n", vdev->vid);
+        LOG_ERROR("Error: Invalid vid=%d in %s (possible use-after-free)\n", vdev->vid, func);
         return -1;
     }
 
     if (unlikely(vdev->remove || vdev->ready == DEVICE_SAFE_REMOVE)) {
-        LOG_WARN("Warning: Attempting to poll device vid=%d marked for removal (ready=%d, remove=%d)\n", vdev->vid,
+        LOG_WARN("Warning: Attempting to %s device vid=%d marked for removal (ready=%d, remove=%d)\n", func, vdev->vid,
                  vdev->ready, vdev->remove);
         return -1;
     }

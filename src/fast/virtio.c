@@ -30,7 +30,7 @@ void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
     uint16_t count;
     uint16_t i;
 
-    if (unlikely(check_device_state(vdev) != 0))
+    if (unlikely(check_device_state(vdev, "poll_virtio_tx") != 0))
         return;
 
     // copy pkt from guest vring buffer to DPDK mbuf (vm -> dpdk)
@@ -126,7 +126,7 @@ queue2nic:
 static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf *m) {
     uint16_t ret;
 
-    if (unlikely(check_device_state(dst_vdev) != 0)) {
+    if (unlikely(check_device_state(dst_vdev, "virtio_tx") != 0)) {
         rte_pktmbuf_free(m); // Free the packet to avoid memory leak
         return;
     }
@@ -158,13 +158,13 @@ static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rt
     struct rte_ether_hdr *pkt_hdr;
     struct vhost_dev *dst_vdev;
 
-    if (unlikely(check_device_state(vdev) != 0))
+    if (unlikely(check_device_state(vdev, "virtio_tx_local") != 0))
         return -1;
 
     pkt_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
     dst_vdev = find_vhost_dev(&pkt_hdr->d_addr);
-    if (unlikely(check_device_state(dst_vdev) != 0))
+    if (dst_vdev == NULL)
         return -1;
 
     if (vdev->vid == dst_vdev->vid) {
