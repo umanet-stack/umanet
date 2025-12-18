@@ -21,6 +21,9 @@ int util_parse_ipv4(const char *s, uint32_t *ip) {
     return 0;
 }
 
+static inline void print_mac(const struct rte_ether_addr *mac);
+static inline void print_ip(uint32_t ip);
+
 void print_pkts(struct rte_mbuf **pkts, uint16_t count, enum log_level level) {
     const char *color_code;
     const char *prefix;
@@ -71,6 +74,10 @@ void print_pkts(struct rte_mbuf **pkts, uint16_t count, enum log_level level) {
                 } else if (rte_be_to_cpu_16(arp->arp_opcode) == 2) {
                     printf(" (REPLY)");
                 }
+                printf(" src_ip=");
+                print_ip(rte_be_to_cpu_32(arp->arp_data.arp_sip));
+                printf(" dst_ip=");
+                print_ip(rte_be_to_cpu_32(arp->arp_data.arp_tip));
             }
         } else if (ether_type == RTE_ETHER_TYPE_IPV4) {
             printf(" (IPv4)");
@@ -91,24 +98,31 @@ void print_pkts(struct rte_mbuf **pkts, uint16_t count, enum log_level level) {
             // Print IP addresses (network byte order)
             uint32_t src_ip = rte_be_to_cpu_32(ipv4->src_addr);
             uint32_t dst_ip = rte_be_to_cpu_32(ipv4->dst_addr);
-            printf(" src_ip=%u.%u.%u.%u dst_ip=%u.%u.%u.%u", (src_ip >> 24) & 0xff, (src_ip >> 16) & 0xff,
-                   (src_ip >> 8) & 0xff, src_ip & 0xff, (dst_ip >> 24) & 0xff, (dst_ip >> 16) & 0xff,
-                   (dst_ip >> 8) & 0xff, dst_ip & 0xff);
+            printf(" src_ip=");
+            print_ip(src_ip);
+            printf(" dst_ip=");
+            print_ip(dst_ip);
         } else if (ether_type == RTE_ETHER_TYPE_IPV6) {
             printf(" (IPv6)");
         }
 
         // Print MAC addresses
         printf(" src=");
-        for (int j = 0; j < 6; j++) {
-            printf("%02x%s", eth->s_addr.addr_bytes[j], j < 5 ? ":" : "");
-        }
+        print_mac(&eth->s_addr);
         printf(" dst=");
-        for (int j = 0; j < 6; j++) {
-            printf("%02x%s", eth->d_addr.addr_bytes[j], j < 5 ? ":" : "");
-        }
+        print_mac(&eth->d_addr);
 
         // Reset color and add newline once at the end
         printf(RESET_COLOR "\n");
     }
+}
+
+static inline void print_mac(const struct rte_ether_addr *mac) {
+    for (int j = 0; j < 6; j++) {
+        printf("%02x%s", mac->addr_bytes[j], j < 5 ? ":" : "");
+    }
+}
+
+static inline void print_ip(uint32_t ip) {
+    printf("%u.%u.%u.%u", (ip >> 24) & 0xff, (ip >> 16) & 0xff, (ip >> 8) & 0xff, ip & 0xff);
 }

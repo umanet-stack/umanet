@@ -29,13 +29,18 @@ void process_arp(struct vhost_dev *vdev, struct rte_mbuf *m) {
 
     arp->arp_opcode = rte_cpu_to_be_16(RTE_ARP_OP_REPLY);
 
-    // Sender = our MAC/IP
-    rte_ether_addr_copy(&config.mac, &arp->arp_data.arp_sha);
-    memcpy(&arp->arp_data.arp_sip, &config.ip, 4);
+    // Save original sender MAC/IP (the VM that sent the request)
+    uint32_t orig_ip = arp->arp_data.arp_sip;
+    struct rte_ether_addr orig_mac;
+    rte_ether_addr_copy(&arp->arp_data.arp_sha, &orig_mac);
 
-    // Target = original sender MAC/IP
-    rte_ether_addr_copy(&arp->arp_data.arp_sha, &arp->arp_data.arp_tha);
-    memcpy(&arp->arp_data.arp_tip, &arp->arp_data.arp_sip, 4);
+    // Sender = our MAC/IP (we are the gateway)
+    rte_ether_addr_copy(&config.mac, &arp->arp_data.arp_sha);
+    arp->arp_data.arp_sip = rte_cpu_to_be_32(config.ip);
+
+    // Target = original sender MAC/IP (the VM)
+    rte_ether_addr_copy(&orig_mac, &arp->arp_data.arp_tha);
+    arp->arp_data.arp_tip = orig_ip;
 
     // Send back to VM
     int ret = rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, &m, 1);
