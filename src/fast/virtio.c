@@ -19,7 +19,8 @@ const uint16_t vlan_tags[64] = {
     1048, 1049, 1050, 1051, 1052, 1053, 1054, 1055, 1056, 1057, 1058, 1059, 1060, 1061, 1062, 1063,
 };
 
-static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf *m);
+static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev,
+                                          struct rte_mbuf **pkts, uint16_t count);
 static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, struct mbuf_table *tx_q,
                                    uint16_t vlan_tag);
 static void virtio_tx_offload(struct rte_mbuf *m);
@@ -94,7 +95,7 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, s
                         LOG_WARN("Failed to clone packet for broadcast to vid=%d\n", vdev2->vid);
                         continue;
                     }
-                    virtio_tx(vdev2, vdev, m_clone);
+                    virtio_tx(vdev2, vdev, &m_clone, 1);
                 }
             }
         }
@@ -136,22 +137,23 @@ queue2nic:
 }
 
 // Transmits a packet to vhost device via virtqueue.
-static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf *m) {
+static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev,
+                                          struct rte_mbuf **pkts, uint16_t count) {
     uint16_t ret;
 
     if (unlikely(check_device_state(dst_vdev, "virtio_tx") != 0)) {
-        rte_pktmbuf_free(m); // Free the packet to avoid memory leak
+        free_pkts(pkts, count);
         return;
     }
 
-    ret = rte_vhost_enqueue_burst(dst_vdev->vid, VIRTIO_RXQ, &m, 1);
+    ret = rte_vhost_enqueue_burst(dst_vdev->vid, VIRTIO_RXQ, pkts, count);
     LOG_VM_OUT("(%d) Sent packet to vid=%d\n", src_vdev->vid, dst_vdev->vid);
-    PRINT_PKTS(&m, 1, LOG_VM_OUT);
+    PRINT_PKTS(pkts, count, LOG_VM_OUT);
 
     // If enqueue fails (ret == 0), the mbuf is still owned by us and should be freed
     if (unlikely(ret == 0)) {
         LOG_WARN("Warning: Failed to enqueue packet to vid=%d\n", dst_vdev->vid);
-        rte_pktmbuf_free(m);
+        free_pkts(pkts, count);
         return;
     }
 
@@ -192,7 +194,7 @@ static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rt
 
     LOG_INFO("(%d) TX: MAC address is local\n", dst_vdev->vid);
 
-    virtio_tx(dst_vdev, vdev, m);
+    virtio_tx(dst_vdev, vdev, &m, 1);
     return 0;
 }
 
