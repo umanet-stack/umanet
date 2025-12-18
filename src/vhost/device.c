@@ -9,6 +9,26 @@
 #include "src/fast/network.h"
 #include "src/vhost/vhost.h"
 
+int check_device_state(struct vhost_dev *vdev) {
+    if (unlikely(vdev == NULL)) {
+        log_error("Error: NULL vdev in poll_virtio_tx\n");
+        return -1;
+    }
+
+    if (unlikely(vdev->vid < 0 || vdev->vid >= 64)) {
+        log_error("Error: Invalid vid=%d in poll_virtio_tx (possible use-after-free)\n", vdev->vid);
+        return -1;
+    }
+
+    if (unlikely(vdev->remove || vdev->ready == DEVICE_SAFE_REMOVE)) {
+        printf("Warning: Attempting to poll device vid=%d marked for removal (ready=%d, remove=%d)\n", vdev->vid,
+               vdev->ready, vdev->remove);
+        return -1;
+    }
+
+    return 0;
+}
+
 struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
     struct vhost_dev *vdev;
 
@@ -220,9 +240,7 @@ void unregister_vhost_drivers(int socket_num, const char *path) {
 
 int register_vhost_drivers() {
     uint64_t flags = 0;
-
     // Note: vdev_list is already initialized in dataplane_context_init()
-    // No need to initialize here
 
     if (config.client_mode)
         flags |= RTE_VHOST_USER_CLIENT;

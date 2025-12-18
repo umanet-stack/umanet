@@ -2,16 +2,25 @@
  * Copyright(c) 2010-2017 Intel Corporation
  */
 
-#ifndef _VHOST_H_
-#define _VHOST_H_
+#ifndef VHOST_H_
+#define VHOST_H_
 
-#include "../include/tas.h"
-#include "src/include/fastpath.h"
 #include <rte_ether.h>
 #include <rte_vhost.h>
 #include <sys/queue.h>
 
-#include "src/utils/utils.h"
+#include "../include/tas.h"
+#include "src/include/fastpath.h"
+
+// Log level enum and function declarations
+enum log_level { LOG_INFO, LOG_ERROR, LOG_WARN, LOG_PKT_IN, LOG_PKT_OUT };
+void log_info(const char *fmt, ...);
+void log_error(const char *fmt, ...);
+void log_warn(const char *fmt, ...);
+void log_pkt_in(const char *fmt, ...);
+void log_pkt_out(const char *fmt, ...);
+void free_pkts(struct rte_mbuf **pkts, uint16_t n);
+void print_pkts(struct rte_mbuf **pkts, uint16_t count, enum log_level level);
 
 // rte = runtime env (dpdk)
 // queue type identifiers: receive, transmit, total count
@@ -35,26 +44,15 @@ enum { VIRTIO_RXQ, VIRTIO_TXQ, VIRTIO_QNUM };
 #define BURST_TX_DRAIN_US 100 /* TX drain every ~100us */
 #define MBUF_TABLE_DRAIN_TSC ((rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US)
 
-// typedef struct {
-//     unsigned dev_to_core_id[64];
-// } vhost_state_t;
-
 extern const struct vhost_device_ops virtio_net_device_ops;
 extern const uint16_t vlan_tags[64];
-
-// Forward declarations
-void free_pkts(struct rte_mbuf **pkts, uint16_t n);
-void log_pkt_in(const char *fmt, ...);
-void log_pkt_out(const char *fmt, ...);
-void log_info(const char *fmt, ...);
-void log_error(const char *fmt, ...);
-void log_warn(const char *fmt, ...);
 
 void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx);
 
 void flush_eth_tx(struct mbuf_table *tx_q);
 void poll_eth_rx(struct vhost_dev *vdev);
 
+int check_device_state(struct vhost_dev *vdev);
 struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac);
 void unregister_vhost_drivers(int socket_num, const char *path);
 int register_vhost_drivers();

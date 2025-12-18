@@ -7,9 +7,9 @@ void log_info(const char *fmt, ...) {
     va_list args;        // declare
     va_start(args, fmt); // initialize
 
-    printf("\033[37m[INFO] ");
+    printf(WHITE_PREFIX "[INFO] ");
     vprintf(fmt, args);
-    printf("\033[0m\n");
+    printf(RESET_COLOR);
 
     va_end(args); // clean up
 }
@@ -19,9 +19,9 @@ void log_error(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
 
-    printf("\033[31m[ERROR] ");
+    printf(RED_PREFIX "[ERROR] ");
     vprintf(fmt, args);
-    printf("\033[0m\n");
+    printf(RESET_COLOR);
 
     va_end(args);
 }
@@ -31,9 +31,9 @@ void log_warn(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
 
-    printf("\033[33m[WARN] ");
+    printf(YELLOW_PREFIX "[WARN] ");
     vprintf(fmt, args);
-    printf("\033[0m\n");
+    printf(RESET_COLOR);
 
     va_end(args);
 }
@@ -43,9 +43,9 @@ void log_pkt_in(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
 
-    printf("\033[36m[PKT IN] ");
+    printf(CYAN_PREFIX "[PKT IN] ");
     vprintf(fmt, args);
-    printf("\033[0m\n");
+    printf(RESET_COLOR);
 
     va_end(args);
 }
@@ -55,9 +55,9 @@ void log_pkt_out(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
 
-    printf("\033[32m[PKT OUT] ");
+    printf(GREEN_PREFIX "[PKT OUT] ");
     vprintf(fmt, args);
-    printf("\033[0m\n");
+    printf(RESET_COLOR);
 
     va_end(args);
 }

@@ -311,15 +311,3 @@ static void thread_error(void) {
     fprintf(stderr, "thread_error\n");
     abort();
 }
-
-// int flexnic_scale_to(uint32_t cores) {
-//     if (fp_scale_to != 0) {
-//         fprintf(stderr, "flexnic_scale_to: already scaling\n");
-//         return -1;
-//     }
-
-//     fp_scale_to = cores;
-
-//     notify_fastpath_core(0);
-//     return 0;
-// }

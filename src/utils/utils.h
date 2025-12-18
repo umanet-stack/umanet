@@ -3,7 +3,16 @@
 
 #include <rte_mbuf.h>
 
-enum log_level { LOG_PKT_IN, LOG_PKT_OUT, LOG_INFO, LOG_ERROR, LOG_WARN };
+#define RED_PREFIX "\033[31m"
+#define YELLOW_PREFIX "\033[33m"
+#define GREEN_PREFIX "\033[32m"
+#define BLUE_PREFIX "\033[34m"
+#define MAGENTA_PREFIX "\033[35m"
+#define CYAN_PREFIX "\033[36m"
+#define WHITE_PREFIX "\033[37m"
+#define RESET_COLOR "\033[0m"
+
+enum log_level { LOG_INFO, LOG_ERROR, LOG_WARN, LOG_PKT_IN, LOG_PKT_OUT };
 
 void log_msg(enum log_level level, const char *fmt, ...);
 void log_pkt_in(const char *fmt, ...);
