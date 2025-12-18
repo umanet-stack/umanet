@@ -21,7 +21,7 @@ void poll_eth_rx(struct vhost_dev *vdev) {
     LOG_ETH_IN("Received %d packets from physical NIC\n", rx_count);
     PRINT_PKTS(pkts, rx_count, LOG_ETH_IN);
 
-    // Apply reverse NAT to determine destination VM
+    // Apply reverse NAT and route to correct VM
     uint16_t nat_count = 0;
     for (uint16_t i = 0; i < rx_count; i++) {
         int target_vid = -1;
@@ -30,14 +30,51 @@ void poll_eth_rx(struct vhost_dev *vdev) {
             if (target_vid == vdev->vid) {
                 pkts[nat_count++] = pkts[i];
             } else {
-                // Packet is for a different VM, need to forward it there
-                // For now, just drop it (TODO: implement cross-vdev forwarding)
-                LOG_WARN("Packet is for vid=%d but received on vid=%d, dropping\n", target_vid, vdev->vid);
-                rte_pktmbuf_free(pkts[i]);
+                // Packet is for a different VM, forward it to the correct one
+                struct vhost_dev *target_vdev = NULL;
+                for (int core_idx = 0; core_idx < fp_cores_max; core_idx++) {
+                    struct dataplane_context *ctx = ctxs[core_idx];
+                    for (int dev_idx = 0; dev_idx < ctx->vhost.device_num; dev_idx++) {
+                        if (ctx->vhost.vdev_list[dev_idx] != NULL && ctx->vhost.vdev_list[dev_idx]->vid == target_vid) {
+                            target_vdev = ctx->vhost.vdev_list[dev_idx];
+                            break;
+                        }
+                    }
+                    if (target_vdev != NULL)
+                        break;
+                }
+
+                if (target_vdev != NULL) {
+                    LOG_ETH_IN("Forwarding packet from vid=%d to vid=%d\n", vdev->vid, target_vid);
+                    if (rte_vhost_enqueue_burst(target_vid, VIRTIO_RXQ, &pkts[i], 1) == 0) {
+                        LOG_WARN("Failed to forward packet to vid=%d\n", target_vid);
+                        rte_pktmbuf_free(pkts[i]);
+                    }
+                } else {
+                    LOG_WARN("Cannot find vdev for vid=%d, dropping packet\n", target_vid);
+                    rte_pktmbuf_free(pkts[i]);
+                }
             }
         } else {
-            // Not a NAT'd packet, forward normally
-            pkts[nat_count++] = pkts[i];
+            // Not a NAT'd packet (ARP, broadcast, etc.), use MAC lookup
+            struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
+            struct vhost_dev *target_vdev = find_vhost_dev(&eth_hdr->d_addr);
+
+            if (target_vdev != NULL && target_vdev->vid != vdev->vid) {
+                // Forward to different VM
+                LOG_ETH_IN("Forwarding non-NAT packet to vid=%d\n", target_vdev->vid);
+                if (rte_vhost_enqueue_burst(target_vdev->vid, VIRTIO_RXQ, &pkts[i], 1) == 0) {
+                    LOG_WARN("Failed to forward non-NAT packet to vid=%d\n", target_vdev->vid);
+                    rte_pktmbuf_free(pkts[i]);
+                }
+            } else if (target_vdev != NULL && target_vdev->vid == vdev->vid) {
+                // For this VM, keep it
+                pkts[nat_count++] = pkts[i];
+            } else {
+                // Broadcast or unknown destination, deliver to this VM
+                LOG_ETH_IN("Unknown destination, delivering to vid=%d\n", vdev->vid);
+                pkts[nat_count++] = pkts[i];
+            }
         }
     }
 
