@@ -7,6 +7,7 @@
 #include <rte_malloc.h>
 #include <rte_mbuf_core.h>
 
+#include "src/fast/internal.h"
 #include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 

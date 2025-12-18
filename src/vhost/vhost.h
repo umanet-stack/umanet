@@ -46,12 +46,6 @@ enum { VIRTIO_RXQ, VIRTIO_TXQ, VIRTIO_QNUM };
 #define MBUF_TABLE_DRAIN_TSC ((rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US)
 
 extern const struct vhost_device_ops virtio_net_device_ops;
-extern const uint16_t vlan_tags[64];
-
-void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx);
-
-void flush_eth_tx(struct mbuf_table *tx_q);
-void poll_eth_rx(struct vhost_dev *vdev);
 
 int check_device_state(struct vhost_dev *vdev);
 struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac);
