@@ -123,8 +123,7 @@ static int new_device(int vid) {
     }
     vdev->vid = vid;
 
-    // Multiple VMs share RX queues using modulo
-    // e.g., with 8 queues: VM 0,8,16,24 share queue 0; VM 1,9,17,25 share queue 1; etc.
+    // with 8 queues: VM 0,8,16,24 share queue 0; VM 1,9,17,25 share queue 1
     vdev->vmdq_rx_q = vid % fp_cores_max;
 
     /*reset ready flag*/

@@ -197,6 +197,7 @@ void network_dump_stats(void) {
     }
 }
 
+// NIC TX/RX queues id = ctx id, + start eth if core 0
 int network_thread_init(struct dataplane_context *ctx) {
     static volatile uint32_t tx_init_done = 0;
     static volatile uint32_t rx_init_done = 0;
