@@ -15,12 +15,11 @@ void process_arp(struct vhost_dev *vdev, struct rte_mbuf *m) {
         return; // Not a request
     }
 
-    if (memcmp(&arp->arp_data.arp_tip, &config.ip, 4) != 0) {
-        uint32_t req_ip = rte_be_to_cpu_32(arp->arp_data.arp_tip);
-        uint32_t our_ip = rte_be_to_cpu_32(config.ip);
+    uint32_t req_ip = rte_be_to_cpu_32(arp->arp_data.arp_tip); // big to little endian
+    if (req_ip != config.ip) {
         LOG_WARN("(%d) ARP: Not for us (%u.%u.%u.%u != %u.%u.%u.%u)\n", vdev->vid, (req_ip >> 24) & 0xff,
-                 (req_ip >> 16) & 0xff, (req_ip >> 8) & 0xff, req_ip & 0xff, (our_ip >> 24) & 0xff,
-                 (our_ip >> 16) & 0xff, (our_ip >> 8) & 0xff, our_ip & 0xff);
+                 (req_ip >> 16) & 0xff, (req_ip >> 8) & 0xff, req_ip & 0xff, (config.ip >> 24) & 0xff,
+                 (config.ip >> 16) & 0xff, (config.ip >> 8) & 0xff, config.ip & 0xff);
         return; // Not for us
     }
 
