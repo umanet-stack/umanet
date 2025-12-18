@@ -27,6 +27,7 @@ sources = files(
 	'src/shm.c',
 	'lib/utils/rng.c',
 	'src/utils/utils.c',
+	'src/utils/log.c',
 )
 
 # Compiler flags

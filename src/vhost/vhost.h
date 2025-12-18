@@ -11,6 +11,8 @@
 #include <rte_vhost.h>
 #include <sys/queue.h>
 
+#include "src/utils/utils.h"
+
 // rte = runtime env (dpdk)
 // queue type identifiers: receive, transmit, total count
 enum { VIRTIO_RXQ, VIRTIO_TXQ, VIRTIO_QNUM };
@@ -42,6 +44,11 @@ extern const uint16_t vlan_tags[64];
 
 // Forward declarations
 void free_pkts(struct rte_mbuf **pkts, uint16_t n);
+void log_pkt_in(const char *fmt, ...);
+void log_pkt_out(const char *fmt, ...);
+void log_info(const char *fmt, ...);
+void log_error(const char *fmt, ...);
+void log_warn(const char *fmt, ...);
 
 void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx);
 

@@ -75,55 +75,23 @@ void poll_eth_rx(struct vhost_dev *vdev) {
 // moves packets from a software staging buffer (tx_q->m_table) to the NIC's hardware TX queue/ring
 void flush_eth_tx(struct mbuf_table *tx_q) {
     uint16_t count;
-
-    // Validate TX queue state before attempting to flush
     if (unlikely(tx_q == NULL)) {
         printf("Error: NULL tx_q in flush_eth_tx\n");
         return;
     }
 
-    if (unlikely(tx_q->len == 0)) {
-        // Nothing to flush
+    if (unlikely(tx_q->len == 0))
         return;
-    }
 
-    if (unlikely(tx_q->len > MAX_PKT_BURST)) {
-        printf("Error: Invalid tx_q->len=%d (max=%d), resetting queue\n", tx_q->len, MAX_PKT_BURST);
-        // Free any valid packets to prevent memory leak
-        for (int i = 0; i < MAX_PKT_BURST && i < tx_q->len; i++) {
-            if (tx_q->m_table[i] != NULL) {
-                rte_pktmbuf_free(tx_q->m_table[i]);
-                tx_q->m_table[i] = NULL;
-            }
-        }
-        tx_q->len = 0;
-        return;
-    }
-
-    printf("do_drain_mbuf_table\n");
-    printf("txq_id: %d\n", tx_q->txq_id);
-    printf("len: %d\n", tx_q->len);
-
-    // Validate all mbufs before attempting burst
+    // Set source MAC to NIC port MAC
+    struct rte_ether_hdr *eth_hdr;
     for (int i = 0; i < tx_q->len; i++) {
-        if (unlikely(tx_q->m_table[i] == NULL)) {
-            printf("Warning: NULL mbuf at index %d in tx_q, cleaning up\n", i);
-            // Compact the array to remove NULL entries
-            for (int j = i; j < tx_q->len - 1; j++) {
-                tx_q->m_table[j] = tx_q->m_table[j + 1];
-            }
-            tx_q->len--;
-            i--;
-        }
+        eth_hdr = rte_pktmbuf_mtod(tx_q->m_table[i], struct rte_ether_hdr *);
+        rte_ether_addr_copy(&eth_addr, &eth_hdr->s_addr);
     }
 
-    if (tx_q->len == 0) {
-        printf("All mbufs were NULL, nothing to send\n");
-        return;
-    }
-
+    log_pkt_out("(%d) Flushing %d packets to NIC", tx_q->txq_id, tx_q->len);
     count = rte_eth_tx_burst(net_port_id, tx_q->txq_id, tx_q->m_table, tx_q->len);
-    printf("count: %d\n", count);
     if (unlikely(count < tx_q->len))                         // fewer packets were sent than attempted
         free_pkts(&tx_q->m_table[count], tx_q->len - count); // free the unsent packets
 
