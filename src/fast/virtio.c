@@ -90,8 +90,15 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, s
             struct dataplane_context *ctx = ctxs[i];
             for (int j = 0; j < ctx->vhost.device_num; j++) {
                 vdev2 = ctx->vhost.vdev_list[j];
-                if (vdev2 != NULL && vdev2 != vdev)
-                    virtio_tx(vdev2, vdev, m);
+                if (vdev2 != NULL && vdev2 != vdev) {
+                    // Clone the packet for each destination VM
+                    struct rte_mbuf *m_clone = rte_pktmbuf_clone(m, m->pool);
+                    if (unlikely(m_clone == NULL)) {
+                        LOG_WARN("Failed to clone packet for broadcast to vid=%d\n", vdev2->vid);
+                        continue;
+                    }
+                    virtio_tx(vdev2, vdev, m_clone);
+                }
             }
         }
         goto queue2nic;
