@@ -35,4 +35,10 @@ sudo ip route add default via 192.168.100.1
 # testing
 iperf -s
 iperf -c 192.168.100.2
+# uses 4 cores, 11Gi
+
+# vCPU usage
+mpstat -P ALL 1
+# memory usage
+free -h
 ```
