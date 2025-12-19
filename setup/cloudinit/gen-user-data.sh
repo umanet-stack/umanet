@@ -17,7 +17,7 @@ packages:
   - sockperf
 users:
   - name: cloud
-    passwd: $6$IwCereKq.VkDH2vr$Kq.L80VAg5jMynEKwz61pcAjImBSAsE7AwwTiGe4qq.lmFzkOakSk4.BmbZ4ypCVALXwpVDlFpTN73TQ0jzXW. 
+    passwd: \$6\$IwCereKq.VkDH2vr\$Kq.L80VAg5jMynEKwz61pcAjImBSAsE7AwwTiGe4qq.lmFzkOakSk4.BmbZ4ypCVALXwpVDlFpTN73TQ0jzXW. 
     sudo: ALL=(ALL) NOPASSWD:ALL
     lock_passwd: false
     inactive: false
@@ -60,11 +60,13 @@ write_files:
       set -e
       source /etc/vm_role
 
-      if [ "$ROLE" = "server" ]; then
+      if [ "\$ROLE" = "server" ]; then
           exec iperf3 -s
       else
           sleep 3
-          exec iperf3 -c $SERVER_IP -t 30 -P 4
+          exec iperf3 -c $SERVER_IP -P 4 -t 30 -J \\
+          | jq --arg vm "vm$i" '. + {vm: \$vm}' \\
+          | nc -N 192.168.100.1 9000
       fi
 
 # Fix sudoers issues
@@ -73,7 +75,7 @@ runcmd:
   - |
     # Remove null bytes from sudoers files
     for f in /etc/sudoers.d/*; do
-      [ -f "$f" ] && sed -i 's/\x00//g' "$f"
+      [ -f "\$f" ] && sed -i 's/\x00//g' "\$f"
     done
   - systemctl restart systemd-resolved
   - systemctl daemon-reexec
