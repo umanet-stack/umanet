@@ -25,7 +25,7 @@ static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vho
 static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count,
                                    struct mbuf_table *tx_q, uint16_t vlan_tag);
 static void virtio_tx_offload(struct rte_mbuf *m);
-static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rte_mbuf *m);
+static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count);
 
 // receive packets from VM's TX queue, route them to the correct destination
 void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
@@ -152,8 +152,8 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkt
         flush_eth_tx(tx_q);                   // drain the queue (send packets to NIC)
 
     // send to local VM
-    for (int i = 0; i < local_count; i++) {
-        virtio_tx_local(vdev, local_pkts[i]);
+    if (local_count > 0) {
+        virtio_tx_local(vdev, local_pkts, local_count);
     }
 }
 
@@ -192,20 +192,21 @@ static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vho
  * Check if the packet destination MAC address is for a local (same host) device. If so then put
  * the packet on that devices RX queue. If not then return.
  */
-static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rte_mbuf *m) {
+static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count) {
     struct rte_ether_hdr *pkt_hdr;
     struct vhost_dev *dst_vdev;
 
     if (unlikely(check_device_state(vdev, "virtio_tx_local") != 0))
         return -1;
 
-    pkt_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+    // assume in 1 poll from vhost, all local pkts are for same dest vm
+    pkt_hdr = rte_pktmbuf_mtod(pkts[0], struct rte_ether_hdr *);
 
     // must search all cores (vms can be on different cores)
     dst_vdev = find_vhost_dev(&pkt_hdr->d_addr);
     if (dst_vdev == NULL) {
         LOG_WARN("(%d) TX: Destination MAC address not found. Dropping packet.\n", vdev->vid);
-        PRINT_PKTS(&m, 1, LOG_WARN);
+        PRINT_PKTS(&pkts[0], 1, LOG_WARN);
         return -1;
     }
 
@@ -215,8 +216,7 @@ static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rt
     }
 
     LOG_INFO("(%d) TX: MAC address is local\n", dst_vdev->vid);
-
-    virtio_tx(dst_vdev, vdev, &m, 1);
+    virtio_tx(dst_vdev, vdev, pkts, count);
     return 0;
 }
 
