@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-OUTDIR=results
+OUTDIR=testing/results
 mkdir -p "$OUTDIR"
 
 monitor_vms() {
