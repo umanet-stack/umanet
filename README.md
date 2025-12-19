@@ -19,7 +19,8 @@ The switch worker loop continuously:
 
 ## Setup
 ```bash
-./setup/init.sh
+./setup/download_img.sh
+./setup/copy_img.sh
 ./setup/cloudinit/gen-cloud-init.sh
 ./setup/init-dpdk.sh
 # reserve and mount hugepages
