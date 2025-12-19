@@ -4,7 +4,7 @@
 # Cloud-init will NOT run again on these images, it only runs on first boot.
 # if you modify anything in cloud-init, you need to run copy_img and gen-cloud-init again.
 # copies 1 img/kernel per vm to /proj/{your_cloudlab_project}/testing
-./setup/copy_img.sh
+./setup/copy_img.sh 32
 ./setup/cloudinit/gen-cloud-init.sh
 
 # c6525-25g
@@ -16,7 +16,7 @@
 
 ./testing/collector.sh
 # start vms
-./setup/tap/spawn_vms.sh
+./setup/tap/spawn_vms.sh 32
 
 # process results
 sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | tail -15
@@ -62,6 +62,8 @@ iperf3 -c 192.168.100.2 -P 4 -t 10 -J \
 mpstat -P ALL 1
 # memory usage
 free -h
+# check space
+df -h
 
 systemctl status iperf
 ```
