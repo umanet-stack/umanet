@@ -18,6 +18,10 @@
 # start vms
 ./setup/tap/spawn_vms.sh
 
+# process results
+sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | tail -15
+python testing/process_results.py
+
 # kill all vms to end/reset experiment
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
 ```
