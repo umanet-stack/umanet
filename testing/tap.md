@@ -1,13 +1,25 @@
 # tap
 ```bash
+./setup/download_img.sh
+# Cloud-init will NOT run again on these images, it only runs on first boot.
+# if you modify anything in cloud-init, you need to run copy_img and gen-cloud-init again.
+# copies 1 img/kernel per vm to /proj/{your_cloudlab_project}/testing
+./setup/copy_img.sh
+./setup/cloudinit/gen-cloud-init.sh
+
 # c6525-25g
 ./setup/setup_node.sh 0 enp65s0f0np0
-
 # xl170
 ./setup/setup_node.sh 0 ens1f1np1
 
-./setup/vanilla/setup_br_tap.sh 0
+./setup/tap/setup_br_tap.sh 0
 
+# start vms
+./setup/tap/spawn_vms.sh
+```
+
+## manual
+```bash
 # vm0
 sudo cloud-hypervisor \
 	--cpus boot=1 \
