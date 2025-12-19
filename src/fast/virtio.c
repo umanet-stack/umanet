@@ -168,13 +168,13 @@ static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vho
     }
 
     ret = rte_vhost_enqueue_burst(dst_vdev->vid, VIRTIO_RXQ, pkts, count);
+    free_pkts(pkts, count);
+
     LOG_VM_OUT("(%d) Sent packet to vid=%d\n", src_vdev->vid, dst_vdev->vid);
     PRINT_PKTS(pkts, count, LOG_VM_OUT);
 
-    // If enqueue fails (ret == 0), the mbuf is still owned by us and should be freed
     if (unlikely(ret == 0)) {
         LOG_WARN("Warning: Failed to enqueue packet to vid=%d\n", dst_vdev->vid);
-        free_pkts(pkts, count);
         return;
     }
 

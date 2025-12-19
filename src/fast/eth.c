@@ -70,14 +70,14 @@ void poll_eth_rx(struct vhost_dev *vdev) {
     for (int vid = 0; vid < MAX_VID; vid++) {
         if (batches[vid].count > 0) {
             LOG_ETH_IN("Forwarding %d packets to vid=%d\n", batches[vid].count, vid);
+            // vhost enqueue: pkts are COPIED to guest shared memory, must free
             uint16_t sent = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, batches[vid].pkts, batches[vid].count);
             if (sent < batches[vid].count) {
                 LOG_WARN("Failed to forward %d/%d packets to vid=%d\n", batches[vid].count - sent, batches[vid].count,
                          vid);
-                for (uint16_t j = sent; j < batches[vid].count; j++) {
-                    rte_pktmbuf_free(batches[vid].pkts[j]);
-                }
             }
+            // Free ALL packets (enqueue copies them to guest memory)
+            free_pkts(batches[vid].pkts, batches[vid].count);
         }
     }
 
@@ -135,6 +135,7 @@ void flush_eth_tx(struct mbuf_table *tx_q) {
         rte_ether_addr_copy(&gateway_mac, &eth_hdr->d_addr); // Dst: Gateway's MAC
     }
 
+    // Packets are given to NIC hardware, NIC takes ownership and frees after DMA completes (don't free yourself)
     count = rte_eth_tx_burst(net_port_id, tx_q->txq_id, tx_q->m_table, tx_q->len);
     LOG_ETH_OUT("(%d) Sent %d packets to NIC\n", tx_q->txq_id, count);
     PRINT_PKTS(tx_q->m_table, count, LOG_ETH_OUT);
