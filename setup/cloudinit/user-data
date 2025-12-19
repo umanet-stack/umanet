@@ -1,4 +1,8 @@
 #cloud-config
+packages:
+  - iperf
+  - iperf3
+  - sockperf
 users:
   - name: cloud
     passwd: $6$IwCereKq.VkDH2vr$Kq.L80VAg5jMynEKwz61pcAjImBSAsE7AwwTiGe4qq.lmFzkOakSk4.BmbZ4ypCVALXwpVDlFpTN73TQ0jzXW. 

@@ -20,7 +20,7 @@ The switch worker loop continuously:
 ## Setup
 ```bash
 ./setup/init.sh
-./setup/create-cloud-init.sh
+./setup/cloudinit/gen-cloud-init.sh
 ./setup/init-dpdk.sh
 # reserve and mount hugepages
 
@@ -71,25 +71,15 @@ sudo vhost-switch -l 2-3 -n 4 -b 0000:01:00.0 -- --portmask 0x1 --socket-file /m
 ```
 
 ## Setup VM img/fs
+1. don't touch noble-server-cloudimg-amd64.raw, copy it
+2. add packages + first commands via `user-data`, add networking via `network-config`
+3. spawn each vm automatically
 ```bash
 # c6525-25g
 ./setup/vanilla/setup_node.sh 0 enp65s0f0np0
 
 # xl170
 ./setup/vanilla/setup_node.sh 0 ens1f1np1
-
-sudo cloud-hypervisor \
-	--cpus boot=1 \
-	--memory size=512M \
-	--kernel /tmp/vmlinux.bin \
-	--cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
-	--disk path=/tmp/noble-server-cloudimg-amd64.raw path=/tmp/cloudinit-vm0.img \
-	--net "tap=tap0,mac=52:54:00:02:d9:01" 
-
-sudo apt update
-sudo apt install -y iperf sockperf
-sudo rm /etc/netplan/*.yaml
-sudo systemctl disable systemd-networkd-wait-online.service
 
 sudo rm -f /tmp/vm*-img.raw /tmp/vm*-kernel.bin
 cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm0-img.raw
