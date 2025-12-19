@@ -43,4 +43,6 @@ iperf -c 192.168.100.2
 mpstat -P ALL 1
 # memory usage
 free -h
+
+systemctl status iperf
 ```

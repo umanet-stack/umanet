@@ -7,17 +7,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 $SCRIPT_DIR/gen-network-config.sh
 $SCRIPT_DIR/gen-user-data.sh
 
-# Function to create a cloud-init ISO
+# Function to create a cloud-init disk
 create_iso() {
     local output="$1"
     local netconfig="$2"
     local userdata="$3"
 
     rm -f "${output}"
+    
+    # Create FAT filesystem with CIDATA label (NoCloud datasource looks for this)
     mkdosfs -n CIDATA -C "${output}" 8192
-    mcopy -oi "${output}" -s "${userdata}" ::
-    mcopy -oi "${output}" -s "${SCRIPT_DIR}/meta-data" ::
-    # Copy network config and rename it to "network-config" (cloud-init expects this name)
+    
+    # Copy files with correct names
+    mcopy -oi "${output}" -s "${userdata}" ::user-data
+    mcopy -oi "${output}" -s "${SCRIPT_DIR}/meta-data" ::meta-data
     mcopy -oi "${output}" "${netconfig}" ::network-config
 }
 
