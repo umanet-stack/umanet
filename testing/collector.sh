@@ -2,6 +2,7 @@
 set -euo pipefail
 
 OUTDIR=testing/results
+rm -rf "$OUTDIR"/*
 mkdir -p "$OUTDIR"
 
 monitor_vms() {
