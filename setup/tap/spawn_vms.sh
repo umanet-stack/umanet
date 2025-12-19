@@ -1,16 +1,47 @@
-# iperf: vm{even} = server, vm{odd} = client
+#!/usr/bin/env bash
+set -e
 
-for i in {0..31}; do
-    if [ $((i % 2)) -eq 0 ]; then
-        # server
-        sudo cloud-hypervisor \
+VMLINUX_DIR=/proj/faasnetworkstack-PG0/testing/kernels
+IMG_DIR=/proj/faasnetworkstack-PG0/testing/images
+CLOUDINIT_DIR=/tmp/cloudinit
+
+spawn_vm() {
+    local i=$1
+
+    sudo cloud-hypervisor \
         --cpus boot=1 \
         --memory size=512M \
-        --kernel /proj/faasnetworkstack-PG0/testing/kernels/vm$i-kernel.bin \
-        --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
-        --disk path=/proj/faasnetworkstack-PG0/testing/images/vm$i-img.raw path=/tmp/cloudinit/cloudinit-vm$i.img \
-        --net "tap=tap$i,mac=12:34:56:78:90:$(printf "%02X" $i)" 
-    else
-        # client
+        --kernel "$VMLINUX_DIR/vm$i-kernel.bin" \
+        --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw \
+            systemd.mask=systemd-networkd-wait-online.service \
+            systemd.mask=snapd.service \
+            systemd.mask=snapd.seeded.service \
+            systemd.mask=snapd.socket" \
+        --disk \
+            path="$IMG_DIR/vm$i-img.raw" \
+            path="$CLOUDINIT_DIR/cloudinit-vm$i.img" \
+        --net "tap=tap$i,mac=12:34:56:78:90:$(printf '%02X' $i)" \
+        &
+}
+
+echo "Spawning EVEN VMs (servers)..."
+for i in {0..31}; do
+    if (( i % 2 == 0 )); then
+        spawn_vm "$i"
     fi
 done
+
+wait
+
+echo "Waiting 10 seconds for servers to come up..."
+sleep 10
+
+echo "Spawning ODD VMs (clients)..."
+for i in {0..31}; do
+    if (( i % 2 == 1 )); then
+        spawn_vm "$i"
+    fi
+done
+
+wait
+echo "All VMs launched."
