@@ -18,7 +18,7 @@
 # start vms
 ./setup/tap/spawn_vms.sh
 
-# kill all vms
+# kill all vms to end/reset experiment
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
 ```
 
