@@ -7,6 +7,7 @@ CLOUDINIT_DIR=/tmp/cloudinit
 
 spawn_vm() {
     local i=$1
+    local logfile="testing/logs/vm$i.log"
 
     sudo cloud-hypervisor \
         --cpus boot=1 \
@@ -17,8 +18,9 @@ spawn_vm() {
             path="$IMG_DIR/vm$i-img.raw" \
             path="$CLOUDINIT_DIR/cloudinit-vm$i.img" \
         --net "tap=tap$i,mac=12:34:56:78:90:$(printf '%02X' $i)" \
-        --serial off --console off \
-        &
+        > "$logfile" 2>&1 &
+    
+    echo "  VM$i -> $logfile"
 }
 
 echo "Spawning EVEN VMs (servers)..."

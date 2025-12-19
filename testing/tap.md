@@ -17,6 +17,8 @@
 rm ./testing/results/*
 ./testing/collector.sh
 # start vms
+rm -rf testing/logs/*
+mkdir -p testing/logs
 ./setup/tap/spawn_vms.sh
 
 # kill all vms
