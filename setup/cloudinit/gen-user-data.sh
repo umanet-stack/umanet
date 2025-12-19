@@ -48,8 +48,7 @@ write_files:
       [Service]
       Type=simple
       ExecStart=/usr/local/bin/start-iperf.sh
-      Restart=always
-      RestartSec=60
+      Restart=no
       StandardOutput=journal+console
       StandardError=journal+console
 
