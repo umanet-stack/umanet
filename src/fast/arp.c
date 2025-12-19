@@ -44,7 +44,7 @@ int process_arp(struct vhost_dev *vdev, struct rte_mbuf *m) {
     // Send back to VM
     int ret = rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, &m, 1);
     if (unlikely(ret == 0))
-        LOG_WARN("Warning: Failed to enqueue packet to vid=%d\n", vdev->vid);
+        LOG_WARN("Failed to enqueue ARP reply to vid=%d\n", vdev->vid);
     LOG_VM_OUT("(%d) Sent ARP reply to VM\n", vdev->vid);
     PRINT_PKTS(&m, 1, LOG_VM_OUT);
     rte_pktmbuf_free(m);

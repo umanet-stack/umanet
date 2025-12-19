@@ -174,7 +174,7 @@ static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vho
     PRINT_PKTS(pkts, count, LOG_VM_OUT);
 
     if (unlikely(ret == 0)) {
-        LOG_WARN("Warning: Failed to enqueue packet to vid=%d\n", dst_vdev->vid);
+        LOG_WARN("Failed to enqueue packet to vid=%d\n", dst_vdev->vid);
         return;
     }
 
@@ -206,7 +206,7 @@ static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rt
     dst_vdev = find_vhost_dev(&pkt_hdr->d_addr);
     if (dst_vdev == NULL) {
         LOG_WARN("(%d) TX: Destination MAC address not found. Dropping packet.\n", vdev->vid);
-        PRINT_PKTS(&pkts[0], 1, LOG_WARN);
+        PRINT_PKTS_WARN(&pkts[0], 1, LOG_WARN);
         return -1;
     }
 
