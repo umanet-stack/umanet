@@ -50,6 +50,8 @@ write_files:
       ExecStart=/usr/local/bin/start-iperf.sh
       Restart=always
       RestartSec=60
+      StandardOutput=journal+console
+      StandardError=journal+console
 
       [Install]
       WantedBy=multi-user.target
@@ -60,17 +62,26 @@ write_files:
       #!/bin/bash
       set -e
       source /etc/vm_role
+      
+      log() {
+          echo "[\$(date '+%Y-%m-%d %H:%M:%S')] vm\$VM_INDEX: \$1"
+      }
 
       if [ "\$ROLE" = "server" ]; then
+          log "starting iperf server"
           exec iperf3 -s
       else
+          log "starting iperf client (target: $SERVER_IP)"
+          
           # Wait for server to be ready
           sleep 5
           
           # Run iperf test once - systemd will restart it
-          exec iperf3 -c $SERVER_IP -P 4 -t 30 -J \\
+          iperf3 -c $SERVER_IP -P 4 -t 30 -J \\
           | jq --arg vm "vm$i" '. + {vm: \$vm}' \\
           | nc -N 192.168.100.1 9000
+          
+          log "finished iperf client"
       fi
 
 # Fix sudoers issues
