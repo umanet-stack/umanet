@@ -4,11 +4,11 @@ set -ex
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-rm -f network-configs/network-vm*
-mkdir -p network-configs
+rm -f "$SCRIPT_DIR/network-configs/network-vm"*
+mkdir -p "$SCRIPT_DIR/network-configs"
 for i in {0..31}; do
   MAC_ADDRESS="12:34:56:78:90:$(printf "%02X" $i)"
-  cat > "network-configs/network-vm$i" <<EOF
+  cat > "$SCRIPT_DIR/network-configs/network-vm$i" <<EOF
 version: 2
 ethernets:
   ens4:
@@ -31,17 +31,17 @@ create_iso() {
     local output="$1"
     local netconfig="$2"
 
-    rm -f "/tmp/${output}"
-    mkdosfs -n CIDATA -C "/tmp/${output}" 8192
-    mcopy -oi "/tmp/${output}" -s "${SCRIPT_DIR}/user-data" ::
-    mcopy -oi "/tmp/${output}" -s "${SCRIPT_DIR}/meta-data" ::
+    rm -f "${output}"
+    mkdosfs -n CIDATA -C "${output}" 8192
+    mcopy -oi "${output}" -s "${SCRIPT_DIR}/user-data" ::
+    mcopy -oi "${output}" -s "${SCRIPT_DIR}/meta-data" ::
     # Copy network config and rename it to "network-config" (cloud-init expects this name)
-    mcopy -oi "/tmp/${output}" "${SCRIPT_DIR}/${netconfig}" ::network-config
+    mcopy -oi "${output}" "${netconfig}" ::network-config
 }
 
 # Create the ISOs
-create_iso "ubuntu-cloudinit.img" "network-config"
-create_iso "cloudinit-vm0.img" "network-config-vm0"
-create_iso "cloudinit-vm1.img" "network-config-vm1"
-create_iso "cloudinit-vm0-dpdk.img" "network-config-vm0-dpdk"
-create_iso "cloudinit-vm1-dpdk.img" "network-config-vm1-dpdk"
+sudo rm -rf /tmp/cloudinit
+mkdir -p /tmp/cloudinit
+for i in {0..31}; do
+  create_iso "/tmp/cloudinit/cloudinit-vm$i.img" "$SCRIPT_DIR/network-configs/network-vm$i"
+done
