@@ -20,16 +20,16 @@ sources = files(
 	'src/config/config.c',
 	'src/vhost/device.c',
 	'src/vhost/queues.c',
-	'src/vhost/worker.c',
+	'src/fast/virtio.c',
+	'src/fast/eth.c',
 	'src/fast/network.c',
-	'src/fast/fastemu.c',
-	'src/fast/fast_kernel.c',
-	'src/fast/fast_flows.c',
-	'src/fast/qman.c',
+	'src/fast/fastpath.c',
+	'src/fast/arp.c',
+	'src/fast/nat.c',
 	'src/shm.c',
 	'lib/utils/rng.c',
-	'src/blocking.c',
-	'src/slow/kernel.c',
+	'src/utils/utils.c',
+	'src/utils/log.c',
 )
 
 # Compiler flags

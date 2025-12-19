@@ -70,14 +70,10 @@ struct device_statistics {
 };
 
 struct vhost_dev { // vhost device
-    /**< Number of memory regions for gpa to hpa translation. */
-    uint32_t nregions_hpa;
-    /**< Device MAC address (Obtained on first TX packet). */
+    // Device MAC address (Obtained on first TX packet).
     struct rte_ether_addr mac_address;
-    /**< RX VMDQ (VM device queue) queue number. */
-    uint16_t vmdq_rx_q; // stores the RX queue number assigned to each vhost device
-    /**< Vlan tag assigned to the pool */
-    uint32_t vlan_tag;
+    // ETH RX queue number assigned to vhost device
+    uint16_t rx_queue;
     /**< Data core that the device is added to. */
     uint16_t coreid;
     /**< A device is set as ready if the MAC address has been set. */
@@ -85,7 +81,7 @@ struct vhost_dev { // vhost device
     /**< Device is marked for removal from the data core. */
     volatile uint8_t remove;
 
-    int vid;                      // vhost device ID
+    int vid;                      // vhost device ID, assigned by dpdk
     uint64_t features;            // Virtio feature flags
     size_t hdr_len;               // Header length
     uint16_t nr_vrings;           // Number of virtio rings
@@ -128,12 +124,6 @@ struct dataplane_context {
 
     // vhost
     struct vhost_info vhost;
-
-    /********************************************************/
-    /* arx cache */
-    // struct flextcp_pl_arx arx_cache[BATCH_SIZE];
-    // uint16_t arx_ctx[BATCH_SIZE];
-    // uint16_t arx_num;
 
     /********************************************************/
     /* send buffer */

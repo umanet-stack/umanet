@@ -19,10 +19,16 @@ The switch worker loop continuously:
 
 ## Setup
 ```bash
-./setup/init.sh
-./setup/create-cloud-init.sh
+./setup/download_img.sh
+# Cloud-init will NOT run again on these images, it only runs on first boot.
+./setup/copy_img.sh
+./setup/cloudinit/gen-cloud-init.sh
 ./setup/init-dpdk.sh
-# reserve and mount hugepages
+
+# c6525-25g
+./setup/setup_node.sh 0 enp65s0f0np0
+# xl170
+./setup/setup_node.sh 0 ens1f1np1
 
 # reserve hugepages
 # 2048 × 2 MB = 4 GB mem for hugepages
@@ -57,6 +63,9 @@ sudo rm -f /dev/hugepages/tas_memory
 ## Running
 ```bash
 # c6525-25g nodes
+# debug
+sudo ./build_and_run.sh 0000:41:00.0 debug
+# test
 sudo ./build_and_run.sh 0000:41:00.0
 
 # kill process
@@ -67,17 +76,53 @@ sudo ninja -C build install
 sudo vhost-switch -l 2-3 -n 4 -b 0000:01:00.0 -- --portmask 0x1 --socket-file /mnt/huge/sock0 --stats 1
 ```
 
+## Setup VM img/fs
+1. don't touch noble-server-cloudimg-amd64.raw, copy it
+2. add packages + first commands via `user-data`, add networking via `network-config`
+3. spawn each vm automatically
+```bash
+
+
+sudo rm -f /tmp/vm*-img.raw /tmp/vm*-kernel.bin
+cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm0-img.raw
+cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm1-img.raw
+cp /tmp/vmlinux.bin /tmp/vm0-kernel.bin
+cp /tmp/vmlinux.bin /tmp/vm1-kernel.bin
+```
+
 ## Development
 - `./build_and_run.sh` to check it builds and runs
 - spin up a CH VM to test the TCP stack works
 ```bash
+sudo ip addr del 10.10.1.10/24 dev ens4
+
+sudo ip link set ens4 up
+sudo ip addr add 10.10.1.10/24 dev ens4
+sudo ip route add default via 10.10.1.1
+
+sudo ip link set ens4 up
+sudo ip addr add 10.10.1.20/24 dev ens4
+sudo ip route add default via 10.10.1.1
+
+# vm0
 sudo cloud-hypervisor \
   --cpus boot=1 \
   --memory size=512M,hugepages=on,shared=true \
-  --kernel /tmp/vmlinux.bin \
+  --kernel /tmp/vm0-kernel.bin \
   --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
-  --disk path=/tmp/noble-server-cloudimg-amd64.raw path=/tmp/cloudinit-vm0-dpdk.img \
+  --disk path=/tmp/vm0-img.raw path=/tmp/cloudinit-vm0-dpdk.img \
   --net mac=52:54:00:02:d9:01,vhost_user=true,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=2048
+
+# vm1 - NOTE: Uses sock1 (different from vm0)
+sudo cloud-hypervisor \
+  --cpus boot=1 \
+  --memory size=512M,hugepages=on,shared=true \
+  --kernel /tmp/vm1-kernel.bin \
+  --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
+  --disk path=/tmp/vm1-img.raw path=/tmp/cloudinit-vm1-dpdk.img \
+  --net mac=52:54:20:11:C5:02,vhost_user=true,socket=/mnt/huge/sock1,num_queues=2,vhost_mode=client,queue_size=2048
+
+ps aux | grep cloud-hypervisor | grep -v grep | awk '{print $2}' | xargs kill -9
 ```
 
 ### VM packets
@@ -94,3 +139,13 @@ sudo ip neigh add 10.10.1.1 lladdr 02:00:00:00:00:01 dev ens4 nud permanent
 ```
 - vm will now send TCP/UDP pkts asking for 8.8.8.8
     - pinging pkts will also show
+    
+### Testing
+```bash
+# no. of TX/RX queues in NIC e.g. combined 32 = 32TX + 32RX
+# canonical: 1 core uses 1TX + 1RX
+ethtool -l enp65s0f0np0
+
+iperf -s
+iperf -c 10.10.1.10
+```

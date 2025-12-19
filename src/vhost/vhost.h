@@ -2,14 +2,28 @@
  * Copyright(c) 2010-2017 Intel Corporation
  */
 
-#ifndef _VHOST_H_
-#define _VHOST_H_
+#ifndef VHOST_H_
+#define VHOST_H_
 
-#include "../include/tas.h"
-#include "src/include/fastpath.h"
 #include <rte_ether.h>
 #include <rte_vhost.h>
 #include <sys/queue.h>
+
+#include "../include/tas.h"
+#include "src/include/fastpath.h"
+
+// Log level enum and function declarations
+enum log_level { LOG_INFO, LOG_ERROR, LOG_WARN, LOG_ETH_IN, LOG_ETH_OUT, LOG_VM_IN, LOG_VM_OUT };
+void log_info(const char *fmt, ...);
+void log_error(const char *fmt, ...);
+void log_warn(const char *fmt, ...);
+void log_eth_in(const char *fmt, ...);
+void log_eth_out(const char *fmt, ...);
+void log_vm_in(const char *fmt, ...);
+void log_vm_out(const char *fmt, ...);
+void print_pkts(struct rte_mbuf **pkts, uint16_t count, enum log_level level);
+
+void free_pkts(struct rte_mbuf **pkts, uint16_t n);
 
 // rte = runtime env (dpdk)
 // queue type identifiers: receive, transmit, total count
@@ -33,36 +47,21 @@ enum { VIRTIO_RXQ, VIRTIO_TXQ, VIRTIO_QNUM };
 #define BURST_TX_DRAIN_US 100 /* TX drain every ~100us */
 #define MBUF_TABLE_DRAIN_TSC ((rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US)
 
-// typedef struct {
-//     unsigned dev_to_core_id[64];
-// } vhost_state_t;
-
-// extern vhost_state_t vhost;
 extern const struct vhost_device_ops virtio_net_device_ops;
-extern const uint16_t vlan_tags[64];
 
+int check_device_state(struct vhost_dev *vdev, const char *func);
 struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac);
-void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf *m, struct mbuf_table *tx_q, uint16_t vlan_tag);
-int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m);
-void unlink_vmdq(struct vhost_dev *vdev);
-void free_pkts(struct rte_mbuf **pkts, uint16_t n);
-void do_drain_mbuf_table(struct mbuf_table *tx_q);
-
-void drain_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx);
-void drain_eth_rx(struct vhost_dev *vdev);
-void drain_mbuf_table(struct mbuf_table *tx_q);
-
+struct vhost_dev *find_vhost_dev_core(struct dataplane_context *ctx, struct rte_ether_addr *mac);
 void unregister_vhost_drivers(int socket_num, const char *path);
 int register_vhost_drivers();
 
-static inline unsigned vhost_poll(struct network_thread *t, unsigned num, unsigned vid,
-                                  struct network_buf_handle **bhs) {
-    struct rte_mbuf **mbs = (struct rte_mbuf **)bhs;
+int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m);
+void unlink_vmdq(struct vhost_dev *vdev);
 
+static inline unsigned vhost_poll(struct network_thread *t, unsigned num, unsigned vid, struct rte_mbuf **mbs) {
     num = rte_vhost_dequeue_burst(vid, VIRTIO_TXQ, t->pool, mbs, num);
-    if (num == 0)
-        return 0;
 
     return num;
 }
+
 #endif

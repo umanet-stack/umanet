@@ -40,6 +40,7 @@
 #include <rte_version.h>
 
 #include "../include/tas.h"
+#include "../vhost/vhost.h"
 #include "internal.h"
 #include <tas_memif.h>
 #include <utils.h>
@@ -100,24 +101,24 @@ int network_init(unsigned n_threads) {
     /* allocate thread pointer arrays */
     net_threads = rte_calloc("net thread ptrs", n_threads, sizeof(*net_threads), 0);
     if (net_threads == NULL) {
-        fprintf(stderr, "Allocating net thread pointers failed\n");
+        LOG_ERROR("Allocating net thread pointers failed\n");
         goto error_exit;
     }
 
     /* make sure there is only one port */
     count = rte_eth_dev_count_avail();
     if (count == 0) {
-        fprintf(stderr, "No ethernet devices\n");
+        LOG_ERROR("No ethernet devices\n");
         goto error_exit;
     } else if (count > 1) {
-        fprintf(stderr, "Multiple ethernet devices\n");
+        LOG_ERROR("Multiple ethernet devices\n");
         goto error_exit;
     }
 
     // used -w (whitelist) for NIC PCI addr in dpdk args, this should have only one port with id 0
     RTE_ETH_FOREACH_DEV(p) { net_port_id = p; }
     if (!rte_eth_dev_is_valid_port(net_port_id)) {
-        fprintf(stderr, "Specified port ID(%u) is not valid\n", net_port_id);
+        LOG_ERROR("Specified port ID(%u) is not valid\n", net_port_id);
         goto error_exit;
     }
 
@@ -126,18 +127,17 @@ int network_init(unsigned n_threads) {
     rte_eth_dev_info_get(net_port_id, &eth_devinfo);
 
     if (eth_devinfo.max_rx_queues < n_threads || eth_devinfo.max_tx_queues < n_threads) {
-        fprintf(stderr,
-                "Error: NIC does not support enough hw queues (rx=%u tx=%u)"
-                " for the requested number of cores (%u)\n",
-                eth_devinfo.max_rx_queues, eth_devinfo.max_tx_queues, n_threads);
+        LOG_ERROR("Error: NIC does not support enough hw queues (rx=%u tx=%u)"
+                  " for the requested number of cores (%u)\n",
+                  eth_devinfo.max_rx_queues, eth_devinfo.max_tx_queues, n_threads);
         goto error_exit;
     }
 
     /* mask unsupported RSS hash functions */
     if ((port_conf.rx_adv_conf.rss_conf.rss_hf & eth_devinfo.flow_type_rss_offloads) !=
         port_conf.rx_adv_conf.rss_conf.rss_hf) {
-        fprintf(stderr, "Warning: NIC does not support all requested RSS "
-                        "hash functions.\n");
+        LOG_WARN("Warning: NIC does not support all requested RSS "
+                 "hash functions.\n");
         port_conf.rx_adv_conf.rss_conf.rss_hf &= eth_devinfo.flow_type_rss_offloads;
     }
 
@@ -152,7 +152,7 @@ int network_init(unsigned n_threads) {
     /* initialize port */
     ret = rte_eth_dev_configure(net_port_id, n_threads, n_threads, &port_conf);
     if (ret < 0) {
-        fprintf(stderr, "rte_eth_dev_configure failed\n");
+        LOG_ERROR("rte_eth_dev_configure failed\n");
         goto error_exit;
     }
 
@@ -197,6 +197,7 @@ void network_dump_stats(void) {
     }
 }
 
+// NIC TX/RX queues id = ctx id, + start eth if core 0
 int network_thread_init(struct dataplane_context *ctx) {
     static volatile uint32_t tx_init_done = 0;
     static volatile uint32_t rx_init_done = 0;
@@ -316,32 +317,6 @@ static struct rte_mempool *mempool_alloc(void) {
     snprintf(name, 32, "mbuf_pool_%u\n", n);
     return rte_mempool_create(name, PERTHREAD_MBUFS, MBUF_SIZE, 32, sizeof(struct rte_pktmbuf_pool_private),
                               rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, rte_socket_id(), 0);
-}
-
-static inline uint16_t core_min(uint16_t num) {
-    uint16_t i, i_min = 0, v_min = UINT8_MAX;
-
-    for (i = 0; i < num; i++) {
-        if (rss_core_buckets[i] < v_min) {
-            v_min = rss_core_buckets[i];
-            i_min = i;
-        }
-    }
-
-    return i_min;
-}
-
-static inline uint16_t core_max(uint16_t num) {
-    uint16_t i, i_max = 0, v_max = 0;
-
-    for (i = 0; i < num; i++) {
-        if (rss_core_buckets[i] >= v_max) {
-            v_max = rss_core_buckets[i];
-            i_max = i;
-        }
-    }
-
-    return i_max;
 }
 
 // int network_scale_up(uint16_t old, uint16_t new) {

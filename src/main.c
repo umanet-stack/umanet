@@ -16,6 +16,7 @@
 
 #include "./config/config.h"
 #include "./include/tas.h"
+#include "src/fast/nat.h"
 #include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 
@@ -104,7 +105,7 @@ int main(int argc, char *argv[]) {
 
     /* allocate shared memory before dpdk grabs all huge pages */
     if (shm_preinit() != 0) {
-        fprintf(stderr, "shm preinit failed\n");
+        LOG_ERROR("shm preinit failed\n");
         res = EXIT_FAILURE;
         goto error_exit;
     }
@@ -113,7 +114,7 @@ int main(int argc, char *argv[]) {
     rte_log_set_global_level(RTE_LOG_ERR);
     int dpdk_args = rte_eal_init(argc, argv); // Parses DPDK-specific arguments (--lcores, --huge-dir, etc.)
     if (dpdk_args < 0) {
-        fprintf(stderr, "dpdk init failed\n");
+        LOG_ERROR("dpdk init failed\n");
         res = EXIT_FAILURE;
         goto error_exit;
     }
@@ -122,7 +123,7 @@ int main(int argc, char *argv[]) {
 
     /* parse app arguments */
     if (parse_config(&config, argc, argv) != 0) {
-        fprintf(stderr, "invalid argument\n");
+        LOG_ERROR("invalid argument\n");
         res = EXIT_FAILURE;
         goto error_exit;
     }
@@ -130,34 +131,45 @@ int main(int argc, char *argv[]) {
 
     if ((core_loads = calloc(fp_cores_max, sizeof(*core_loads))) == NULL) {
         res = EXIT_FAILURE;
-        fprintf(stderr, "core loads alloc failed\n");
+        LOG_ERROR("core loads alloc failed\n");
         goto error_exit;
     }
 
     // Sets up application queues and DMA regions
     if (shm_init(fp_cores_max) != 0) {
         res = EXIT_FAILURE;
-        fprintf(stderr, "dma init failed\n");
+        LOG_ERROR("dma init failed\n");
         goto error_exit;
     }
 
     // Sets up RX/TX queues per core, initializes ARP, routing tables
-    printf("Initializing network...\n");
+    LOG_INFO("Initializing network...\n");
     if (network_init(fp_cores_max) != 0) {
         res = EXIT_FAILURE;
-        fprintf(stderr, "network init failed\n");
+        LOG_ERROR("network init failed\n");
         goto error_shm_cleanup;
     }
 
-    printf("Checking dataplane config...\n");
+    // Initialize NAT with public IP (128.110.219.130)
+    // Gateway IP (config.ip) is for internal VMs, NAT needs public IP for internet
+    uint32_t nat_ip = (128 << 24) | (110 << 16) | (219 << 8) | 130; // 128.110.219.130
+    LOG_INFO("Initializing NAT with public IP %u.%u.%u.%u...\n", (nat_ip >> 24) & 0xff, (nat_ip >> 16) & 0xff,
+             (nat_ip >> 8) & 0xff, nat_ip & 0xff);
+    if (nat_init(nat_ip) != 0) {
+        res = EXIT_FAILURE;
+        LOG_ERROR("NAT init failed\n");
+        goto error_network_cleanup;
+    }
+
+    LOG_INFO("Checking dataplane config...\n");
     if (dataplane_init() != 0) {
         res = EXIT_FAILURE;
-        fprintf(stderr, "dpinit failed\n");
+        LOG_ERROR("dpinit failed\n");
         goto error_network_cleanup;
     }
 
     // Sets flag in shared memory indicating TAS is ready, app waiting to connect can now proceed
-    printf("Marking shm ready...\n");
+    LOG_INFO("Marking shm ready...\n");
     shm_set_ready();
 
     /* Enable stats if the user option is set. */
@@ -168,18 +180,41 @@ int main(int argc, char *argv[]) {
 
     // Start worker threads BEFORE vhost registration
     // This ensures TX queues are initialized before vhost can send packets
-    printf("Launching switch workers on cores: ");
+    LOG_INFO("Launching switch workers on cores: ");
     if (start_threads() != 0) {
         res = EXIT_FAILURE;
-        fprintf(stderr, "start_threads failed\n");
+        LOG_ERROR("start_threads failed\n");
         goto error_dataplane_cleanup;
     }
 
-    printf("Waiting for worker threads to initialize TX/RX queues...\n");
-    sleep(1);
+    LOG_INFO("Waiting for worker threads to initialize TX/RX queues...\n");
+
+    // Wait for all contexts to be initialized
+    int max_wait = 10; // 10 seconds max
+    int all_ready = 0;
+    for (int wait = 0; wait < max_wait && !all_ready; wait++) {
+        sleep(1);
+        all_ready = 1;
+        for (int i = 0; i < fp_cores_max; i++) {
+            if (ctxs[i] == NULL) {
+                LOG_INFO("Waiting for context %d to initialize...\n", i);
+                all_ready = 0;
+                break;
+            }
+        }
+    }
+
+    if (!all_ready) {
+        res = EXIT_FAILURE;
+        LOG_ERROR("ERROR: Not all dataplane contexts initialized after %d seconds\n", max_wait);
+        goto error_dataplane_cleanup;
+    }
+
+    LOG_INFO("All %d dataplane contexts initialized successfully\n", fp_cores_max);
+
     if (register_vhost_drivers() != 0) {
         res = EXIT_FAILURE;
-        fprintf(stderr, "register_vhost_drivers failed\n");
+        LOG_ERROR("register_vhost_drivers failed\n");
         goto error_dataplane_cleanup;
     }
 
@@ -213,7 +248,7 @@ static int common_thread(void *arg) {
 
     /* Allocate fastpath core context */
     if ((ctx = rte_zmalloc("fastpath core context", sizeof(*ctx), 0)) == NULL) {
-        fprintf(stderr, "Allocating fastpath core context failed\n");
+        LOG_ERROR("Allocating fastpath core context failed\n");
         goto error_alloc;
     }
     ctxs[id] = ctx;
@@ -222,19 +257,19 @@ static int common_thread(void *arg) {
     /* initialize trace if enabled */
 #ifdef FLEXNIC_TRACING
     if (trace_thread_init(id) != 0) {
-        fprintf(stderr, "initializing trace failed\n");
+        LOG_ERROR("initializing trace failed\n");
         goto error_trace;
     }
 #endif
 
     /* initialize data plane context */
     if (dataplane_context_init(ctx) != 0) {
-        fprintf(stderr, "initializing data plane context\n");
+        LOG_ERROR("initializing data plane context\n");
         goto error_dpctx;
     }
 
     /* poll doorbells and network */
-    printf("Entering dataplane loop...\n");
+    LOG_INFO("Entering dataplane loop...\n");
     dataplane_loop(ctx);
 
     dataplane_context_destroy(ctx);
@@ -265,7 +300,7 @@ static int start_threads(void) {
 
     /* check that we have enough cores */
     if (cores_avail < cores_needed) {
-        fprintf(stderr, "Not enough cores: got %u need %u\n", cores_avail, cores_needed);
+        LOG_ERROR("Not enough cores: got %u need %u\n", cores_avail, cores_needed);
         return -1;
     }
 
@@ -274,7 +309,7 @@ static int start_threads(void) {
         if (threads_launched < fp_cores_max) {
             arg = (void *)(uintptr_t)threads_launched;
             if (rte_eal_remote_launch(common_thread, arg, core) != 0) {
-                fprintf(stderr, "ERROR\n");
+                LOG_ERROR("ERROR\n");
                 return -1;
             }
             threads_launched++;
@@ -285,18 +320,6 @@ static int start_threads(void) {
 }
 
 static void thread_error(void) {
-    fprintf(stderr, "thread_error\n");
+    LOG_ERROR("thread_error\n");
     abort();
 }
-
-// int flexnic_scale_to(uint32_t cores) {
-//     if (fp_scale_to != 0) {
-//         fprintf(stderr, "flexnic_scale_to: already scaling\n");
-//         return -1;
-//     }
-
-//     fp_scale_to = cores;
-
-//     notify_fastpath_core(0);
-//     return 0;
-// }

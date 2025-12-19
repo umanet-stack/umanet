@@ -4,10 +4,30 @@
 
 #include "../include/tas.h"
 #include <rte_malloc.h>
-#include <sys/queue.h>
+#include <unistd.h>
 
 #include "src/fast/network.h"
 #include "src/vhost/vhost.h"
+
+int check_device_state(struct vhost_dev *vdev, const char *func) {
+    if (unlikely(vdev == NULL)) {
+        LOG_ERROR("Error: NULL vdev in %s\n", func);
+        return -1;
+    }
+
+    if (unlikely(vdev->vid < 0 || vdev->vid >= 64)) {
+        LOG_ERROR("Error: Invalid vid=%d in %s (possible use-after-free)\n", vdev->vid, func);
+        return -1;
+    }
+
+    if (unlikely(vdev->remove || vdev->ready == DEVICE_SAFE_REMOVE)) {
+        LOG_WARN("Warning: Attempting to %s device vid=%d marked for removal (ready=%d, remove=%d)\n", func, vdev->vid,
+                 vdev->ready, vdev->remove);
+        return -1;
+    }
+
+    return 0;
+}
 
 struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
     struct vhost_dev *vdev;
@@ -24,6 +44,16 @@ struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
     return NULL;
 }
 
+struct vhost_dev *find_vhost_dev_core(struct dataplane_context *ctx, struct rte_ether_addr *mac) {
+    struct vhost_dev *vdev;
+    for (int j = 0; j < ctx->vhost.device_num; j++) {
+        vdev = ctx->vhost.vdev_list[j];
+        if (vdev != NULL && vdev->ready == DEVICE_RX && rte_is_same_ether_addr(mac, &vdev->mac_address))
+            return vdev;
+    }
+    return NULL;
+}
+
 /*
  * Remove a device from the specific data core linked list and from the
  * main linked list. Synchonization  occurs through the use of the
@@ -34,7 +64,8 @@ static void destroy_device(int vid) {
     struct vhost_dev *vdev = NULL;
     int lcore;
     struct dataplane_context *ctx = NULL;
-    int dev_idx = -1;
+
+    LOG_INFO("destroy_device called for vid=%d\n", vid);
 
     // Find the device across all contexts
     for (int i = 0; i < fp_cores_max; i++) {
@@ -42,29 +73,43 @@ static void destroy_device(int vid) {
             if (ctxs[i]->vhost.vdev_list[j] != NULL && ctxs[i]->vhost.vdev_list[j]->vid == vid) {
                 vdev = ctxs[i]->vhost.vdev_list[j];
                 ctx = ctxs[i];
-                dev_idx = j;
                 break;
             }
         }
         if (vdev != NULL)
             break;
     }
-    if (!vdev)
+    if (!vdev) {
+        LOG_WARN("Warning: device vid=%d not found during destroy\n", vid);
         return;
-    /*set the remove flag. */
-    vdev->remove = 1;
-    while (vdev->ready != DEVICE_SAFE_REMOVE) {
-        rte_pause();
     }
 
-    // Remove device from array by shifting remaining elements
-    if (ctx != NULL && dev_idx >= 0) {
-        for (int j = dev_idx; j < ctx->vhost.device_num - 1; j++) {
-            ctx->vhost.vdev_list[j] = ctx->vhost.vdev_list[j + 1];
-        }
-        ctx->vhost.vdev_list[ctx->vhost.device_num - 1] = NULL;
-        ctx->vhost.device_num--;
+    LOG_INFO("Found device vid=%d on core %d, marking for removal\n", vid, ctx->id);
+
+    /* Set the remove flag with memory barrier to ensure visibility */
+    __sync_synchronize();
+    vdev->remove = 1;
+    __sync_synchronize();
+
+    /* Wait for dataplane to acknowledge removal (with timeout) */
+    // Give dataplane time to wake up and process removal (dataplane sleeps 100ms)
+    int max_wait_ms = 5000; // 5 seconds max
+    int wait_ms = 0;
+    while (vdev->ready != DEVICE_SAFE_REMOVE && wait_ms < max_wait_ms) {
+        usleep(10000); // Sleep 10ms between checks
+        wait_ms += 10;
     }
+
+    if (wait_ms >= max_wait_ms) {
+        LOG_WARN("Warning: Timeout waiting for device vid=%d removal acknowledgment after %dms\n", vid, wait_ms);
+        // Force removal anyway to prevent resource leak
+    } else {
+        LOG_INFO("Device vid=%d removal acknowledged after %dms\n", vid, wait_ms);
+    }
+
+    // NOTE: Device removal from array and device_num decrement is handled by the dataplane loop
+    // We just need to wait for the dataplane to acknowledge the removal
+    // DO NOT remove from array or decrement device_num here - it causes double decrement!
 
     // tells worker cores to acknowledge they've seen the removal at their next safe point
     /* Set the dev_removal_flag on each lcore. */
@@ -82,9 +127,8 @@ static void destroy_device(int vid) {
             rte_pause();
     }
 
-    ctx->vhost.device_num--;
-
-    printf("(%d) device has been removed from data core\n", vdev->vid);
+    LOG_INFO("(%d) device has been removed from data core %d (device_num now=%d)\n", vdev->vid, ctx->id,
+             ctx->vhost.device_num);
 
     rte_free(vdev);
 }
@@ -102,20 +146,36 @@ static int new_device(int vid) {
     // RTE_CACHE_LINE_SIZE: Align to cache line (64 bytes typically) to avoid false sharing between cores
     vdev = rte_zmalloc("vhost device", sizeof(*vdev), RTE_CACHE_LINE_SIZE);
     if (vdev == NULL) {
-        printf("(%d) couldn't allocate memory for vhost dev\n", vid);
+        LOG_ERROR("(%d) couldn't allocate memory for vhost dev\n", vid);
         return -1;
     }
     vdev->vid = vid;
 
-    // Each device gets 1 RX queue
-    vdev->vmdq_rx_q = vid;
+    // with 8 queues: VM 0,8,16,24 share queue 0; VM 1,9,17,25 share queue 1
+    vdev->rx_queue = vid % fp_cores_max;
 
     /*reset ready flag*/
     vdev->ready = DEVICE_MAC_LEARNING;
     vdev->remove = 0;
 
-    /* Find a suitable context (lcore) to add the device. */
+    /* Find a suitable context (lcore) to add the device using load balancing.
+     * With N cores and M VMs (M > N):
+     * - RX queues: VMs share queues via modulo (e.g., VMs 0,8,16,24 share queue 0 with 8 cores)
+     * - Core assignment: Load-balanced across cores (any core can handle any VM)
+     * Example with 8 cores, 32 VMs: Each core handles ~4 VMs, but VMs sharing an RX queue
+     * may be on different cores.
+     */
+    LOG_INFO("(%d) Searching for suitable context (fp_cores_max=%d)...\n", vid, fp_cores_max);
+
     for (int i = 0; i < fp_cores_max; i++) {
+        // Validate context pointer before dereferencing
+        if (ctxs[i] == NULL) {
+            LOG_WARN("(%d) Warning: ctxs[%d] is NULL, skipping\n", vid, i);
+            continue;
+        }
+
+        LOG_INFO("(%d) Context %d has %d devices\n", vid, i, ctxs[i]->vhost.device_num);
+
         if (ctxs[i]->vhost.device_num < device_num_min) {
             device_num_min = ctxs[i]->vhost.device_num;
             ctx = ctxs[i];
@@ -123,19 +183,36 @@ static int new_device(int vid) {
     }
 
     if (ctx == NULL) {
-        printf("(%d) couldn't find suitable context\n", vid);
+        if (fp_cores_max == 0) {
+            LOG_ERROR("(%d) ERROR: fp_cores_max is 0, no dataplane cores configured!\n", vid);
+        } else {
+            LOG_ERROR("(%d) couldn't find suitable context (fp_cores_max=%d, all contexts NULL or full)\n", vid,
+                      fp_cores_max);
+            LOG_ERROR(
+                "(%d) This might be a timing issue - contexts may not be initialized yet. VM connection will retry.\n",
+                vid);
+        }
         rte_free(vdev);
         return -1;
     }
 
+    LOG_INFO("(%d) Selected context %d (device_num=%d)\n", vid, ctx->id, ctx->vhost.device_num);
     vdev->coreid = ctx->id;
 
-    // Add device to array
+    // Add device to array with bounds checking
+    if (ctx->vhost.device_num < 0) {
+        LOG_ERROR("(%d) ERROR: device_num is negative (%d) - memory corruption or double-decrement bug!\n", vid,
+                  ctx->vhost.device_num);
+        LOG_INFO("(%d) Resetting device_num to 0\n", vid);
+        ctx->vhost.device_num = 0;
+    }
+
     if (ctx->vhost.device_num >= MAX_VHOST_DEVICES_PER_CORE) {
-        printf("(%d) too many devices on core %d (max %d)\n", vid, ctx->id, MAX_VHOST_DEVICES_PER_CORE);
+        LOG_ERROR("(%d) too many devices on core %d (max %d)\n", vid, ctx->id, MAX_VHOST_DEVICES_PER_CORE);
         rte_free(vdev);
         return -1;
     }
+
     ctx->vhost.vdev_list[ctx->vhost.device_num] = vdev;
     ctx->vhost.device_num++;
 
@@ -146,7 +223,7 @@ static int new_device(int vid) {
     rte_vhost_enable_guest_notification(vid, VIRTIO_RXQ, 0);
     rte_vhost_enable_guest_notification(vid, VIRTIO_TXQ, 0);
 
-    printf("(%d) device has been added to data core %d\n", vid, vdev->coreid);
+    LOG_INFO("(%d) device has been added to data core %d\n", vid, vdev->coreid);
 
     return 0;
 }
@@ -167,15 +244,13 @@ void unregister_vhost_drivers(int socket_num, const char *path) {
         // each path is PATH_MAX bytes apart
         ret = rte_vhost_driver_unregister(path + i * PATH_MAX);
         if (ret != 0)
-            printf("Fail to unregister vhost driver for %s.\n", path + i * PATH_MAX);
+            LOG_ERROR("Fail to unregister vhost driver for %s.\n", path + i * PATH_MAX);
     }
 }
 
 int register_vhost_drivers() {
     uint64_t flags = 0;
-
     // Note: vdev_list is already initialized in dataplane_context_init()
-    // No need to initialize here
 
     if (config.client_mode)
         flags |= RTE_VHOST_USER_CLIENT;
@@ -186,7 +261,7 @@ int register_vhost_drivers() {
     /* Register vhost user driver to handle vhost messages. */
     for (int i = 0; i < config.nb_sockets; i++) {
         char *file = config.socket_files + i * PATH_MAX;
-        printf("Registering vhost driver for %s...\n", file);
+        LOG_INFO("Registering vhost driver for %s...\n", file);
         if (rte_vhost_driver_register(file, flags) != 0) {
             unregister_vhost_drivers(i, config.socket_files);
             return -1;
@@ -208,19 +283,19 @@ int register_vhost_drivers() {
         }
 
         if (rte_vhost_driver_callback_register(file, &virtio_net_device_ops) != 0) {
-            printf("failed to register vhost driver callbacks.\n");
+            LOG_ERROR("failed to register vhost driver callbacks.\n");
             return -1;
         }
 
         if (rte_vhost_driver_start(file) < 0) {
-            printf("failed to start vhost driver.\n");
+            LOG_ERROR("failed to start vhost driver.\n");
             return -1;
         }
         // testing only
         rte_eth_promiscuous_enable(net_port_id);
-        printf("Promiscuous mode enabled for port %d\n", net_port_id);
+        LOG_INFO("Promiscuous mode enabled for port %d\n", net_port_id);
     }
 
-    printf("Vhost drivers started, waiting for connections...\n");
+    LOG_INFO("Vhost drivers started, waiting for connections...\n");
     return 0;
 }

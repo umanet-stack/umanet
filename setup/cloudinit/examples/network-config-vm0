@@ -1,7 +1,8 @@
 version: 2
 ethernets:
   ens4:
-    match: # apply this configuration to whichever network interface has the MAC address
+    # apply this configuration to whichever network interface has the MAC address
+    match: 
       macaddress: 52:54:00:02:d9:01
     dhcp4: no
     addresses: [192.168.100.2/24]

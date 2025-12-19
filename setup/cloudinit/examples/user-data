@@ -1,0 +1,34 @@
+#cloud-config
+packages:
+  - iperf
+  - iperf3
+  - sockperf
+users:
+  - name: cloud
+    passwd: $6$IwCereKq.VkDH2vr$Kq.L80VAg5jMynEKwz61pcAjImBSAsE7AwwTiGe4qq.lmFzkOakSk4.BmbZ4ypCVALXwpVDlFpTN73TQ0jzXW. 
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    inactive: false
+    shell: /bin/bash
+
+ssh_pwauth: true
+chpasswd:
+  expire: false
+
+write_files:
+  - path: /etc/systemd/resolved.conf.d/dns.conf
+    content: |
+      [Resolve]
+      DNS=8.8.8.8 8.8.4.4
+    permissions: '0644'
+  
+
+# Fix sudoers issues
+runcmd:
+  - rm -f /etc/sudoers.d/README
+  - |
+    # Remove null bytes from sudoers files
+    for f in /etc/sudoers.d/*; do
+      [ -f "$f" ] && sed -i 's/\x00//g' "$f"
+    done
+  - systemctl restart systemd-resolved
