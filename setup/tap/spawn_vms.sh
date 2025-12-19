@@ -46,4 +46,3 @@ for i in {0..10}; do
 done
 
 echo "All VMs launched. Running in background."
-echo "Use 'sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"' to stop all VMs."

@@ -14,7 +14,6 @@
 
 ./setup/tap/setup_br_tap.sh 0
 
-rm ./testing/results/*
 ./testing/collector.sh
 # start vms
 ./setup/tap/spawn_vms.sh
