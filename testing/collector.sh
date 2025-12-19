@@ -24,14 +24,20 @@ echo "🔥 Collector started. Listening on port 9000..." >&2
 echo "" >&2
 
 while true; do
-  nc -l 9000 | jq -c '
-    . as $obj
-    | ($obj.vm) as $vm
-    | ($obj | del(.vm)) 
-    | {vm: $vm, result: .}
-  ' | while read -r line; do
-      vm=$(echo "$line" | jq -r '.vm')
-      echo "$line" | jq '.result' > "$OUTDIR/$vm.json"
-      echo -e "\n✅ wrote $OUTDIR/$vm.json" >&2
-  done
+  # Handle each connection in background to accept multiple simultaneously
+  (
+    nc -l 9000 | jq -c '
+      . as $obj
+      | ($obj.vm) as $vm
+      | ($obj | del(.vm)) 
+      | {vm: $vm, result: .}
+    ' | while read -r line; do
+        vm=$(echo "$line" | jq -r '.vm')
+        echo "$line" | jq '.result' > "$OUTDIR/$vm.json"
+        echo -e "\n✅ wrote $OUTDIR/$vm.json" >&2
+    done
+  ) &
+  
+  # Small delay to ensure nc starts listening
+  sleep 0.1
 done
