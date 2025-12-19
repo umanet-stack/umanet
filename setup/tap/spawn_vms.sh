@@ -4,10 +4,15 @@ set -e
 VMLINUX_DIR=/proj/faasnetworkstack-PG0/testing/kernels
 IMG_DIR=/proj/faasnetworkstack-PG0/testing/images
 CLOUDINIT_DIR=/tmp/cloudinit
+LOG_DIR="$(dirname "$0")/../../testing/logs"
+
+# Create log directory
+rm -rf "$LOG_DIR"/*
+mkdir -p "$LOG_DIR"
 
 spawn_vm() {
     local i=$1
-    local logfile="testing/logs/vm$i.log"
+    local logfile="$LOG_DIR/vm$i.log"
 
     sudo cloud-hypervisor \
         --cpus boot=1 \
@@ -41,4 +46,4 @@ for i in {0..10}; do
 done
 
 echo "All VMs launched. Running in background."
-echo "Use 'sudo pkill -9 cloud-hypervisor' to stop all VMs."
+echo "Use 'sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"' to stop all VMs."
