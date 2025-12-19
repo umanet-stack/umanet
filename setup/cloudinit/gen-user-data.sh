@@ -4,11 +4,12 @@ set -ex
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-rm -f "$SCRIPT_DIR/user-data/user-data-vm"*
-mkdir -p "$SCRIPT_DIR/user-data"
+rm -f "$SCRIPT_DIR/user-datas/user-data-vm"*
+mkdir -p "$SCRIPT_DIR/user-datas"
 for i in {0..31}; do
-  MAC_ADDRESS="12:34:56:78:90:$(printf "%02X" $i)"
-  cat > "$SCRIPT_DIR/user-data/user-data-vm$i" <<EOF
+  ROLE=$(if [ $((i % 2)) -eq 0 ]; then echo "server"; else echo "client"; fi)
+  SERVER_IP="192.168.100.$((i+1))"
+  cat > "$SCRIPT_DIR/user-datas/user-data-vm$i" <<EOF
 #cloud-config
 packages:
   - iperf
@@ -32,7 +33,39 @@ write_files:
       [Resolve]
       DNS=8.8.8.8 8.8.4.4
     permissions: '0644'
-  
+  - path: /etc/vm_role
+    content: |
+      VM_INDEX=$i
+      ROLE=$ROLE
+  - path: /etc/systemd/system/iperf.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=iperf role
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      ExecStart=/usr/local/bin/start-iperf.sh
+      Restart=no
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /usr/local/bin/start-iperf.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -e
+      source /etc/vm_role
+
+      if [ "$ROLE" = "server" ]; then
+          exec iperf3 -s
+      else
+          sleep 3
+          exec iperf3 -c $SERVER_IP -t 30 -P 4
+      fi
 
 # Fix sudoers issues
 runcmd:
@@ -43,6 +76,10 @@ runcmd:
       [ -f "$f" ] && sed -i 's/\x00//g' "$f"
     done
   - systemctl restart systemd-resolved
+  - systemctl daemon-reexec
+  - systemctl daemon-reload
+  - systemctl enable iperf
+  - systemctl start iperf
 
 EOF
 done

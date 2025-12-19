@@ -5,6 +5,7 @@ set -ex
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 $SCRIPT_DIR/gen-network-config.sh
+$SCRIPT_DIR/gen-user-data.sh
 
 # Function to create a cloud-init ISO
 create_iso() {
