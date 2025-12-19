@@ -6,7 +6,7 @@ mkdir -p "$OUTDIR"
 
 monitor_vms() {
   while true; do
-    vm_count=$(pgrep -c cloud-hyp 2>/dev/null || echo "0")
+    vm_count=$(pgrep -c cloud-hyp 2>/dev/null || true)
     echo -ne "\r[$(date '+%H:%M:%S')] Running VMs: $vm_count | Results collected: $(ls -1 "$OUTDIR"/*.json 2>/dev/null | wc -l)   " >&2
     sleep 2
   done
