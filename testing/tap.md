@@ -18,6 +18,9 @@ rm ./testing/results/*
 ./testing/collector.sh
 # start vms
 ./setup/tap/spawn_vms.sh
+
+# kill all vms
+sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
 ```
 
 ## manual
@@ -58,5 +61,4 @@ mpstat -P ALL 1
 free -h
 
 systemctl status iperf
-sudo ps aux | grep cloud-hypervisor | grep -v grep | awk '{print $2}' | xargs kill -9
 ```
