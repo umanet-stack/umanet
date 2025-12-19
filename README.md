@@ -76,10 +76,10 @@ sudo vhost-switch -l 2-3 -n 4 -b 0000:01:00.0 -- --portmask 0x1 --socket-file /m
 3. spawn each vm automatically
 ```bash
 # c6525-25g
-./setup/vanilla/setup_node.sh 0 enp65s0f0np0
+./setup/setup_node.sh 0 enp65s0f0np0
 
 # xl170
-./setup/vanilla/setup_node.sh 0 ens1f1np1
+./setup/setup_node.sh 0 ens1f1np1
 
 sudo rm -f /tmp/vm*-img.raw /tmp/vm*-kernel.bin
 cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm0-img.raw
@@ -102,7 +102,7 @@ sudo ip link set ens4 up
 sudo ip addr add 10.10.1.20/24 dev ens4
 sudo ip route add default via 10.10.1.1
 
-./setup/vanilla/setup_node.sh 0 enp65s0f0np0
+./setup/setup_node.sh 0 enp65s0f0np0
 # vm0
 sudo cloud-hypervisor \
   --cpus boot=1 \
@@ -112,7 +112,7 @@ sudo cloud-hypervisor \
   --disk path=/tmp/vm0-img.raw path=/tmp/cloudinit-vm0-dpdk.img \
   --net mac=52:54:00:02:d9:01,vhost_user=true,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=2048
 
-./setup/vanilla/setup_node.sh 0 enp65s0f0np0
+./setup/setup_node.sh 0 enp65s0f0np0
 # vm1 - NOTE: Uses sock1 (different from vm0)
 sudo cloud-hypervisor \
   --cpus boot=1 \

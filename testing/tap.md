@@ -1,10 +1,12 @@
 # tap
 ```bash
 # c6525-25g
-./setup/vanilla/setup_node.sh 0 enp65s0f0np0
+./setup/setup_node.sh 0 enp65s0f0np0
 
 # xl170
-./setup/vanilla/setup_node.sh 0 ens1f1np1
+./setup/setup_node.sh 0 ens1f1np1
+
+./setup/vanilla/setup_br_tap.sh 0
 
 # vm0
 sudo cloud-hypervisor \
