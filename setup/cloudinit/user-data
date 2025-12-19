@@ -21,73 +21,7 @@ write_files:
       [Resolve]
       DNS=8.8.8.8 8.8.4.4
     permissions: '0644'
-  - path: /usr/local/bin/setup-multiqueue.sh
-    content: |
-      #!/bin/bash
-      # Enable multi-queue for virtio-net and optimize network performance
-      IFACE=$(ip -o link show | grep -v "lo:" | grep -v "NO-CARRIER" | awk -F': ' '{print $2}' | head -1)
-      
-      # Enable all available queues
-      MAX_QUEUES=$(ethtool -l $IFACE 2>/dev/null | grep -A 4 "Pre-set maximums:" | grep "Combined:" | awk '{print $2}')
-      if [ "$MAX_QUEUES" -gt 1 ]; then
-        ethtool -L $IFACE combined $MAX_QUEUES
-        echo "Enabled $MAX_QUEUES queues on $IFACE"
-      fi
-      
-      # Enable TSO/GSO/GRO offloads (CRITICAL for performance!)
-      ethtool -K $IFACE tso on gso on gro on 2>/dev/null || true
-      echo "Enabled network offloads (TSO/GSO/GRO)"
-      
-      # Set up XPS (Transmit Packet Steering) - 1:1 queue-to-CPU mapping
-      # Each TX queue should be handled by a dedicated CPU for cache locality
-      NUM_CPUS=$(nproc)
-      for i in $(seq 0 $((MAX_QUEUES-1))); do
-        if [ -d /sys/class/net/$IFACE/queues/tx-$i ]; then
-          CPU_MASK=$(printf '%x' $((1 << i)))
-          echo $CPU_MASK > /sys/class/net/$IFACE/queues/tx-$i/xps_cpus
-          echo "TX queue $i -> CPU $i (mask: $CPU_MASK)"
-        fi
-      done
-      
-      # Disable RPS - redundant with multi-queue virtio-net RSS
-      # RPS adds overhead when hardware queues already distribute traffic
-      for i in $(seq 0 $((MAX_QUEUES-1))); do
-        if [ -d /sys/class/net/$IFACE/queues/rx-$i ]; then
-          echo 0 > /sys/class/net/$IFACE/queues/rx-$i/rps_cpus
-          echo "RX queue $i -> RPS disabled (using native multi-queue)"
-        fi
-      done
-      
-      # Pin virtio-net IRQs to specific CPUs (1:1 mapping)
-      # This ensures each queue's interrupts are handled by the same CPU as XPS
-      for irq in $(grep $IFACE /proc/interrupts | awk -F: '{print $1}' | tr -d ' '); do
-        # Try to extract queue number from IRQ name
-        queue_num=$(grep "^ *$irq:" /proc/interrupts | grep -oP 'input\.\K[0-9]+|output\.\K[0-9]+' | head -1)
-        if [ -n "$queue_num" ] && [ "$queue_num" -lt "$NUM_CPUS" ]; then
-          CPU_MASK=$(printf '%x' $((1 << queue_num)))
-          echo $CPU_MASK > /proc/irq/$irq/smp_affinity 2>/dev/null || true
-          echo "IRQ $irq (queue $queue_num) -> CPU $queue_num"
-        fi
-      done
-      
-      # Optimize TCP parameters for high throughput
-      # absolute caps for any socket (TCP/UDP)
-      sysctl -w net.core.rmem_max=134217728
-      sysctl -w net.core.wmem_max=134217728
-      sysctl -w net.core.rmem_default=16777216
-      sysctl -w net.core.wmem_default=16777216
-      # per-socket (min, default, max)
-      sysctl -w net.ipv4.tcp_rmem="4096 87380 134217728"
-      sysctl -w net.ipv4.tcp_wmem="4096 65536 134217728"
-      # global TCP mem threshold (low, pressure, high)
-      sysctl -w net.ipv4.tcp_mem="32768 32768 32768"
-      sysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null || sysctl -w net.ipv4.tcp_congestion_control=cubic
-      sysctl -w net.ipv4.tcp_mtu_probing=1
-      sysctl -w net.ipv4.tcp_slow_start_after_idle=0
-      
-      echo "Network optimization complete for $IFACE"
-      echo "Queues: $MAX_QUEUES, TCP buffers: 64MB, Congestion control: $(sysctl -n net.ipv4.tcp_congestion_control)"
-    permissions: '0755'
+  
 
 # Fix sudoers issues
 runcmd:
@@ -98,5 +32,3 @@ runcmd:
       [ -f "$f" ] && sed -i 's/\x00//g' "$f"
     done
   - systemctl restart systemd-resolved
-  # - /usr/local/bin/setup-multiqueue.sh
-
