@@ -17,4 +17,19 @@ sudo cloud-hypervisor \
 	--disk path=/proj/faasnetworkstack-PG0/testing/images/vm0-img.raw path=/tmp/cloudinit/cloudinit-vm0.img \
 	--net "tap=tap0,mac=12:34:56:78:90:00" 
 
+sudo cloud-hypervisor \
+	--cpus boot=1 \
+	--memory size=512M \
+	--kernel /proj/faasnetworkstack-PG0/testing/kernels/vm1-kernel.bin \
+	--cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
+	--disk path=/proj/faasnetworkstack-PG0/testing/images/vm1-img.raw path=/tmp/cloudinit/cloudinit-vm1.img \
+	--net "tap=tap1,mac=12:34:56:78:90:01" 
+
+sudo cloud-hypervisor \
+	--cpus boot=1 \
+	--memory size=512M \
+	--kernel /proj/faasnetworkstack-PG0/testing/kernels/vm2-kernel.bin \
+	--cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
+	--disk path=/proj/faasnetworkstack-PG0/testing/images/vm2-img.raw path=/tmp/cloudinit/cloudinit-vm2.img \
+	--net "tap=tap2,mac=12:34:56:78:90:02" 
 ```
