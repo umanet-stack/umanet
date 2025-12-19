@@ -14,6 +14,8 @@
 
 ./setup/tap/setup_br_tap.sh 0
 
+rm ./testing/results/*
+./testing/collector.sh
 # start vms
 ./setup/tap/spawn_vms.sh
 ```
@@ -56,4 +58,5 @@ mpstat -P ALL 1
 free -h
 
 systemctl status iperf
+sudo ps aux | grep cloud-hypervisor | grep -v grep | awk '{print $2}' | xargs kill -9
 ```
