@@ -48,7 +48,8 @@ write_files:
       [Service]
       Type=simple
       ExecStart=/usr/local/bin/start-iperf.sh
-      Restart=no
+      Restart=always
+      RestartSec=60
 
       [Install]
       WantedBy=multi-user.target
@@ -63,7 +64,10 @@ write_files:
       if [ "\$ROLE" = "server" ]; then
           exec iperf3 -s
       else
-          sleep 3
+          # Wait for server to be ready
+          sleep 5
+          
+          # Run iperf test once - systemd will restart it
           exec iperf3 -c $SERVER_IP -P 4 -t 30 -J \\
           | jq --arg vm "vm$i" '. + {vm: \$vm}' \\
           | nc -N 192.168.100.1 9000
