@@ -9,6 +9,13 @@ import sys
 OUTDIR = Path("testing/results")
 OUTDIR.mkdir(parents=True, exist_ok=True)
 
+if OUTDIR.exists():
+    for p in OUTDIR.iterdir():
+        if p.is_file():
+            p.unlink()
+else:
+    OUTDIR.mkdir(parents=True)
+
 RAW_LOG = OUTDIR / "raw.jsonl"
 DEBUG_LOG = OUTDIR / "debug.log"
 
