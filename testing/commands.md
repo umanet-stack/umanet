@@ -80,4 +80,7 @@ df -h
 systemctl status iperf
 sudo tcpdump -i br0
 echo '{"vm":"vm12","throughput":12345}' | nc 192.168.100.1 9000
+
+lsof -i :9000
+kill -9 12345
 ```
