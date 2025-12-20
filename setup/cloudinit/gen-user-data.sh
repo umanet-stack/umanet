@@ -96,6 +96,10 @@ write_files:
                   "CPU (remote): " + (.end.cpu_utilization_percent.remote_total | tostring) + "%"
               ' 2>/dev/null || echo "  (summary unavailable)")
               log "\$SUMMARY"
+              
+              # Log throughput per second for timeseries graph
+              log "iperf3 intervals (throughput per second):"
+              echo "\$IPERF_OUTPUT" | jq -r '.intervals[] | "  [" + (.sum.start | tostring) + "-" + (.sum.end | tostring) + "s] " + (.sum.bits_per_second / 1e9 | tostring) + " Gbps"' 2>/dev/null || true
           fi
           
           log "finished iperf client"

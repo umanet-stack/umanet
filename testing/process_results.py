@@ -4,6 +4,7 @@ Process iperf3 test results and generate reports
 """
 import json
 import os
+import re
 from pathlib import Path
 from typing import Dict, List
 import matplotlib.pyplot as plt
@@ -13,21 +14,85 @@ import numpy as np
 from datetime import datetime
 
 # Directories
-RESULTS_DIR = Path("testing/results")
+LOGS_DIR = Path("testing/logs")
 REPORTS_DIR = Path("testing/reports")
 
 
 def load_results() -> Dict[str, dict]:
-    """Load all JSON results from the results directory"""
+    """Extract results from VM log files (odd-numbered VMs only)"""
     results = {}
     
-    for json_file in RESULTS_DIR.glob("*.json"):
-        vm_name = json_file.stem  # e.g., "vm1"
+    # Find all odd-numbered VM log files (vm1, vm3, vm5, etc.)
+    for log_file in sorted(LOGS_DIR.glob("vm*.log")):
+        vm_name = log_file.stem  # e.g., "vm1"
+        vm_num = int(vm_name[2:])  # Extract number: "vm1" -> 1
+        
+        # Only process odd-numbered VMs (clients)
+        if vm_num % 2 == 0:
+            continue
+        
         try:
-            with open(json_file, 'r') as f:
-                results[vm_name] = json.load(f)
+            with open(log_file, 'r') as f:
+                log_content = f.read()
+            
+            # Extract the summary line
+            # Format: [timestamp] start-iperf.sh[pid]: [date time] vmX:   Throughput: X Gbps | Bytes: X GB | Retransmits: X | CPU (host): X% | CPU (remote): X%
+            pattern = r'\[.*?\] start-iperf\.sh\[.*?\]: \[.*?\] ' + re.escape(vm_name) + r':\s+Throughput:\s+([\d.]+)\s+Gbps\s+\|\s+Bytes:\s+([\d.]+)\s+GB\s+\|\s+Retransmits:\s+(\d+)\s+\|\s+CPU\s+\(host\):\s+([\d.]+)%\s+\|\s+CPU\s+\(remote\):\s+([\d.]+)%'
+            match = re.search(pattern, log_content)
+            
+            if match:
+                throughput_gbps = float(match.group(1))
+                bytes_gb = float(match.group(2))
+                retransmits = int(match.group(3))
+                cpu_host = float(match.group(4))
+                cpu_remote = float(match.group(5))
+                
+                # Extract intervals from log text (format: "  [0-1s] 9.85 Gbps")
+                intervals = []
+                # Find all interval lines after "iperf3 intervals"
+                interval_lines = re.findall(r'iperf3 intervals.*?\n((?:\s+\[\d+-\d+s\]\s+[\d.]+\s+Gbps\n?)+)', log_content, re.MULTILINE)
+                
+                if interval_lines:
+                    for interval_block in interval_lines:
+                        for line in interval_block.strip().split('\n'):
+                            # Parse: "  [0-1s] 9.85 Gbps"
+                            line_match = re.search(r'\[(\d+)-(\d+)s\]\s+([\d.]+)\s+Gbps', line)
+                            if line_match:
+                                start = float(line_match.group(1))
+                                end = float(line_match.group(2))
+                                throughput_gbps = float(line_match.group(3))
+                                intervals.append({
+                                    'sum': {
+                                        'start': start,
+                                        'end': end,
+                                        'bits_per_second': throughput_gbps * 1e9,
+                                        'bytes': throughput_gbps * 1e9 * (end - start) / 8  # Approximate
+                                    }
+                                })
+                
+                results[vm_name] = {
+                    'end': {
+                        'sum_sent': {
+                            'bits_per_second': throughput_gbps * 1e9,
+                            'bytes': bytes_gb * 1e9,
+                            'retransmits': retransmits,
+                            'seconds': 30.0  # Default test duration
+                        },
+                        'cpu_utilization_percent': {
+                            'host_total': cpu_host,
+                            'host_user': 0.0,  # Not available from summary line
+                            'host_system': 0.0,
+                            'remote_total': cpu_remote,
+                            'remote_user': 0.0,
+                            'remote_system': 0.0
+                        }
+                    },
+                    'intervals': intervals if intervals else []
+                }
+            else:
+                print(f"⚠️  Could not find summary line in {log_file}")
         except Exception as e:
-            print(f"⚠️  Error loading {json_file}: {e}")
+            print(f"⚠️  Error processing {log_file}: {e}")
     
     return results
 
