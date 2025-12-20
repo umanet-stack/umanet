@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -e
 
+
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <num_vms>"
+    echo "  num_vms: number of VMs to spawn"
+    exit 1
+fi
+
+NUM_VMS=$1
+
 VMLINUX_DIR=/proj/faasnetworkstack-PG0/testing/kernels
 IMG_DIR=/proj/faasnetworkstack-PG0/testing/images
 CLOUDINIT_DIR=/tmp/cloudinit
@@ -29,7 +38,7 @@ spawn_vm() {
 }
 
 echo "Spawning EVEN VMs (servers)..."
-for i in {0..10}; do
+for ((i=0; i<NUM_VMS; i++)); do
     if (( i % 2 == 0 )); then
         spawn_vm "$i"
     fi
@@ -39,7 +48,7 @@ echo "Waiting 20 seconds for servers to come up..."
 sleep 20
 
 echo "Spawning ODD VMs (clients)..."
-for i in {0..10}; do
+for ((i=0; i<NUM_VMS; i++)); do
     if (( i % 2 == 1 )); then
         spawn_vm "$i"
     fi
