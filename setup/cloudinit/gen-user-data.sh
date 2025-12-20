@@ -69,14 +69,12 @@ write_files:
           log "starting iperf server"
           exec iperf3 -s
       else
-          set -e  # Exit on error for iperf/jq, but NOT for nc retries
-          
           log "starting iperf client (target: $SERVER_IP)"
           
           # Wait for server to be ready
           sleep 5
           
-          # Run iperf test and save output
+          # Run iperf test normally (shows progress in logs) and capture JSON output
           log "running iperf3 test..."
           IPERF_OUTPUT=\$(iperf3 -c $SERVER_IP -P 4 -t 30 -J 2>&1)
           IPERF_EXIT=\$?
@@ -87,54 +85,20 @@ write_files:
               exit 1
           fi
           
+          # Display summary from JSON output
           log "iperf3 test completed successfully"
-          
-          # Trim iperf output to only necessary fields and add VM identifier
-          log "processing results..."
-          JSON_OUTPUT=\$(echo "\$IPERF_OUTPUT" | jq --arg vm "vm$i" '{
-              vm: \$vm,
-              end: {
-                  sum_sent: .end.sum_sent,
-                  cpu_utilization_percent: .end.cpu_utilization_percent
-              },
-              intervals: [.intervals[] | {sum: .sum}]
-          }' 2>&1)
-          JQ_EXIT=\$?
-          
-          if [ \$JQ_EXIT -ne 0 ]; then
-              log "ERROR: jq processing failed with exit code \$JQ_EXIT"
-              log "jq output: \$JSON_OUTPUT"
-              log "original iperf output: \$IPERF_OUTPUT"
-              exit 1
+          if command -v jq >/dev/null 2>&1; then
+              SUMMARY=\$(echo "\$IPERF_OUTPUT" | jq -r '
+                  "  Throughput: " + (.end.sum_sent.bits_per_second / 1e9 | tostring) + " Gbps | " +
+                  "Bytes: " + (.end.sum_sent.bytes / 1e9 | tostring) + " GB | " +
+                  "Retransmits: " + (.end.sum_sent.retransmits | tostring) + " | " +
+                  "CPU (host): " + (.end.cpu_utilization_percent.host_total | tostring) + "% | " +
+                  "CPU (remote): " + (.end.cpu_utilization_percent.remote_total | tostring) + "%"
+              ' 2>/dev/null || echo "  (summary unavailable)")
+              log "\$SUMMARY"
           fi
           
-          set +e  # Disable exit-on-error for nc retries
-          
-          log "sending results to collector (192.168.100.1:9000)..."
-          
-          # Wait a bit for network to settle after iperf
-          sleep 2
-          
-          # Try to send with timeout and retries
-          RETRIES=3
-          SUCCESS=0
-          for attempt in \$(seq 1 \$RETRIES); do
-              log "send attempt \$attempt/\$RETRIES..."
-              if echo "\$JSON_OUTPUT" | nc -w 10 192.168.100.1 9000; then
-                  SUCCESS=1
-                  break
-              else
-                  log "attempt \$attempt failed, waiting 2s before retry..."
-                  sleep 2
-              fi
-          done
-          
-          if [ \$SUCCESS -eq 0 ]; then
-              log "ERROR: failed to send results after \$RETRIES attempts"
-              exit 1
-          fi
-          
-          log "results sent successfully!, finishing iperf client"
+          log "finished iperf client"
       fi
 
 # Fix sudoers issues
