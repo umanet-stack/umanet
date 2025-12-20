@@ -59,7 +59,6 @@ write_files:
     permissions: '0755'
     content: |
       #!/bin/bash
-      set -e
       source /etc/vm_role
       
       log() {
@@ -70,6 +69,8 @@ write_files:
           log "starting iperf server"
           exec iperf3 -s
       else
+          set -e  # Exit on error for iperf/jq, but NOT for nc retries
+          
           log "starting iperf client (target: $SERVER_IP)"
           
           # Wait for server to be ready
@@ -88,9 +89,16 @@ write_files:
           
           log "iperf3 test completed successfully"
           
-          # Add VM identifier to JSON
-          log "adding VM identifier to results..."
-          JSON_OUTPUT=\$(echo "\$IPERF_OUTPUT" | jq --arg vm "vm$i" '. + {vm: \$vm}' 2>&1)
+          # Trim iperf output to only necessary fields and add VM identifier
+          log "processing results..."
+          JSON_OUTPUT=\$(echo "\$IPERF_OUTPUT" | jq --arg vm "vm$i" '{
+              vm: \$vm,
+              end: {
+                  sum_sent: .end.sum_sent,
+                  cpu_utilization_percent: .end.cpu_utilization_percent
+              },
+              intervals: [.intervals[] | {sum: .sum}]
+          }' 2>&1)
           JQ_EXIT=\$?
           
           if [ \$JQ_EXIT -ne 0 ]; then
@@ -100,12 +108,29 @@ write_files:
               exit 1
           fi
           
-          log "sending results to collector (192.168.100.1:9000)..."
-          echo "\$JSON_OUTPUT" | nc -N 192.168.100.1 9000
-          NC_EXIT=\$?
+          set +e  # Disable exit-on-error for nc retries
           
-          if [ \$NC_EXIT -ne 0 ]; then
-              log "ERROR: nc failed with exit code \$NC_EXIT"
+          log "sending results to collector (192.168.100.1:9000)..."
+          
+          # Wait a bit for network to settle after iperf
+          sleep 2
+          
+          # Try to send with timeout and retries
+          RETRIES=3
+          SUCCESS=0
+          for attempt in \$(seq 1 \$RETRIES); do
+              log "send attempt \$attempt/\$RETRIES..."
+              if echo "\$JSON_OUTPUT" | nc -w 10 192.168.100.1 9000; then
+                  SUCCESS=1
+                  break
+              else
+                  log "attempt \$attempt failed, waiting 2s before retry..."
+                  sleep 2
+              fi
+          done
+          
+          if [ \$SUCCESS -eq 0 ]; then
+              log "ERROR: failed to send results after \$RETRIES attempts"
               exit 1
           fi
           
