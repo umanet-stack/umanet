@@ -9,7 +9,6 @@
 #include <stdint.h>
 
 #include "src/fast/internal.h"
-#include "src/fast/tap.h"
 #include "src/include/fastpath.h"
 #include "src/include/tas.h"
 #include "src/vhost/vhost.h"
@@ -166,11 +165,11 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkt
     if (unlikely(tx_q->len == MAX_PKT_BURST)) // if the queue is full
         flush_eth_tx(tx_q);                   // drain the queue (send packets to NIC)
 
-    // send to TAP (host network stack via br0)
-    if (tap_count > 0) {
-        int sent = tap_tx_burst(tap_pkts, tap_count);
-        LOG_INFO("(%d) Forwarded %d/%d packets to TAP interface\n", vdev->vid, sent, tap_count);
-    }
+    // // send to TAP (host network stack via br0)
+    // if (tap_count > 0) {
+    //     int sent = tap_tx_burst(tap_pkts, tap_count);
+    //     LOG_INFO("(%d) Forwarded %d/%d packets to TAP interface\n", vdev->vid, sent, tap_count);
+    // }
 
     // send to local VM
     if (local_count > 0) {
