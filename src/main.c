@@ -298,6 +298,7 @@ static int start_threads(void) {
     }
 
     /* check that we have enough cores */
+    // -l 2 = 1 master core (core 0) + 1 slave core (core 1)
     if (cores_avail < cores_needed) {
         LOG_ERROR("Not enough cores: got %u need %u\n", cores_avail, cores_needed);
         return -1;

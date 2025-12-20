@@ -65,9 +65,9 @@ sudo rm -f /dev/hugepages/tas_memory
 ```bash
 # c6525-25g nodes
 # debug
-sudo ./build_and_run.sh 0000:41:00.0 debug
+sudo ./build_and_run.sh 0000:41:00.0 debug 2 32
 # test
-sudo ./build_and_run.sh 0000:41:00.0
+sudo ./build_and_run.sh 0000:41:00.0 test 2 32
 
 # kill process
 sudo ps aux | grep vhost-switch | grep -v grep | awk '{print $2}' | xargs kill -9
