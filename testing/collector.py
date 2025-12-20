@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import asyncio
 import json
+import subprocess
 from pathlib import Path
 from datetime import datetime
+import sys
 
 OUTDIR = Path("testing/results")
 OUTDIR.mkdir(parents=True, exist_ok=True)
@@ -33,9 +35,6 @@ async def handle_vm(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         with RAW_LOG.open("a") as f:
             f.write(line + "\n")
 
-        with DEBUG_LOG.open("a") as f:
-            f.write(f"[{ts}] received from {addr}, vm={vm}\n")
-
     except Exception as e:
         with DEBUG_LOG.open("a") as f:
             f.write(f"[{ts}] ERROR from {addr}: {e}\n")
@@ -45,19 +44,51 @@ async def handle_vm(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         await writer.wait_closed()
 
 
+async def monitor_loop():
+    """Mimics the shell monitor output."""
+    while True:
+        try:
+            # pgrep -c cloud-hyp
+            proc = subprocess.run(
+                ["pgrep", "-c", "cloud-hyp"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+            vm_count = int(proc.stdout.strip() or 0)
+        except Exception:
+            vm_count = 0
+
+        results = len(list(OUTDIR.glob("*.json")))
+        ts = datetime.now().strftime("%H:%M:%S")
+
+        sys.stderr.write(
+            f"\r[{ts}] Running VMs: {vm_count} | Results collected: {results}   "
+        )
+        sys.stderr.flush()
+
+        await asyncio.sleep(2)
+
+
 async def main():
     server = await asyncio.start_server(
         handle_vm,
         host="0.0.0.0",
         port=9000,
-        limit=1024 * 1024,  # 1MB per connection
+        limit=2 * 1024 * 1024,  # 2MB per VM
     )
 
-    print("🔥 asyncio collector listening on port 9000")
+    print("\n🔥 asyncio collector listening on port 9000\n", file=sys.stderr)
 
     async with server:
-        await server.serve_forever()
+        await asyncio.gather(
+            server.serve_forever(),
+            monitor_loop(),
+        )
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n👋 collector stopped", file=sys.stderr)
