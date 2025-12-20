@@ -26,6 +26,7 @@ sources = files(
 	'src/fast/fastpath.c',
 	'src/fast/arp.c',
 	'src/fast/nat.c',
+	'src/fast/tap.c',
 	'src/shm.c',
 	'lib/utils/rng.c',
 	'src/utils/utils.c',

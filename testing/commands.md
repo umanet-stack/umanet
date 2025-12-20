@@ -25,6 +25,7 @@ echo off | sudo tee /sys/devices/system/cpu/smt/control
 
 # run TAP one before DPDK to make it download iperf
 ### DPDK #######
+./setup/dpdk/setup_vtap.sh
 sudo ./build_and_run.sh 0000:41:00.0 test 3 32
 ./setup/dpdk/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing
 ################

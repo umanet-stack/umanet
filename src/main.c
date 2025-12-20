@@ -16,6 +16,7 @@
 
 #include "./config/config.h"
 #include "./include/tas.h"
+#include "src/fast/tap.h"
 #include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 
@@ -149,6 +150,11 @@ int main(int argc, char *argv[]) {
         goto error_shm_cleanup;
     }
 
+    LOG_INFO("Initializing TAP interface (vtap0)...\n");
+    if (tap_init() != 0) {
+        LOG_WARN("Failed to initialize TAP interface - packets to gateway IP will be dropped\n");
+    }
+
     // Initialize NAT with public IP (128.110.219.130)
     // Gateway IP (config.ip) is for internal VMs, NAT needs public IP for internet
     // uint32_t nat_ip = (128 << 24) | (110 << 16) | (219 << 8) | 130; // 128.110.219.130
@@ -220,6 +226,9 @@ int main(int argc, char *argv[]) {
     // Wait for lcores to finish (keeps main alive)
     unsigned lcore_id;
     RTE_LCORE_FOREACH_SLAVE(lcore_id) { rte_eal_wait_lcore(lcore_id); }
+
+    LOG_INFO("Cleaning up TAP interface...\n");
+    tap_cleanup();
 
     /* clean up the EAL */
     rte_eal_cleanup();
