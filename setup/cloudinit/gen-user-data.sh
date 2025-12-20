@@ -75,12 +75,41 @@ write_files:
           # Wait for server to be ready
           sleep 5
           
-          # Run iperf test once - systemd will restart it
-          iperf3 -c $SERVER_IP -P 4 -t 30 -J \\
-          | jq --arg vm "vm$i" '. + {vm: \$vm}' \\
-          | nc -N 192.168.100.1 9000
+          # Run iperf test and save output
+          log "running iperf3 test..."
+          IPERF_OUTPUT=\$(iperf3 -c $SERVER_IP -P 4 -t 30 -J 2>&1)
+          IPERF_EXIT=\$?
           
-          log "finished iperf client"
+          if [ \$IPERF_EXIT -ne 0 ]; then
+              log "ERROR: iperf3 failed with exit code \$IPERF_EXIT"
+              log "iperf3 output: \$IPERF_OUTPUT"
+              exit 1
+          fi
+          
+          log "iperf3 test completed successfully"
+          
+          # Add VM identifier to JSON
+          log "adding VM identifier to results..."
+          JSON_OUTPUT=\$(echo "\$IPERF_OUTPUT" | jq --arg vm "vm$i" '. + {vm: \$vm}' 2>&1)
+          JQ_EXIT=\$?
+          
+          if [ \$JQ_EXIT -ne 0 ]; then
+              log "ERROR: jq processing failed with exit code \$JQ_EXIT"
+              log "jq output: \$JSON_OUTPUT"
+              log "original iperf output: \$IPERF_OUTPUT"
+              exit 1
+          fi
+          
+          log "sending results to collector (192.168.100.1:9000)..."
+          echo "\$JSON_OUTPUT" | nc -N 192.168.100.1 9000
+          NC_EXIT=\$?
+          
+          if [ \$NC_EXIT -ne 0 ]; then
+              log "ERROR: nc failed with exit code \$NC_EXIT"
+              exit 1
+          fi
+          
+          log "results sent successfully!, finishing iperf client"
       fi
 
 # Fix sudoers issues
