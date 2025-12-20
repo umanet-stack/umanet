@@ -31,8 +31,8 @@ The switch worker loop continuously:
 ./setup/setup_node.sh 0 ens1f1np1
 
 # reserve hugepages
-# 2048 × 2 MB = 4 GB mem for hugepages
-sudo sysctl -w vm.nr_hugepages=2048
+# 8192 × 2 MB = 16 GB mem for hugepages
+sudo sysctl -w vm.nr_hugepages=8192
 grep Huge /proc/meminfo
 
 # mount hugepage FS
