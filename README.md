@@ -21,7 +21,7 @@ The switch worker loop continuously:
 ```bash
 ./setup/download_img.sh
 # Cloud-init will NOT run again on these images, it only runs on first boot.
-./setup/copy_img.sh
+./setup/copy_img.sh 24 /tmp
 ./setup/cloudinit/gen-cloud-init.sh
 ./setup/init-dpdk.sh
 
