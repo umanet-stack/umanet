@@ -47,28 +47,32 @@ def load_results() -> Dict[str, dict]:
                 cpu_host = float(match.group(4))
                 cpu_remote = float(match.group(5))
                 
-                # Extract intervals from log text (format: "  [0-1s] 9.85 Gbps")
+                # Extract intervals from log text
+                # Format: "[timestamp] start-iperf.sh[pid]:   [0-1.001431s] 10.13 Gbps"
                 intervals = []
                 # Find all interval lines after "iperf3 intervals"
-                interval_lines = re.findall(r'iperf3 intervals.*?\n((?:\s+\[\d+-\d+s\]\s+[\d.]+\s+Gbps\n?)+)', log_content, re.MULTILINE)
+                # Pattern matches lines with kernel timestamp prefix: "[timestamp] start-iperf.sh[pid]:   [0-1.001431s] 10.13 Gbps"
+                # Look for lines that contain interval pattern after "iperf3 intervals"
+                interval_section = re.search(r'iperf3 intervals.*?\n((?:\[.*?\] start-iperf\.sh\[.*?\]:\s+\[[\d.]+-[\d.]+s\]\s+[\d.]+\s+Gbps\n?)+)', log_content, re.MULTILINE)
                 
-                if interval_lines:
-                    for interval_block in interval_lines:
-                        for line in interval_block.strip().split('\n'):
-                            # Parse: "  [0-1s] 9.85 Gbps"
-                            line_match = re.search(r'\[(\d+)-(\d+)s\]\s+([\d.]+)\s+Gbps', line)
-                            if line_match:
-                                start = float(line_match.group(1))
-                                end = float(line_match.group(2))
-                                throughput_gbps = float(line_match.group(3))
-                                intervals.append({
-                                    'sum': {
-                                        'start': start,
-                                        'end': end,
-                                        'bits_per_second': throughput_gbps * 1e9,
-                                        'bytes': throughput_gbps * 1e9 * (end - start) / 8  # Approximate
-                                    }
-                                })
+                if interval_section:
+                    interval_block = interval_section.group(1)
+                    for line in interval_block.strip().split('\n'):
+                        # Parse: "[timestamp] start-iperf.sh[pid]:   [0-1.001431s] 10.13 Gbps"
+                        # Extract just the interval part: "[0-1.001431s] 10.13 Gbps"
+                        line_match = re.search(r'\[([\d.]+)-([\d.]+)s\]\s+([\d.]+)\s+Gbps', line)
+                        if line_match:
+                            start = float(line_match.group(1))
+                            end = float(line_match.group(2))
+                            throughput_gbps = float(line_match.group(3))
+                            intervals.append({
+                                'sum': {
+                                    'start': start,
+                                    'end': end,
+                                    'bits_per_second': throughput_gbps * 1e9,
+                                    'bytes': throughput_gbps * 1e9 * (end - start) / 8  # Approximate
+                                }
+                            })
                 
                 results[vm_name] = {
                     'end': {
@@ -184,19 +188,30 @@ def plot_throughput_timeseries(timeseries: Dict[str, List[dict]], output_path: P
         plt.plot(times, throughputs, label=vm_name, alpha=0.7, linewidth=1)
     
     # Calculate and plot average
-    max_len = max(len(ts) for ts in timeseries.values())
-    avg_throughput = []
-    
-    for i in range(max_len):
-        values = []
-        for ts_data in timeseries.values():
-            if i < len(ts_data):
-                values.append(ts_data[i]['throughput_gbps'])
-        if values:
-            avg_throughput.append(np.mean(values))
-    
-    times = list(range(len(avg_throughput)))
-    plt.plot(times, avg_throughput, 'k-', linewidth=3, label='Average', alpha=0.9)
+    if timeseries:
+        # Use the first VM's time values as reference
+        first_vm_ts = list(timeseries.values())[0]
+        reference_times = [d['end'] for d in first_vm_ts]
+        
+        max_len = max(len(ts) for ts in timeseries.values())
+        avg_throughput = []
+        avg_times = []
+        
+        for i in range(max_len):
+            values = []
+            for ts_data in timeseries.values():
+                if i < len(ts_data):
+                    values.append(ts_data[i]['throughput_gbps'])
+            if values:
+                avg_throughput.append(np.mean(values))
+                # Use time from first VM (or average if multiple VMs have different times)
+                if i < len(reference_times):
+                    avg_times.append(reference_times[i])
+                else:
+                    avg_times.append(i)  # Fallback to index
+        
+        if avg_times and avg_throughput:
+            plt.plot(avg_times, avg_throughput, 'k-', linewidth=3, label='Average', alpha=0.9)
     
     plt.xlabel('Time (seconds)', fontsize=12)
     plt.ylabel('Throughput (Gbps)', fontsize=12)
