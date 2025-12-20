@@ -14,16 +14,19 @@
 # xl170
 ./setup/setup_node.sh 0 ens1f1np1
 
-./setup/tap/setup_br_tap.sh 0
-
 ./testing/collector.sh
 
 # disable SMT (2 threads/core => 1 thread/core)
 echo off | sudo tee /sys/devices/system/cpu/smt/control
 
-# start vmsd
+### TAP ########
+./setup/tap/setup_br_tap.sh 0
 ./setup/tap/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing
-# ./setup/tap/spawn_vms.sh 24 /tmp
+
+### DPDK #######
+sudo ./build_and_run.sh 0000:41:00.0
+./setup/dpdk/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing
+################
 
 # process results
 sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | tail -15
