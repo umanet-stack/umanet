@@ -30,13 +30,13 @@ spawn_vm() {
         -p CPUQuota=80% \
     cloud-hypervisor \
         --cpus boot=1 \
-        --memory size=512M \
+        --memory size=512M,hugepages=on,shared=true \
         --kernel "$VMLINUX_DIR/vm$i-kernel.bin" \
         --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
         --disk \
             path="$IMG_DIR/vm$i-img.raw" \
             path="$CLOUDINIT_DIR/cloudinit-vm$i.img" \
-        --net "tap=tap$i,mac=12:34:56:78:90:$(printf '%02X' $i)" \
+        --net "mac=12:34:56:78:90:$(printf '%02X' $i),vhost_user=true,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=2048" \
         > "$logfile" 2>&1 &
     
     echo "  VM$i -> $logfile"
