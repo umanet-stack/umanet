@@ -14,7 +14,7 @@
 # xl170
 ./setup/setup_node.sh 0 ens1f1np1
 
-./testing/collector.sh
+python ./testing/collector.py
 
 # disable SMT (2 threads/core => 1 thread/core)
 echo off | sudo tee /sys/devices/system/cpu/smt/control
