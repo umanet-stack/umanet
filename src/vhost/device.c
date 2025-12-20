@@ -258,6 +258,15 @@ int register_vhost_drivers() {
     if (config.dequeue_zero_copy)
         flags |= RTE_VHOST_USER_DEQUEUE_ZERO_COPY;
 
+    config.socket_files = malloc(PATH_MAX * config.nb_sockets);
+    if (config.socket_files == NULL) {
+        LOG_ERROR("failed to allocate memory for socket files.\n");
+        return -1;
+    }
+    for (int i = 0; i < config.nb_sockets; i++) {
+        snprintf(config.socket_files + i * PATH_MAX, PATH_MAX, "%s/sock%d", config.socket_dir, i);
+    }
+
     /* Register vhost user driver to handle vhost messages. */
     for (int i = 0; i < config.nb_sockets; i++) {
         char *file = config.socket_files + i * PATH_MAX;

@@ -8,13 +8,14 @@
 #include <rte_ethdev.h>
 #include <rte_log.h>
 #include <rte_memory.h>
+#include <unistd.h>
 
 #define BURST_RX_WAIT_US 15 /* Defines how long we wait between retries on RX */
 #define BURST_RX_RETRIES 4  /* Number of retries on RX. */
 
 static inline int parse_int8(const char *s, uint8_t *pi);
 static inline int parse_int32(const char *s, uint32_t *pi);
-static int parse_socket_path(config_t *c, const char *q_arg);
+static int parse_socket_dir(config_t *c, const char *q_arg);
 static inline int parse_cidr(char *s, uint32_t *ip, uint8_t *prefix);
 
 void init_config(config_t *c) {
@@ -28,6 +29,7 @@ void init_config(config_t *c) {
     c->enable_tso = 0;
     c->burst_rx_delay_time = BURST_RX_WAIT_US;
     c->burst_rx_retry_num = BURST_RX_RETRIES;
+    c->socket_dir = NULL;
     c->socket_files = NULL;
     c->nb_sockets = 0;
     c->ip = 0;
@@ -52,7 +54,8 @@ enum cfg_params {
     CP_RX_RETRY_NUM,
     CP_MERGEABLE,
     CP_STATS,
-    CP_SOCKET_FILE,
+    CP_SOCKET_DIR,
+    CP_NB_SOCKETS,
     CP_TX_CSUM,
     CP_TSO,
     CP_CLIENT,
@@ -93,9 +96,14 @@ static struct option options[] = {
         .val = CP_STATS,
     },
     {
-        "socket-file",
+        "socket-dir",
         required_argument,
-        .val = CP_SOCKET_FILE,
+        .val = CP_SOCKET_DIR,
+    },
+    {
+        "nb-sockets",
+        required_argument,
+        .val = CP_NB_SOCKETS,
     },
     {
         "tx-csum",
@@ -196,9 +204,15 @@ int parse_config(config_t *c, int argc, char **argv) {
                 goto failed;
             }
             break;
-        case CP_SOCKET_FILE:
-            if (parse_socket_path(c, optarg) == -1) {
-                fprintf(stderr, "Invalid argument for socket name (Max %d characters)\n", PATH_MAX);
+        case CP_SOCKET_DIR:
+            if (parse_socket_dir(c, optarg) == -1) {
+                fprintf(stderr, "Invalid argument for socket directory (Max %d characters)\n", PATH_MAX);
+                goto failed;
+            }
+            break;
+        case CP_NB_SOCKETS:
+            if (parse_int32(optarg, &c->nb_sockets) != 0) {
+                fprintf(stderr, "Invalid argument for nb-sockets [0-N]\n");
                 goto failed;
             }
             break;
@@ -252,24 +266,30 @@ static inline int parse_int8(const char *s, uint8_t *pi) {
     return 0;
 }
 
-static int parse_socket_path(config_t *c, const char *q_arg) // path e.g. /tmp/vhost-user.sock
+static int parse_socket_dir(config_t *c, const char *q_arg) // path e.g. /mnt/huge
 {
-    char *old;
+    // char *old;
+    if (access(q_arg, F_OK) == -1) {
+        fprintf(stderr, "Invalid argument for socket directory (Directory does not exist)\n");
+        return -1;
+    }
 
     /* parse number string */
     if (strnlen(q_arg, PATH_MAX) == PATH_MAX) // check if path is too long
         return -1;
 
-    old = c->socket_files;
-    // Reallocates socket_files to fit one more socket path
-    c->socket_files = realloc(c->socket_files, PATH_MAX * (c->nb_sockets + 1));
-    if (c->socket_files == NULL) { // check if realloc failed
-        free(old);
-        return -1;
-    }
+    c->socket_dir = strdup(q_arg);
 
-    strlcpy(c->socket_files + c->nb_sockets * PATH_MAX, q_arg, PATH_MAX); // copies path to socket_files' new slot
-    c->nb_sockets++;
+    // old = c->socket_dir;
+    // // Reallocates socket_files to fit one more socket path
+    // c->socket_dir = realloc(c->socket_dir, PATH_MAX * (c->nb_sockets + 1));
+    // if (c->socket_dir == NULL) { // check if realloc failed
+    //     free(old);
+    //     return -1;
+    // }
+
+    // strlcpy(c->socket_dir + c->nb_sockets * PATH_MAX, q_arg, PATH_MAX); // copies path to socket_dir' new slot
+    // c->nb_sockets++;
 
     return 0;
 }
