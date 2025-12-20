@@ -1,13 +1,15 @@
 #! /bin/bash
 
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 <num_vms>"
+if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 <num_vms> <dest_dir>"
     echo "  num_vms: number of VMs to copy"
+    echo "  dest_dir: destination directory"
     exit 1
 fi
 
 NUM_VMS=$1
-DEST_DIR=/proj/faasnetworkstack-PG0/testing
+# e.g. /proj/faasnetworkstack-PG0/testing
+DEST_DIR=$2
 
 sudo rm -rf $DEST_DIR/kernels/* $DEST_DIR/images/*
 sudo mkdir -p $DEST_DIR/kernels $DEST_DIR/images

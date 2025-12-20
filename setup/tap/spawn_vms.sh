@@ -2,16 +2,18 @@
 set -e
 
 
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 <num_vms>"
+if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 <num_vms> <res_dir>"
     echo "  num_vms: number of VMs to spawn"
+    echo "  res_dir: directory containing resources"
     exit 1
 fi
 
 NUM_VMS=$1
-
-VMLINUX_DIR=/proj/faasnetworkstack-PG0/testing/kernels
-IMG_DIR=/proj/faasnetworkstack-PG0/testing/images
+# e.g. /proj/faasnetworkstack-PG0/testing
+RES_DIR=$2
+VMLINUX_DIR=$RES_DIR/kernels
+IMG_DIR=$RES_DIR/images
 CLOUDINIT_DIR=/tmp/cloudinit
 LOG_DIR="$(dirname "$0")/../../testing/logs"
 
