@@ -5,7 +5,7 @@
 # if you modify anything in cloud-init, you need to run copy_img and gen-cloud-init again.
 # copies 1 img/kernel per vm to /proj/{your_cloudlab_project}/testing
 ./setup/copy_img.sh 24 /proj/faasnetworkstack-PG0/testing
-./setup/copy_img.sh 24 /tmp
+# ./setup/copy_img.sh 24 /tmp
 
 ./setup/cloudinit/gen-cloud-init.sh
 
@@ -17,9 +17,13 @@
 ./setup/tap/setup_br_tap.sh 0
 
 ./testing/collector.sh
-# start vms
+
+# disable SMT (2 threads/core => 1 thread/core)
+echo off | sudo tee /sys/devices/system/cpu/smt/control
+
+# start vmsd
 ./setup/tap/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing
-./setup/tap/spawn_vms.sh 24 /tmp
+# ./setup/tap/spawn_vms.sh 24 /tmp
 
 # process results
 sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | tail -15

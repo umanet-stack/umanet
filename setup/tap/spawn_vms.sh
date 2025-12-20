@@ -25,7 +25,10 @@ spawn_vm() {
     local i=$1
     local logfile="$LOG_DIR/vm$i.log"
 
-    sudo cloud-hypervisor \
+    sudo systemd-run --scope \
+        -p AllowedCPUs=4-15 \
+        -p CPUQuota=80% \
+    cloud-hypervisor \
         --cpus boot=1 \
         --memory size=512M \
         --kernel "$VMLINUX_DIR/vm$i-kernel.bin" \
