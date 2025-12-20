@@ -30,4 +30,4 @@ sudo ./build/vhost-switch \
   -l 2-4 -n 4 \
   --file-prefix=vhost \
   -w $PCI_ADDR \
-  -- --fp-cores-max 2 --ip-addr 10.10.1.1/24 --socket-dir /mnt/huge --nb-sockets 32 --stats 1
+  -- --fp-cores-max 2 --ip-addr 192.168.100.1/24 --socket-dir /mnt/huge --nb-sockets 32 --stats 1

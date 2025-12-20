@@ -109,19 +109,19 @@ sudo ip route add default via 10.10.1.1
 sudo cloud-hypervisor \
   --cpus boot=1 \
   --memory size=512M,hugepages=on,shared=true \
-  --kernel /tmp/vm0-kernel.bin \
+  --kernel /proj/faasnetworkstack-PG0/testing/kernels/vm0-kernel.bin \
   --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
-  --disk path=/tmp/vm0-img.raw path=/tmp/cloudinit-vm0-dpdk.img \
-  --net mac=52:54:00:02:d9:01,vhost_user=true,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=2048
+  --disk path=/proj/faasnetworkstack-PG0/testing/images/vm0-img.raw path=/tmp/cloudinit/cloudinit-vm0.img \
+  --net mac=12:34:56:78:90:00,vhost_user=true,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=2048
 
-# vm1 - NOTE: Uses sock1 (different from vm0)
+# vm1
 sudo cloud-hypervisor \
   --cpus boot=1 \
   --memory size=512M,hugepages=on,shared=true \
-  --kernel /tmp/vm1-kernel.bin \
+  --kernel /proj/faasnetworkstack-PG0/testing/kernels/vm1-kernel.bin \
   --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
-  --disk path=/tmp/vm1-img.raw path=/tmp/cloudinit-vm1-dpdk.img \
-  --net mac=52:54:20:11:C5:02,vhost_user=true,socket=/mnt/huge/sock1,num_queues=2,vhost_mode=client,queue_size=2048
+  --disk path=/proj/faasnetworkstack-PG0/testing/images/vm1-img.raw path=/tmp/cloudinit/cloudinit-vm1.img \
+  --net mac=12:34:56:78:90:01,vhost_user=true,socket=/mnt/huge/sock1,num_queues=2,vhost_mode=client,queue_size=2048
 
 ps aux | grep cloud-hypervisor | grep -v grep | awk '{print $2}' | xargs kill -9
 ```

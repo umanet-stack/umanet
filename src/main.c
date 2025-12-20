@@ -16,7 +16,6 @@
 
 #include "./config/config.h"
 #include "./include/tas.h"
-#include "src/fast/nat.h"
 #include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 
@@ -152,14 +151,14 @@ int main(int argc, char *argv[]) {
 
     // Initialize NAT with public IP (128.110.219.130)
     // Gateway IP (config.ip) is for internal VMs, NAT needs public IP for internet
-    uint32_t nat_ip = (128 << 24) | (110 << 16) | (219 << 8) | 130; // 128.110.219.130
-    LOG_INFO("Initializing NAT with public IP %u.%u.%u.%u...\n", (nat_ip >> 24) & 0xff, (nat_ip >> 16) & 0xff,
-             (nat_ip >> 8) & 0xff, nat_ip & 0xff);
-    if (nat_init(nat_ip) != 0) {
-        res = EXIT_FAILURE;
-        LOG_ERROR("NAT init failed\n");
-        goto error_network_cleanup;
-    }
+    // uint32_t nat_ip = (128 << 24) | (110 << 16) | (219 << 8) | 130; // 128.110.219.130
+    // LOG_INFO("Initializing NAT with public IP %u.%u.%u.%u...\n", (nat_ip >> 24) & 0xff, (nat_ip >> 16) & 0xff,
+    //          (nat_ip >> 8) & 0xff, nat_ip & 0xff);
+    // if (nat_init(nat_ip) != 0) {
+    //     res = EXIT_FAILURE;
+    //     LOG_ERROR("NAT init failed\n");
+    //     goto error_network_cleanup;
+    // }
 
     LOG_INFO("Checking dataplane config...\n");
     if (dataplane_init() != 0) {
