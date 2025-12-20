@@ -36,7 +36,8 @@ sudo sysctl -w vm.nr_hugepages=2048
 grep Huge /proc/meminfo
 
 # mount hugepage FS
-sudo mount -t hugetlbfs nodev /dev/hugepages
+sudo mkdir -p /mnt/huge
+sudo mount -t hugetlbfs nodev /mnt/huge
 
 # check mounts
 mount | grep huge
