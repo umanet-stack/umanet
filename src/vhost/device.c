@@ -268,12 +268,14 @@ int register_vhost_drivers() {
     }
 
     /* Register vhost user driver to handle vhost messages. */
+    int registered_count = 0;
     for (int i = 0; i < config.nb_sockets; i++) {
         char *file = config.socket_files + i * PATH_MAX;
         LOG_INFO("Registering vhost driver for %s...\n", file);
         if (rte_vhost_driver_register(file, flags) != 0) {
-            unregister_vhost_drivers(i, config.socket_files);
-            return -1;
+            LOG_ERROR("Failed to register vhost driver for %s (socket %d/%d)\n", file, i, config.nb_sockets);
+            // Continue with other sockets instead of failing completely
+            continue;
         }
 
         if (config.mergeable == 0) {
@@ -292,18 +294,34 @@ int register_vhost_drivers() {
         }
 
         if (rte_vhost_driver_callback_register(file, &virtio_net_device_ops) != 0) {
-            LOG_ERROR("failed to register vhost driver callbacks.\n");
-            return -1;
+            LOG_ERROR("Failed to register vhost driver callbacks for %s (socket %d/%d)\n", file, i, config.nb_sockets);
+            rte_vhost_driver_unregister(file);
+            continue;
         }
 
         if (rte_vhost_driver_start(file) < 0) {
-            LOG_ERROR("failed to start vhost driver.\n");
-            return -1;
+            LOG_ERROR("Failed to start vhost driver for %s (socket %d/%d)\n", file, i, config.nb_sockets);
+            rte_vhost_driver_unregister(file);
+            continue;
         }
-        // testing only
-        rte_eth_promiscuous_enable(net_port_id);
-        LOG_INFO("Promiscuous mode enabled for port %d\n", net_port_id);
+
+        registered_count++;
+        LOG_INFO("Successfully registered and started vhost driver for %s (%d/%d)\n", file, registered_count,
+                 config.nb_sockets);
     }
+
+    if (registered_count == 0) {
+        LOG_ERROR("ERROR: Failed to register any vhost drivers!\n");
+        return -1;
+    }
+
+    if (registered_count < config.nb_sockets) {
+        LOG_WARN("WARNING: Only registered %d out of %d vhost drivers\n", registered_count, config.nb_sockets);
+    }
+
+    // testing only - only need to enable promiscuous mode once
+    rte_eth_promiscuous_enable(net_port_id);
+    LOG_INFO("Promiscuous mode enabled for port %d\n", net_port_id);
 
     LOG_INFO("Vhost drivers started, waiting for connections...\n");
     return 0;
