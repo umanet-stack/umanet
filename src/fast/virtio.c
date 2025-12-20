@@ -195,7 +195,7 @@ static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vho
     PRINT_PKTS(pkts, count, LOG_VM_OUT);
 
     if (unlikely(ret == 0)) {
-        LOG_WARN("Failed to enqueue packet to vid=%d\n", dst_vdev->vid);
+        LOG_WARN("(%d) Failed to enqueue %d packets to vid=%d\n", src_vdev->vid, count, dst_vdev->vid);
         return;
     }
 
