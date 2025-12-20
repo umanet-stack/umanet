@@ -12,7 +12,7 @@ pushd linux-cloud-hypervisor
 make ch_defconfig
 KCFLAGS="-Wa,-mx86-used-note=no" make bzImage -j `nproc`
 popd
-mv ~/linux-cloud-hypervisor/arch/x86/boot/compressed/vmlinux.bin /tmp/vmlinux.bin
+cp ~/linux-cloud-hypervisor/arch/x86/boot/compressed/vmlinux.bin /tmp/vmlinux.bin
 
 # image
 cd ~
