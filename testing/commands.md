@@ -23,6 +23,7 @@ echo off | sudo tee /sys/devices/system/cpu/smt/control
 ./setup/tap/setup_br_tap.sh 0
 ./setup/tap/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing
 
+# run TAP one before DPDK to make it download iperf
 ### DPDK #######
 sudo ./build_and_run.sh 0000:41:00.0 test 3 32
 ./setup/dpdk/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing
