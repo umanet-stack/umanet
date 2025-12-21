@@ -93,7 +93,7 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkt
             continue;
         }
 
-        if (memcmp(&eth_hdr->d_addr, &config.mac, sizeof(struct rte_ether_addr)) == 0) {
+        if (rte_is_same_ether_addr(&eth_hdr->d_addr, &config.mac)) {
             // Check if destination IP is gateway IP (for collector on host)
             if (likely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))) {
                 struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
