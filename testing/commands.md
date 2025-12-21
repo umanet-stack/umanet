@@ -27,9 +27,11 @@ echo off | sudo tee /sys/devices/system/cpu/smt/control
 # run TAP one before DPDK to make it download iperf
 ### DPDK #######
 # SUPER IMPORTANT: no. of vhost must match no. of VMs!
-sudo ./build_and_run.sh 0000:41:00.0 test 3 32
-sudo ./build_and_run.sh 0000:41:00.0 test 3 16
+sudo ./build_and_run.sh 0000:41:00.0 test 3 24
 ./setup/dpdk/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing
+
+sudo ./build_and_run.sh 0000:41:00.0 test 3 16
+./setup/dpdk/spawn_vms.sh 16 /proj/faasnetworkstack-PG0/testing
 ################
 
 # process results
@@ -76,6 +78,8 @@ iperf3 -c 192.168.100.2 -P 4 -t 10 -J \
 # Poll cores → ~100% usr
 # High %softirq → kernel networking leaking in
 # High %steal → oversubscribed host / VM
+# only add dpdk cores when VM vCPU < 70%
+# enqueue fails = vms can't clear rx rings fast enough
 mpstat -P ALL 1
 
 # memory usage
@@ -111,7 +115,7 @@ top
 top -H
 
 # allow perf to profile all processes
-sudo sysctl -w kernel.perf_event_paranoid=1
+sudo sysctl -w kernel.perf_event_paranoid=0
 # which functions burn cpu most
 perf top
 # hot functions per thread

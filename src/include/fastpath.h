@@ -87,9 +87,13 @@ struct vhost_dev { // vhost device
     uint16_t nr_vrings;           // Number of virtio rings
     struct rte_vhost_memory *mem; // Guest memory mapping
     struct device_statistics stats;
+
+    // Rate-limited logging for failed enqueue attempts
+    uint64_t last_failed_log_ts; // TSC timestamp of last log
+    uint64_t failed_pkts_count;  // Cumulative failed packets since last log
 } __rte_cache_aligned;
 
-#define MAX_PKT_BURST 32              /* Max packets processed per burst (RX/TX) */
+#define MAX_PKT_BURST 8               /* Max packets processed per burst (RX/TX) */
 #define MAX_VHOST_DEVICES_PER_CORE 64 /* Max vhost devices per dataplane core */
 
 /* Used for queueing bursts of TX packets. */

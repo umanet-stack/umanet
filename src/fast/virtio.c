@@ -195,7 +195,26 @@ static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vho
     PRINT_PKTS(pkts, count, LOG_VM_OUT);
 
     if (unlikely(ret == 0)) {
-        LOG_WARN("(%d) Failed to enqueue %d packets to vid=%d\n", src_vdev->vid, count, dst_vdev->vid);
+        // Rate-limited logging: log once per second with cumulative count
+        uint64_t now = rte_get_tsc_cycles();
+        uint64_t log_interval_tsc = rte_get_tsc_hz(); // 1 second in TSC cycles
+
+        // Initialize on first failure
+        if (unlikely(dst_vdev->last_failed_log_ts == 0)) {
+            dst_vdev->last_failed_log_ts = now;
+            dst_vdev->failed_pkts_count = 0;
+        }
+
+        // Accumulate failed packets
+        dst_vdev->failed_pkts_count += count;
+
+        // Log once per second
+        if (unlikely(now - dst_vdev->last_failed_log_ts >= log_interval_tsc)) {
+            LOG_WARN("(%d) Failed to enqueue %lu cumulative packets to vid=%d (over last second)\n", src_vdev->vid,
+                     dst_vdev->failed_pkts_count, dst_vdev->vid);
+            dst_vdev->last_failed_log_ts = now;
+            dst_vdev->failed_pkts_count = 0;
+        }
         return;
     }
 
