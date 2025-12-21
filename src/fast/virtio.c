@@ -197,7 +197,7 @@ static inline void virtio_tx_route(struct dataplane_context *ctx, struct vhost_d
 static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev,
                                           struct rte_mbuf **pkts, uint16_t count) {
     uint16_t ret;
-    struct dataplane_context *ctx = ctxs[dst_vdev->coreid];
+    struct dataplane_context *ctx = ctxs[src_vdev->coreid];
 
     if (unlikely(check_device_state(dst_vdev, "virtio_tx") != 0)) {
         free_pkts(pkts, count);
@@ -227,8 +227,9 @@ static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vho
 
         // Log once per second
         if (unlikely(now - dst_vdev->last_failed_log_ts >= log_interval_tsc)) {
-            LOG_WARN("(%d:%d) Failed to enqueue %lu cumulative packets to vid=%d:%d (over last second)\n", src_vdev->vid, src_vdev->mac_address.addr_bytes[5],
-                     dst_vdev->failed_pkts_count, dst_vdev->vid, dst_vdev->mac_address.addr_bytes[5]);
+            LOG_WARN("(%d:%d) Failed to enqueue %lu cumulative packets to vid=%d:%d (over last second)\n",
+                     src_vdev->vid, src_vdev->mac_address.addr_bytes[5], dst_vdev->failed_pkts_count, dst_vdev->vid,
+                     dst_vdev->mac_address.addr_bytes[5]);
             dst_vdev->last_failed_log_ts = now;
             dst_vdev->failed_pkts_count = 0;
         }
