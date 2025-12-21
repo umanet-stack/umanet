@@ -4,7 +4,9 @@
 # Cloud-init will NOT run again on these images, it only runs on first boot.
 # if you modify anything in cloud-init, you need to run copy_img and gen-cloud-init again.
 # copies 1 img/kernel per vm to /proj/{your_cloudlab_project}/testing
-./setup/copy_img.sh
+./setup/copy_img.sh 24 /proj/faasnetworkstack-PG0/testing
+# ./setup/copy_img.sh 24 /tmp
+
 ./setup/cloudinit/gen-cloud-init.sh
 
 # c6525-25g
@@ -12,11 +14,20 @@
 # xl170
 ./setup/setup_node.sh 0 ens1f1np1
 
-./setup/tap/setup_br_tap.sh 0
+python ./testing/collector.py
 
-./testing/collector.sh
-# start vms
-./setup/tap/spawn_vms.sh
+# disable SMT (2 threads/core => 1 thread/core)
+echo off | sudo tee /sys/devices/system/cpu/smt/control
+
+### TAP ########
+./setup/tap/setup_br_tap.sh 0
+./setup/tap/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing
+
+# run TAP one before DPDK to make it download iperf
+### DPDK #######
+sudo ./build_and_run.sh 0000:41:00.0 test 3 32
+./setup/dpdk/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing
+################
 
 # process results
 sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | tail -15
@@ -62,6 +73,13 @@ iperf3 -c 192.168.100.2 -P 4 -t 10 -J \
 mpstat -P ALL 1
 # memory usage
 free -h
+# check space
+df -h
 
 systemctl status iperf
+sudo tcpdump -i br0
+echo '{"vm":"vm12","throughput":12345}' | nc 192.168.100.1 9000
+
+lsof -i :9000
+kill -9 12345
 ```

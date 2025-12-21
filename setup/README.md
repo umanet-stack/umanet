@@ -5,9 +5,6 @@ openssl passwd -6
 ```
 ## Testing img
 ```bash
-# check space
-df -h
-
 cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm0-img.raw
 sudo cloud-hypervisor \
 	--cpus boot=1 \

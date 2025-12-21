@@ -69,9 +69,11 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkt
     struct rte_mbuf *broadcast_pkts[MAX_PKT_BURST];
     struct rte_mbuf *external_pkts[MAX_PKT_BURST];
     struct rte_mbuf *local_pkts[MAX_PKT_BURST];
+    struct rte_mbuf *tap_pkts[MAX_PKT_BURST];
     uint16_t broadcast_count = 0;
     uint16_t external_count = 0;
     uint16_t local_count = 0;
+    uint16_t tap_count = 0;
 
     for (int i = 0; i < count; i++) {
         struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
@@ -92,6 +94,18 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkt
         }
 
         if (memcmp(&eth_hdr->d_addr, &config.mac, sizeof(struct rte_ether_addr)) == 0) {
+            // Check if destination IP is gateway IP (for collector on host)
+            if (likely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))) {
+                struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
+                uint32_t dst_ip = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
+                if (unlikely(dst_ip == config.ip)) {
+                    // Packet destined for gateway IP - forward to TAP (host network stack via br0)
+                    LOG_INFO("(%d) TX: Packet destined for gateway IP %u.%u.%u.%u -> forwarding to TAP\n", vdev->vid,
+                             (dst_ip >> 24) & 0xff, (dst_ip >> 16) & 0xff, (dst_ip >> 8) & 0xff, dst_ip & 0xff);
+                    tap_pkts[tap_count++] = pkts[i];
+                    continue;
+                }
+            }
             LOG_INFO("(%d) TX: MAC address is external\n", vdev->vid);
             external_pkts[external_count++] = pkts[i];
             continue;
@@ -151,6 +165,12 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkt
     if (unlikely(tx_q->len == MAX_PKT_BURST)) // if the queue is full
         flush_eth_tx(tx_q);                   // drain the queue (send packets to NIC)
 
+    // // send to TAP (host network stack via br0)
+    // if (tap_count > 0) {
+    //     int sent = tap_tx_burst(tap_pkts, tap_count);
+    //     LOG_INFO("(%d) Forwarded %d/%d packets to TAP interface\n", vdev->vid, sent, tap_count);
+    // }
+
     // send to local VM
     if (local_count > 0) {
         virtio_tx_local(vdev, local_pkts, local_count);
@@ -174,7 +194,7 @@ static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vho
     PRINT_PKTS(pkts, count, LOG_VM_OUT);
 
     if (unlikely(ret == 0)) {
-        LOG_WARN("Failed to enqueue packet to vid=%d\n", dst_vdev->vid);
+        LOG_WARN("(%d) Failed to enqueue %d packets to vid=%d\n", src_vdev->vid, count, dst_vdev->vid);
         return;
     }
 

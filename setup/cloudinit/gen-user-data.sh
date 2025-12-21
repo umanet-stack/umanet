@@ -59,7 +59,6 @@ write_files:
     permissions: '0755'
     content: |
       #!/bin/bash
-      set -e
       source /etc/vm_role
       
       log() {
@@ -75,10 +74,33 @@ write_files:
           # Wait for server to be ready
           sleep 5
           
-          # Run iperf test once - systemd will restart it
-          iperf3 -c $SERVER_IP -P 4 -t 30 -J \\
-          | jq --arg vm "vm$i" '. + {vm: \$vm}' \\
-          | nc -N 192.168.100.1 9000
+          # Run iperf test normally (shows progress in logs) and capture JSON output
+          log "running iperf3 test..."
+          IPERF_OUTPUT=\$(iperf3 -c $SERVER_IP -P 4 -t 30 -J 2>&1)
+          IPERF_EXIT=\$?
+          
+          if [ \$IPERF_EXIT -ne 0 ]; then
+              log "ERROR: iperf3 failed with exit code \$IPERF_EXIT"
+              log "iperf3 output: \$IPERF_OUTPUT"
+              exit 1
+          fi
+          
+          # Display summary from JSON output
+          log "iperf3 test completed successfully"
+          if command -v jq >/dev/null 2>&1; then
+              SUMMARY=\$(echo "\$IPERF_OUTPUT" | jq -r '
+                  "  Throughput: " + (.end.sum_sent.bits_per_second / 1e9 | tostring) + " Gbps | " +
+                  "Bytes: " + (.end.sum_sent.bytes / 1e9 | tostring) + " GB | " +
+                  "Retransmits: " + (.end.sum_sent.retransmits | tostring) + " | " +
+                  "CPU (host): " + (.end.cpu_utilization_percent.host_total | tostring) + "% | " +
+                  "CPU (remote): " + (.end.cpu_utilization_percent.remote_total | tostring) + "%"
+              ' 2>/dev/null || echo "  (summary unavailable)")
+              log "\$SUMMARY"
+              
+              # Log throughput per second for timeseries graph
+              log "iperf3 intervals (throughput per second):"
+              echo "\$IPERF_OUTPUT" | jq -r '.intervals[] | "  [" + (.sum.start | tostring) + "-" + (.sum.end | tostring) + "s] " + (.sum.bits_per_second / 1e9 | tostring) + " Gbps"' 2>/dev/null || true
+          fi
           
           log "finished iperf client"
       fi

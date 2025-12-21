@@ -5,3 +5,4 @@ user-datas
 testing/results
 logs
 reports*
+__pycache__

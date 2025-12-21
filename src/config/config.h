@@ -24,9 +24,11 @@ typedef struct {
     uint32_t burst_rx_delay_time;
     /* Specify the number of retries on RX. */
     uint32_t burst_rx_retry_num;
-    /* Socket file paths. Can be set by user */
+    // directory to store socket files
+    char *socket_dir;
+    /* Socket file paths e.g. {socket_dir}/sock0, {socket_dir}/sock1, ... */
     char *socket_files;
-    int nb_sockets;
+    uint32_t nb_sockets;
     /** IP address for this host */
     uint32_t ip;
     /** IP prefix length for this host */
