@@ -227,8 +227,8 @@ static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vho
 
         // Log once per second
         if (unlikely(now - dst_vdev->last_failed_log_ts >= log_interval_tsc)) {
-            LOG_WARN("(%d) Failed to enqueue %lu cumulative packets to vid=%d (over last second)\n", src_vdev->vid,
-                     dst_vdev->failed_pkts_count, dst_vdev->vid);
+            LOG_WARN("(%d:%d) Failed to enqueue %lu cumulative packets to vid=%d:%d (over last second)\n", src_vdev->vid, src_vdev->mac_address.addr_bytes[5],
+                     dst_vdev->failed_pkts_count, dst_vdev->vid, dst_vdev->mac_address.addr_bytes[5]);
             dst_vdev->last_failed_log_ts = now;
             dst_vdev->failed_pkts_count = 0;
         }
