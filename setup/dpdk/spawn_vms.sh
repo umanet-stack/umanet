@@ -26,7 +26,7 @@ spawn_vm() {
     local logfile="$LOG_DIR/vm$i.log"
 
     sudo systemd-run --scope \
-        -p AllowedCPUs=7-15 \
+        -p AllowedCPUs=5-15 \
         -p CPUQuota=80% \
     cloud-hypervisor \
         --cpus boot=1 \

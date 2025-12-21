@@ -29,7 +29,7 @@ ninja -C build
 # 
 # Note: For Mellanox NICs, binding is not required (bifurcated driver model).
 # However, use -w (whitelist) or -b (blacklist) to avoid DPDK using your SSH NIC:
-FIRST_CORE=4
+FIRST_CORE=0
 LAST_CORE=$((FIRST_CORE + FP_CORES_MAX))
 echo "✅ Running DPDK on cores $FIRST_CORE-$LAST_CORE, num_vms: $NUM_VMS"
 sudo ./build/vhost-switch \
