@@ -17,9 +17,9 @@ NUM_VMS="$4"
 # The executable will be at `build/vhost-switch`.
 rm -rf build
 if [ "$BUILD_MODE" = "debug" ]; then
-  meson setup build -Dc_args="-DDEBUG"
+  meson setup build -Dc_args="-DDEBUG -DDATAPLANE_STATS" 
 else
-  meson setup build
+  meson setup build -Dc_args="-DDATAPLANE_STATS"
 fi
 
 ninja -C build

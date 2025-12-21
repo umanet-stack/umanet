@@ -39,56 +39,9 @@ static int start_threads(void);
 static void thread_error(void);
 static int common_thread(void *arg);
 
-static void *print_stats(__rte_unused void *arg) {
-    struct vhost_dev *vdev;
-    uint64_t tx_dropped, rx_dropped;
-    uint64_t tx, tx_total, rx, rx_total;
-    const char clr[] = {27, '[', '2', 'J', '\0'};
-    const char top_left[] = {27, '[', '1', ';', '1', 'H', '\0'};
-
-    while (1) {
-        sleep(1);
-
-        /* Clear screen and move to top left */
-        printf("%s%s\n", clr, top_left);
-        printf("Device statistics =================================\n");
-
-        for (int i = 0; i < fp_cores_max; i++) {
-            struct dataplane_context *ctx = ctxs[i];
-            for (int j = 0; j < ctx->vhost.device_num; j++) {
-                vdev = ctx->vhost.vdev_list[j];
-                if (vdev == NULL)
-                    continue;
-                tx_total = vdev->stats.tx_total;
-                tx = vdev->stats.tx;
-                tx_dropped = tx_total - tx;
-
-                rx_total = rte_atomic64_read(&vdev->stats.rx_total_atomic);
-                rx = rte_atomic64_read(&vdev->stats.rx_atomic);
-                rx_dropped = rx_total - rx;
-
-                printf("Statistics for device %d\n"
-                       "-----------------------\n"
-                       "TX total:              %" PRIu64 "\n"
-                       "TX dropped:            %" PRIu64 "\n"
-                       "TX successful:         %" PRIu64 "\n"
-                       "RX total:              %" PRIu64 "\n"
-                       "RX dropped:            %" PRIu64 "\n"
-                       "RX successful:         %" PRIu64 "\n",
-                       vdev->vid, tx_total, tx_dropped, tx, rx_total, rx_dropped, rx);
-            }
-        }
-
-        printf("===================================================\n");
-
-        fflush(stdout);
-    }
-
-    return NULL;
-}
-
 static void sigint_handler(__rte_unused int signum) {
     unregister_vhost_drivers(config.nb_sockets, config.socket_files);
+    dataplane_dump_stats();
     exit(0);
 }
 
@@ -176,12 +129,6 @@ int main(int argc, char *argv[]) {
     // Sets flag in shared memory indicating TAS is ready, app waiting to connect can now proceed
     LOG_INFO("Marking shm ready...\n");
     shm_set_ready();
-
-    /* Enable stats if the user option is set. */
-    // static pthread_t tid;
-    // if (config.enable_stats && rte_ctrl_thread_create(&tid, "print-stats", NULL, print_stats, NULL) < 0) {
-    //     rte_exit(EXIT_FAILURE, "Cannot create print-stats thread\n");
-    // }
 
     // Start worker threads BEFORE vhost registration
     // This ensures TX queues are initialized before vhost can send packets

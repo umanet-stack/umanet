@@ -147,26 +147,25 @@ struct dataplane_context {
     uint64_t loadmon_cyc_busy;
 
     uint64_t kernel_drop;
-#ifdef DATAPLANE_STATS
     /********************************************************/
     /* Stats */
-    uint64_t stat_qm_poll;
-    uint64_t stat_qm_empty;
-    uint64_t stat_qm_total;
+    // uint64_t stat_qm_poll;
+    // uint64_t stat_qm_empty;
+    // uint64_t stat_qm_total;
 
-    uint64_t stat_rx_poll;
-    uint64_t stat_rx_empty;
-    uint64_t stat_rx_total;
+    // uint64_t stat_rx_poll;
+    // uint64_t stat_rx_empty;
+    // uint64_t stat_rx_total;
 
-    uint64_t stat_qs_poll;
-    uint64_t stat_qs_empty;
-    uint64_t stat_qs_total;
+    // uint64_t stat_qs_poll;
+    // uint64_t stat_qs_empty;
+    // uint64_t stat_qs_total;
 
-    uint64_t stat_cyc_db;
-    uint64_t stat_cyc_qm;
-    uint64_t stat_cyc_rx;
-    uint64_t stat_cyc_qs;
-#endif
+    uint64_t stat_cyc_sleep;
+    uint64_t stat_cyc_drain_vhost;
+    uint64_t stat_cyc_vdev;
+    uint64_t stat_cyc_poll_eth;
+    uint64_t stat_cyc_poll_virtio;
 };
 
 extern struct dataplane_context **ctxs;
@@ -175,8 +174,6 @@ int dataplane_init(void);
 int dataplane_context_init(struct dataplane_context *ctx);
 void dataplane_context_destroy(struct dataplane_context *ctx);
 void dataplane_loop(struct dataplane_context *ctx);
-#ifdef DATAPLANE_STATS
 void dataplane_dump_stats(void);
-#endif
 
 #endif /* ndef FASTPATH_H_ */

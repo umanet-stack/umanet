@@ -92,6 +92,12 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     ctx->vhost.tx_q.txq_id = ctx->id;
     ctx->vhost.tx_q.len = 0;
 
+    ctx->stat_cyc_sleep = 0;
+    ctx->stat_cyc_drain_vhost = 0;
+    ctx->stat_cyc_vdev = 0;
+    ctx->stat_cyc_poll_eth = 0;
+    ctx->stat_cyc_poll_virtio = 0;
+
     return 0;
 }
 
@@ -119,6 +125,7 @@ void dataplane_loop(struct dataplane_context *ctx) {
     const uint64_t poll_cycle_tsc = rte_get_tsc_hz() / 1000000; // 1us in TSC cycles
 
     while (!exited) {
+        STATS_TS(start);
 #ifdef DEBUG
         sleep(1);
 #else
@@ -139,13 +146,16 @@ void dataplane_loop(struct dataplane_context *ctx) {
             last_active_ts = cyc;
         }
 #endif
-
+        STATS_TS(sleep);
+        STATS_TSADD(ctx, cyc_sleep, sleep - start);
         // Track if we received any packets this iteration
         unsigned packets_received = 0;
 
         // Drain TX queue if it has packets (check is cheap, only drain on timeout)
         if (tx_q->len > 0)
             drain_vhost_tx(tx_q);
+        STATS_TS(drain_vhost);
+        STATS_TSADD(ctx, cyc_drain_vhost, drain_vhost - sleep);
 
         /*
          * Inform the configuration core that we have exited the
@@ -164,6 +174,7 @@ void dataplane_loop(struct dataplane_context *ctx) {
         }
 
         for (int i = 0; i < current_device_num; i++) {
+            STATS_TS(vdev_start);
             // Use modulo with bounds check to prevent out-of-bounds access
             uint16_t dev_idx = (ctx->vhost.poll_next_device + i) % MAX_VHOST_DEVICES_PER_CORE;
 
@@ -222,12 +233,17 @@ void dataplane_loop(struct dataplane_context *ctx) {
                 LOG_WARN("Warning: Device vid=%d in invalid state %d, skipping\n", vdev->vid, vdev->ready);
                 continue;
             }
+            STATS_TS(vdev_end);
+            STATS_TSADD(ctx, cyc_vdev, vdev_end - vdev_start);
 
             if (likely(vdev->ready == DEVICE_RX)) {
                 // receive packets from physical NIC and forward them to a VM
                 // Note: poll_eth_rx doesn't return count, but we can check if packets were processed
                 // by checking if any packets were forwarded (this is approximate)
+                STATS_TS(poll_eth_start);
                 poll_eth_rx(vdev);
+                STATS_TS(poll_eth_end);
+                STATS_TSADD(ctx, cyc_poll_eth, poll_eth_end - poll_eth_start);
             }
 
             // TODOZ: Current: Round-robin through all devices, Optimization: Skip idle devices, batch processing
@@ -236,7 +252,10 @@ void dataplane_loop(struct dataplane_context *ctx) {
                 // receive packets from VM's TX queue, route them to the NIC or local VM
                 // Track if we received packets (poll_virtio_tx uses rte_vhost_dequeue_burst which returns count)
                 // We'll track this by checking the return value indirectly
+                STATS_TS(poll_virtio_start);
                 poll_virtio_tx(vdev, ctx);
+                STATS_TS(poll_virtio_end);
+                STATS_TSADD(ctx, cyc_poll_virtio, poll_virtio_end - poll_virtio_start);
                 // Note: We can't easily get the count here without modifying poll_virtio_tx
                 // For now, assume we're busy if we're polling (conservative approach)
                 packets_received = 1; // Mark as potentially busy
@@ -353,5 +372,23 @@ static inline void drain_vhost_tx(struct mbuf_table *tx_q) {
 
         LOG_INFO("TX queue drained after timeout with burst size %u\n", tx_q->len);
         flush_eth_tx(tx_q);
+    }
+}
+
+static inline uint64_t read_stat(uint64_t *p) { return __sync_lock_test_and_set(p, 0); }
+
+void dataplane_dump_stats(void) {
+    struct dataplane_context *ctx;
+    unsigned i;
+
+    for (i = 0; i < fp_cores_max; i++) {
+        ctx = ctxs[i];
+        fprintf(stderr,
+                "\ndp stats %u:\n"
+                "sleep: %" PRIu64 "\ndrain_vhost: %" PRIu64 "\nvdev: %" PRIu64 "\npoll_eth: %" PRIu64
+                "\npoll_virtio: %" PRIu64 "\n",
+                i, read_stat(&ctx->stat_cyc_sleep), read_stat(&ctx->stat_cyc_drain_vhost),
+                read_stat(&ctx->stat_cyc_vdev), read_stat(&ctx->stat_cyc_poll_eth),
+                read_stat(&ctx->stat_cyc_poll_virtio));
     }
 }
