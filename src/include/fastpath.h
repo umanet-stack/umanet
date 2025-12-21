@@ -38,6 +38,33 @@
 #define BUFCACHE_SIZE 128
 #define TXBUF_SIZE (2 * BATCH_SIZE)
 
+#define DATAPLANE_TSCS
+
+#ifdef DATAPLANE_STATS
+#ifdef DATAPLANE_TSCS
+#define STATS_TS(n) uint64_t n = rte_get_tsc_cycles()
+#define STATS_TSADD(c, f, n) __sync_fetch_and_add(&c->stat_##f, n)
+#else
+#define STATS_TS(n)                                                                                                    \
+    do {                                                                                                               \
+    } while (0)
+#define STATS_TSADD(c, f, n)                                                                                           \
+    do {                                                                                                               \
+    } while (0)
+#endif
+#define STATS_ADD(c, f, n) __sync_fetch_and_add(&c->stat_##f, n)
+#else
+#define STATS_TS(n)                                                                                                    \
+    do {                                                                                                               \
+    } while (0)
+#define STATS_TSADD(c, f, n)                                                                                           \
+    do {                                                                                                               \
+    } while (0)
+#define STATS_ADD(c, f, n)                                                                                             \
+    do {                                                                                                               \
+    } while (0)
+#endif
+
 struct network_thread {
     struct rte_mempool *pool;
     uint16_t queue_id;

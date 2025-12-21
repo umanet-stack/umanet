@@ -32,6 +32,9 @@ sudo ./build_and_run.sh 0000:41:00.0 test 3 24
 
 sudo ./build_and_run.sh 0000:41:00.0 test 3 16
 ./setup/dpdk/spawn_vms.sh 16 /proj/faasnetworkstack-PG0/testing
+
+sudo ./build_and_run.sh 0000:41:00.0 test 3 8
+./setup/dpdk/spawn_vms.sh 8 /proj/faasnetworkstack-PG0/testing
 ################
 
 # process results

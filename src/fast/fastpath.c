@@ -9,33 +9,6 @@
 #include <sys/queue.h>
 #include <unistd.h>
 
-#define DATAPLANE_TSCS
-
-#ifdef DATAPLANE_STATS
-#ifdef DATAPLANE_TSCS
-#define STATS_TS(n) uint64_t n = rte_get_tsc_cycles()
-#define STATS_TSADD(c, f, n) __sync_fetch_and_add(&c->stat_##f, n)
-#else
-#define STATS_TS(n)                                                                                                    \
-    do {                                                                                                               \
-    } while (0)
-#define STATS_TSADD(c, f, n)                                                                                           \
-    do {                                                                                                               \
-    } while (0)
-#endif
-#define STATS_ADD(c, f, n) __sync_fetch_and_add(&c->stat_##f, n)
-#else
-#define STATS_TS(n)                                                                                                    \
-    do {                                                                                                               \
-    } while (0)
-#define STATS_TSADD(c, f, n)                                                                                           \
-    do {                                                                                                               \
-    } while (0)
-#define STATS_ADD(c, f, n)                                                                                             \
-    do {                                                                                                               \
-    } while (0)
-#endif
-
 static inline void drain_vhost_tx(struct mbuf_table *tx_q);
 static inline void cleanup_tx_queue_for_device(struct mbuf_table *tx_q, struct vhost_dev *vdev);
 
