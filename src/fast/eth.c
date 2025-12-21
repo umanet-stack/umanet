@@ -4,6 +4,7 @@
 
 #include "src/fast/network.h"
 #include "src/include/fastpath.h"
+#include "src/include/tas.h"
 #include "src/vhost/vhost.h"
 
 // receive packets from physical NIC and forward them to a VM
@@ -86,7 +87,7 @@ void poll_eth_rx(struct vhost_dev *vdev) {
         return;
 
     enqueue_count = rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, local_pkts, local_count);
-    LOG_ETH_OUT("Enqueued %d packets to guest virtio RX ring\n", enqueue_count);
+    LOG_VM_OUT("Enqueued %d packets to guest virtio RX ring\n", enqueue_count);
     PRINT_PKTS(local_pkts, enqueue_count, LOG_ETH_OUT);
 
     if (unlikely(enqueue_count == 0 && local_count > 0)) {
@@ -129,7 +130,7 @@ void flush_eth_tx(struct mbuf_table *tx_q) {
     // Gateway mode: Change MACs for proper routing
     // VMs send to gateway MAC 02:00:00:00:00:fe, we forward to physical gateway
     struct rte_ether_hdr *eth_hdr;
-    struct rte_ether_addr gateway_mac = {{0x18, 0x5a, 0x58, 0x34, 0x49, 0xe4}}; // Physical gateway MAC
+    struct rte_ether_addr gateway_mac = {{0x0c, 0x42, 0xa1, 0xdd, 0x57, 0xfc}}; // Physical gateway MAC
     for (int i = 0; i < tx_q->len; i++) {
         eth_hdr = rte_pktmbuf_mtod(tx_q->m_table[i], struct rte_ether_hdr *);
         rte_ether_addr_copy(&eth_addr, &eth_hdr->s_addr);    // Src: NIC's MAC
