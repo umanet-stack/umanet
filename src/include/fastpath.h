@@ -188,11 +188,16 @@ struct dataplane_context {
     // uint64_t stat_qs_empty;
     // uint64_t stat_qs_total;
 
-    uint64_t stat_cyc_sleep;
-    uint64_t stat_cyc_drain_vhost;
-    uint64_t stat_cyc_vdev;
+    uint64_t stat_cyc_loop;
+    uint64_t stat_cyc_loop_sleep;
+    uint64_t stat_cyc_loop_vdev;
+    uint64_t stat_cyc_loop_vhost;
+
     uint64_t stat_cyc_poll_eth;
-    uint64_t stat_cyc_poll_virtio;
+    uint64_t stat_cyc_flush_eth;
+    uint64_t stat_cyc_poll_vhost;
+    uint64_t stat_cyc_route_vhost;
+    uint64_t stat_cyc_virtio_tx;
 };
 
 extern struct dataplane_context **ctxs;

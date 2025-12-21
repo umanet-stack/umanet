@@ -22,8 +22,8 @@ const uint16_t vlan_tags[64] = {
 
 static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev,
                                           struct rte_mbuf **pkts, uint16_t count);
-static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count,
-                                   struct mbuf_table *tx_q, uint16_t vlan_tag);
+static inline void virtio_tx_route(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
+                                   uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag);
 static void virtio_tx_offload(struct rte_mbuf *m);
 static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count);
 
@@ -37,7 +37,10 @@ void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
 
     // copy pkt from guest vring buffer to DPDK mbuf (vm -> dpdk)
     // This can fail if the vhost connection is broken
+    STATS_TS(poll_vhost_start); // 30%
     count = rte_vhost_dequeue_burst(vdev->vid, VIRTIO_TXQ, ctx->net.pool, pkts, MAX_PKT_BURST);
+    STATS_TS(poll_vhost_end);
+    STATS_TSADD(ctx, cyc_poll_vhost, poll_vhost_end - poll_vhost_start);
 
     if (unlikely((int16_t)count < 0)) {
         LOG_ERROR("Error: rte_vhost_dequeue_burst failed for vid=%d (device may be disconnected)\n", vdev->vid);
@@ -61,11 +64,12 @@ void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
         LOG_INFO("[vid=%d] MAC learning successful, device now in RX mode\n", vdev->vid);
     }
 
-    virtio_tx_route(vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
+    virtio_tx_route(ctx, vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
 }
 
-static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count,
-                                   struct mbuf_table *tx_q, uint16_t vlan_tag) {
+static inline void virtio_tx_route(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
+                                   uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag) {
+    STATS_TS(route_vhost_start);
     struct rte_mbuf *broadcast_pkts[MAX_PKT_BURST];
     struct rte_mbuf *external_pkts[MAX_PKT_BURST];
     struct rte_mbuf *local_pkts[MAX_PKT_BURST];
@@ -114,6 +118,9 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkt
         local_pkts[local_count++] = pkts[i];
     }
 
+    STATS_TS(route_vhost_end); // 7%
+    STATS_TSADD(ctx, cyc_route_vhost, route_vhost_end - route_vhost_start);
+
     // broadcast packets
     if (unlikely(broadcast_count > 0)) {
         struct vhost_dev *vdev2;
@@ -139,6 +146,7 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkt
         }
     }
 
+    STATS_TS(flush_eth_start);
     // send to NIC
     // uint32_t nat_ip = (128 << 24) | (110 << 16) | (219 << 8) | 130; // 128.110.219.130
     // nat_translate_outbound(m, vdev->vid, nat_ip);
@@ -166,6 +174,9 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkt
     if (unlikely(tx_q->len == MAX_PKT_BURST)) // if the queue is full
         flush_eth_tx(tx_q);                   // drain the queue (send packets to NIC)
 
+    STATS_TS(flush_eth_end);
+    STATS_TSADD(ctx, cyc_flush_eth, flush_eth_end - flush_eth_start);
+
     // // send to TAP (host network stack via br0)
     // if (tap_count > 0) {
     //     int sent = tap_tx_burst(tap_pkts, tap_count);
@@ -173,9 +184,12 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkt
     // }
 
     // send to local VM
+    STATS_TS(virtio_tx_start);
     if (local_count > 0) {
         virtio_tx_local(vdev, local_pkts, local_count);
     }
+    STATS_TS(virtio_tx_end); // 30%
+    STATS_TSADD(ctx, cyc_virtio_tx, virtio_tx_end - virtio_tx_start);
 }
 
 // Transmits a packet to vhost device via virtqueue.
