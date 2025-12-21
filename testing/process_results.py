@@ -47,6 +47,11 @@ def load_results() -> Dict[str, dict]:
                 cpu_host = float(match.group(4))
                 cpu_remote = float(match.group(5))
                 
+                # Skip VMs with invalid data (0 throughput, negative values, etc.)
+                if throughput_gbps <= 0 or bytes_gb <= 0:
+                    print(f"⚠️  Skipping {vm_name}: Invalid data (throughput={throughput_gbps} Gbps, bytes={bytes_gb} GB)")
+                    continue
+                
                 # Extract intervals from log text
                 # Format: "[timestamp] start-iperf.sh[pid]:   [0-1.001431s] 10.13 Gbps"
                 intervals = []
@@ -64,13 +69,13 @@ def load_results() -> Dict[str, dict]:
                         if line_match:
                             start = float(line_match.group(1))
                             end = float(line_match.group(2))
-                            throughput_gbps = float(line_match.group(3))
+                            throughput_gbps_interval = float(line_match.group(3))
                             intervals.append({
                                 'sum': {
                                     'start': start,
                                     'end': end,
-                                    'bits_per_second': throughput_gbps * 1e9,
-                                    'bytes': throughput_gbps * 1e9 * (end - start) / 8  # Approximate
+                                    'bits_per_second': throughput_gbps_interval * 1e9,
+                                    'bytes': throughput_gbps_interval * 1e9 * (end - start) / 8  # Approximate
                                 }
                             })
                 
@@ -94,7 +99,7 @@ def load_results() -> Dict[str, dict]:
                     'intervals': intervals if intervals else []
                 }
             else:
-                print(f"⚠️  Could not find summary line in {log_file}")
+                print(f"⚠️  Skipping {vm_name}: Could not find summary line in {log_file}")
         except Exception as e:
             print(f"⚠️  Error processing {log_file}: {e}")
     

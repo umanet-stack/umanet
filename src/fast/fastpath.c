@@ -117,10 +117,9 @@ void dataplane_loop(struct dataplane_context *ctx) {
 #ifdef DEBUG
         sleep(1);
 #else
-        // Use CPU pause hint instead of sleep - allows CPU to optimize while waiting
-        // rte_pause() is a CPU hint instruction (PAUSE on x86) that doesn't actually sleep
-        // This allows the CPU to optimize pipeline while waiting for packets
-        rte_pause();
+        // Tight polling loop - no sleep/pause for maximum performance
+        // DPDK apps typically use tight loops; the polling functions themselves
+        // handle backpressure and will return 0 when there's no work
 #endif
 
         // Drain TX queue if it has packets (check is cheap, only drain on timeout)
