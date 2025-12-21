@@ -130,7 +130,7 @@ void dataplane_loop(struct dataplane_context *ctx) {
             idle_count++;
             // After being idle for multiple iterations, pause to allow vhost-user sync
             // This gives the vhost-user backend time to update shared memory
-            if (idle_count > 10 || (cyc - last_active_ts > poll_cycle_tsc)) {
+            if (idle_count > 2 || (cyc - last_active_ts > poll_cycle_tsc)) {
                 // rte_pause();
                 usleep(10);
             }

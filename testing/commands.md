@@ -22,10 +22,13 @@ echo off | sudo tee /sys/devices/system/cpu/smt/control
 ### TAP ########
 ./setup/tap/setup_br_tap.sh 0
 ./setup/tap/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing
+./setup/tap/spawn_vms.sh 16 /proj/faasnetworkstack-PG0/testing
 
 # run TAP one before DPDK to make it download iperf
 ### DPDK #######
+# SUPER IMPORTANT: no. of vhost must match no. of VMs!
 sudo ./build_and_run.sh 0000:41:00.0 test 3 32
+sudo ./build_and_run.sh 0000:41:00.0 test 3 16
 ./setup/dpdk/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing
 ################
 
@@ -70,7 +73,11 @@ iperf3 -c 192.168.100.2 -P 4 -t 10 -J \
 | nc -N 192.168.100.1 9000
 
 # vCPU usage
+# Poll cores → ~100% usr
+# High %softirq → kernel networking leaking in
+# High %steal → oversubscribed host / VM
 mpstat -P ALL 1
+
 # memory usage
 free -h
 # check space
@@ -82,4 +89,31 @@ echo '{"vm":"vm12","throughput":12345}' | nc 192.168.100.1 9000
 
 lsof -i :9000
 kill -9 12345
+```
+
+### Profiling
+PID        Process ID
+USER       Owner
+PR / NI    Priority / nice
+VIRT       Virtual address space
+RES        Resident memory (actual RAM used)
+SHR        Shared memory
+S          State (R=running, S=sleeping, I=idle)
+%CPU       CPU usage (can exceed 100%)
+TIME+      Total CPU time used
+COMMAND    Process name
+```bash
+# process info
+top
+
+# which threads burn cpu most
+# decides if you need more dpdk fp cores
+top -H
+
+# allow perf to profile all processes
+sudo sysctl -w kernel.perf_event_paranoid=1
+# which functions burn cpu most
+perf top
+# hot functions per thread
+perf top -H
 ```
