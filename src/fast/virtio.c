@@ -41,6 +41,7 @@ void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
     count = rte_vhost_dequeue_burst(vdev->vid, VIRTIO_TXQ, ctx->net.pool, pkts, MAX_PKT_BURST);
     STATS_TS(poll_vhost_end);
     STATS_TSADD(ctx, cyc_poll_vhost, poll_vhost_end - poll_vhost_start);
+    STATS_ADD(ctx, pkt_vhost_rx, count);
 
     if (unlikely((int16_t)count < 0)) {
         LOG_ERROR("Error: rte_vhost_dequeue_burst failed for vid=%d (device may be disconnected)\n", vdev->vid);
@@ -196,6 +197,7 @@ static inline void virtio_tx_route(struct dataplane_context *ctx, struct vhost_d
 static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev,
                                           struct rte_mbuf **pkts, uint16_t count) {
     uint16_t ret;
+    struct dataplane_context *ctx = ctxs[dst_vdev->coreid];
 
     if (unlikely(check_device_state(dst_vdev, "virtio_tx") != 0)) {
         free_pkts(pkts, count);
@@ -209,6 +211,7 @@ static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vho
     PRINT_PKTS(pkts, count, LOG_VM_OUT);
 
     if (unlikely(ret == 0)) {
+        STATS_ADD(ctx, pkt_vhost_tx_fail, count);
         // Rate-limited logging: log once per second with cumulative count
         uint64_t now = rte_get_tsc_cycles();
         uint64_t log_interval_tsc = rte_get_tsc_hz(); // 1 second in TSC cycles
@@ -231,6 +234,7 @@ static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vho
         }
         return;
     }
+    STATS_ADD(ctx, pkt_vhost_tx, count);
 
     // dest stats use atomic operations (multiple cores may write)
     // source stats don't (single core writes)

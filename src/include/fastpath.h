@@ -187,6 +187,9 @@ struct dataplane_context {
     // uint64_t stat_qs_poll;
     // uint64_t stat_qs_empty;
     // uint64_t stat_qs_total;
+    uint64_t stat_pkt_vhost_rx;
+    uint64_t stat_pkt_vhost_tx;
+    uint64_t stat_pkt_vhost_tx_fail;
 
     uint64_t stat_cyc_loop;
     uint64_t stat_cyc_loop_sleep;

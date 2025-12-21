@@ -228,8 +228,6 @@ void dataplane_loop(struct dataplane_context *ctx) {
             // Double-check device is still valid before polling TX
             if (likely(!vdev->remove && vdev->ready != DEVICE_SAFE_REMOVE)) {
                 // receive packets from VM's TX queue, route them to the NIC or local VM
-                // Track if we received packets (poll_virtio_tx uses rte_vhost_dequeue_burst which returns count)
-                // We'll track this by checking the return value indirectly
                 STATS_TS(loop_vhost_start);
                 poll_virtio_tx(vdev, ctx);
                 STATS_TS(loop_vhost_end);
@@ -373,5 +371,8 @@ void dataplane_dump_stats(void) {
         fprintf(stderr, "poll_vhost: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_poll_vhost));
         fprintf(stderr, "route_vhost: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_route_vhost));
         fprintf(stderr, "virtio_tx: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_virtio_tx));
+        fprintf(stderr, "pkt_vhost_rx: %" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_rx));
+        fprintf(stderr, "pkt_vhost_tx: %" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_tx));
+        fprintf(stderr, "pkt_vhost_tx_fail: %" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_tx_fail));
     }
 }
