@@ -117,6 +117,7 @@ static inline void virtio_tx_route(struct vhost_dev *vdev, struct rte_mbuf **pkt
     // broadcast packets
     if (unlikely(broadcast_count > 0)) {
         struct vhost_dev *vdev2;
+        // TODOZ: Pre-compute broadcast list, use single loop
         for (int j = 0; j < fp_cores_max; j++) {
             struct dataplane_context *ctx = ctxs[j];
             for (int k = 0; k < ctx->vhost.device_num; k++) {

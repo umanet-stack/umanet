@@ -41,6 +41,7 @@ void poll_eth_rx(struct vhost_dev *vdev) {
         // if (nat_translate_inbound(pkts[i], &target_vid) == 0) {
         // }
         struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
+        // TODOZ: Use a hash table keyed by MAC address
         target_vdev = find_vhost_dev_core(ctx, &eth_hdr->d_addr);
 
         if (target_vdev != NULL) {

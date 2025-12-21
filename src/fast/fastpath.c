@@ -117,14 +117,13 @@ void dataplane_loop(struct dataplane_context *ctx) {
 #ifdef DEBUG
         sleep(1);
 #else
-        // Minimal yield for vhost virtqueue operations (10 microseconds)
-        // Vhost-user requires brief CPU yield for virtqueue state updates to complete
-        // 10us = 100x faster than 1ms, negligible performance impact (~100K iterations/sec)
-        usleep(1);
-        // rte_pause();
+        // Use CPU pause hint instead of sleep - allows CPU to optimize while waiting
+        // rte_pause() is a CPU hint instruction (PAUSE on x86) that doesn't actually sleep
+        // This allows the CPU to optimize pipeline while waiting for packets
+        rte_pause();
 #endif
 
-        LOG_INFO("Draining TX queue into NIC...\n");
+        // Drain TX queue if it has packets (check is cheap, only drain on timeout)
         if (tx_q->len > 0)
             drain_vhost_tx(tx_q);
 
@@ -204,14 +203,13 @@ void dataplane_loop(struct dataplane_context *ctx) {
             }
 
             if (likely(vdev->ready == DEVICE_RX)) {
-                LOG_INFO("Polling eth rx...\n");
                 // receive packets from physical NIC and forward them to a VM
                 poll_eth_rx(vdev);
             }
 
+            // TODOZ: Current: Round-robin through all devices, Optimization: Skip idle devices, batch processing
             // Double-check device is still valid before polling TX
             if (likely(!vdev->remove && vdev->ready != DEVICE_SAFE_REMOVE)) {
-                LOG_INFO("Polling virtio tx...\n");
                 // receive packets from VM's TX queue, route them to the NIC or local VM
                 poll_virtio_tx(vdev, ctx);
             }
