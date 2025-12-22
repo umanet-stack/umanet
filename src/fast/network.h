@@ -42,6 +42,11 @@ extern uint16_t rss_reta_size;
 int network_thread_init(struct dataplane_context *ctx);
 int network_rx_interrupt_ctl(struct network_thread *t, int turnon);
 
+static inline void free_pkts(struct rte_mbuf **pkts, uint16_t n) {
+    while (n--)
+        rte_pktmbuf_free(pkts[n]);
+}
+
 #ifdef FLEXNIC_TRACE_TX
 unsigned i;
 for (i = 0; i < num; i++) {

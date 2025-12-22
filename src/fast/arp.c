@@ -1,3 +1,4 @@
+#include "log.h"
 #include "src/include/fastpath.h"
 #include "src/include/tas.h"
 #include "src/vhost/vhost.h"

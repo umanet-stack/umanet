@@ -1,5 +1,6 @@
 
 #include "src/include/fastpath.h"
+#include "log.h"
 #include "src/fast/internal.h"
 #include "src/fast/network.h"
 #include "src/include/tas.h"
@@ -53,6 +54,9 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     }
 
     ctx->poll_next_ctx = ctx->id;
+    // 1 queue per core
+    // with 3 queues: VM 0,3,6,9 share queue 0; VM 1,4,7,10 share queue 1
+    ctx->rx_queue = ctx->id;
 
     /* Initialize vhost device array for this context */
     memset(ctx->vhost.vdev_list, 0, sizeof(ctx->vhost.vdev_list));
@@ -150,6 +154,12 @@ void dataplane_loop(struct dataplane_context *ctx) {
             continue;
         }
 
+        // receive packets from physical NIC and forward them to a VM
+        STATS_TS(poll_eth_start);
+        poll_eth_rx(ctx);
+        STATS_TS(poll_eth_end);
+        STATS_TSADD(ctx, cyc_poll_eth, poll_eth_end - poll_eth_start);
+
         for (int i = 0; i < current_device_num; i++) {
             STATS_TS(vdev_start);
             // Use modulo with bounds check to prevent out-of-bounds access
@@ -175,7 +185,7 @@ void dataplane_loop(struct dataplane_context *ctx) {
                 // Clean up any pending TX packets for this device
                 cleanup_tx_queue_for_device(&ctx->vhost.tx_q, vdev);
 
-                unlink_vmdq(vdev);
+                unlink_vmdq(ctx, vdev);
                 vdev->ready = DEVICE_SAFE_REMOVE;
 
                 // Remove from array by shifting remaining elements
@@ -212,16 +222,6 @@ void dataplane_loop(struct dataplane_context *ctx) {
             }
             STATS_TS(vdev_end);
             STATS_TSADD(ctx, cyc_loop_vdev, vdev_end - vdev_start);
-
-            if (likely(vdev->ready == DEVICE_RX)) {
-                // receive packets from physical NIC and forward them to a VM
-                // Note: poll_eth_rx doesn't return count, but we can check if packets were processed
-                // by checking if any packets were forwarded (this is approximate)
-                STATS_TS(poll_eth_start);
-                poll_eth_rx(vdev);
-                STATS_TS(poll_eth_end);
-                STATS_TSADD(ctx, cyc_poll_eth, poll_eth_end - poll_eth_start);
-            }
 
             // TODOZ: Current: Round-robin through all devices, Optimization: Skip idle devices, batch processing
             // Double-check device is still valid before polling TX
@@ -313,14 +313,14 @@ static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) {
     return total;
 }
 
-static inline uint16_t pick_vhost_queue(struct dataplane_context *ctx, struct rte_mbuf *pkt) {
-    struct rte_ether_hdr *eth = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-    for (int i = 0; i < ctx->vhost.device_num; i++) {
-        if (memcmp(eth->d_addr.addr_bytes, ctx->vhost.vdev_list[i]->mac_address.addr_bytes, 6) == 0)
-            return ctx->vhost.vdev_list[i]->rx_queue;
-    }
-    return 0; // optional: drop or broadcast
-}
+// static inline uint16_t pick_vhost_queue(struct dataplane_context *ctx, struct rte_mbuf *pkt) {
+//     struct rte_ether_hdr *eth = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+//     for (int i = 0; i < ctx->vhost.device_num; i++) {
+//         if (memcmp(eth->d_addr.addr_bytes, ctx->vhost.vdev_list[i]->mac_address.addr_bytes, 6) == 0)
+//             return ctx->rx_queue;
+//     }
+//     return 0; // optional: drop or broadcast
+// }
 
 // Clean up TX queue entries that belong to a device being removed
 static inline void cleanup_tx_queue_for_device(struct mbuf_table *tx_q, struct vhost_dev *vdev) {

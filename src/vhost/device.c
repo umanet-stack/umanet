@@ -8,6 +8,7 @@
 #include <rte_malloc.h>
 #include <unistd.h>
 
+#include "log.h"
 #include "src/fast/network.h"
 #include "src/vhost/vhost.h"
 
@@ -176,10 +177,6 @@ static int new_device(int vid) {
         return -1;
     }
     vdev->vid = vid;
-
-    // 1 queue per core
-    // with 3 queues: VM 0,3,6,9 share queue 0; VM 1,4,7,10 share queue 1
-    vdev->rx_queue = vid % fp_cores_max;
 
     /*reset ready flag*/
     vdev->ready = DEVICE_MAC_LEARNING;

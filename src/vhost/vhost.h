@@ -9,21 +9,7 @@
 #include <rte_vhost.h>
 #include <sys/queue.h>
 
-#include "../include/tas.h"
 #include "src/include/fastpath.h"
-
-// Log level enum and function declarations
-enum log_level { LOG_INFO, LOG_ERROR, LOG_WARN, LOG_ETH_IN, LOG_ETH_OUT, LOG_VM_IN, LOG_VM_OUT };
-void log_info(const char *fmt, ...);
-void log_error(const char *fmt, ...);
-void log_warn(const char *fmt, ...);
-void log_eth_in(const char *fmt, ...);
-void log_eth_out(const char *fmt, ...);
-void log_vm_in(const char *fmt, ...);
-void log_vm_out(const char *fmt, ...);
-void print_pkts(struct rte_mbuf **pkts, uint16_t count, enum log_level level);
-
-void free_pkts(struct rte_mbuf **pkts, uint16_t n);
 
 // rte = runtime env (dpdk)
 // queue type identifiers: receive, transmit, total count
@@ -56,7 +42,7 @@ void unregister_vhost_drivers(int socket_num, const char *path);
 int register_vhost_drivers();
 
 int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m);
-void unlink_vmdq(struct vhost_dev *vdev);
+void unlink_vmdq(struct dataplane_context *ctx, struct vhost_dev *vdev);
 
 static inline unsigned vhost_poll(struct network_thread *t, unsigned num, unsigned vid, struct rte_mbuf **mbs) {
     num = rte_vhost_dequeue_burst(vid, VIRTIO_TXQ, t->pool, mbs, num);

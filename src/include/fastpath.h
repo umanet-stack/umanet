@@ -99,8 +99,6 @@ struct device_statistics {
 struct vhost_dev { // vhost device
     // Device MAC address (Obtained on first TX packet).
     struct rte_ether_addr mac_address;
-    // ETH RX queue number assigned to vhost device
-    uint16_t rx_queue;
     /**< Data core that the device is added to. */
     uint16_t coreid;
     /**< A device is set as ready if the MAC address has been set. */
@@ -151,6 +149,9 @@ struct dataplane_context {
     uint16_t id;
     int evfd;
     struct rte_epoll_event ev;
+
+    // ETH RX queue number assigned to core; same value as id
+    uint16_t rx_queue;
 
     // vhost
     struct vhost_info vhost;

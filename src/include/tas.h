@@ -71,44 +71,4 @@ void notify_canblock_reset(struct notify_blockstate *nbs);
 #define FLEXNIC_INTERNAL_MEM_SIZE (1024 * 1024 * 32)
 #define FLEXNIC_NUM_QMQUEUES (128 * 1024)
 
-void log_eth_in(const char *fmt, ...);
-void log_eth_out(const char *fmt, ...);
-void log_vm_in(const char *fmt, ...);
-void log_vm_out(const char *fmt, ...);
-void log_info(const char *fmt, ...);
-void log_error(const char *fmt, ...);
-void log_warn(const char *fmt, ...);
-
-#define LOG_ERROR(fmt, ...) log_error(fmt, ##__VA_ARGS__)
-#define LOG_WARN(fmt, ...) log_warn(fmt, ##__VA_ARGS__)
-#define PRINT_PKTS_WARN(pkts, count, level) print_pkts(pkts, count, level)
-
-#ifdef DEBUG
-#define LOG_ETH_IN(fmt, ...) log_eth_in(fmt, ##__VA_ARGS__)
-#define LOG_ETH_OUT(fmt, ...) log_eth_out(fmt, ##__VA_ARGS__)
-#define LOG_VM_IN(fmt, ...) log_vm_in(fmt, ##__VA_ARGS__)
-#define LOG_VM_OUT(fmt, ...) log_vm_out(fmt, ##__VA_ARGS__)
-#define LOG_INFO(fmt, ...) log_info(fmt, ##__VA_ARGS__)
-#define PRINT_PKTS(pkts, count, level) print_pkts(pkts, count, level)
-#else
-#define LOG_ETH_IN(fmt, ...)                                                                                           \
-    do {                                                                                                               \
-    } while (0)
-#define LOG_ETH_OUT(fmt, ...)                                                                                          \
-    do {                                                                                                               \
-    } while (0)
-#define LOG_VM_IN(fmt, ...)                                                                                            \
-    do {                                                                                                               \
-    } while (0)
-#define LOG_VM_OUT(fmt, ...)                                                                                           \
-    do {                                                                                                               \
-    } while (0)
-#define LOG_INFO(fmt, ...)                                                                                             \
-    do {                                                                                                               \
-    } while (0)
-#define PRINT_PKTS(pkts, count, level)                                                                                 \
-    do {                                                                                                               \
-    } while (0)
-#endif
-
 #endif /* ndef TAS_H_ */

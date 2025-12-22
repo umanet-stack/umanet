@@ -16,6 +16,9 @@ dpdk = dependency('libdpdk', required: true)
 include_dirs = include_directories('include')
 
 sources = files(
+	'lib/utils/log.c',
+	'lib/utils/rng.c',
+	'lib/utils/utils.c',
 	'src/main.c',
 	'src/config/config.c',
 	'src/vhost/device.c',
@@ -28,9 +31,6 @@ sources = files(
 	'src/fast/nat.c',
 	'src/fast/tap.c',
 	'src/shm.c',
-	'lib/utils/rng.c',
-	'src/utils/utils.c',
-	'src/utils/log.c',
 )
 
 # Compiler flags

@@ -22,6 +22,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "log.h"
 #include "src/config/config.h"
 #include "src/include/fastpath.h"
 #include <assert.h>
@@ -40,7 +41,6 @@
 #include <rte_version.h>
 
 #include "../include/tas.h"
-#include "../vhost/vhost.h"
 #include "internal.h"
 #include <tas_memif.h>
 #include <utils.h>

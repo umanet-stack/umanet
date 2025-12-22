@@ -8,6 +8,7 @@
 #include <rte_mbuf_core.h>
 #include <stdint.h>
 
+#include "log.h"
 #include "src/fast/internal.h"
 #include "src/include/fastpath.h"
 #include "src/include/tas.h"
