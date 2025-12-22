@@ -43,11 +43,11 @@ int process_arp(struct vhost_dev *vdev, struct rte_mbuf *m) {
     arp->arp_data.arp_tip = orig_ip;
 
     // Send back to VM
-    int ret = rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, &m, 1);
+    struct dataplane_context *ctx = ctxs[vdev->coreid];
+    int ret = vhost_send(ctx, 1, vdev->vid, &m);
     if (unlikely(ret == 0))
         LOG_WARN("Failed to enqueue ARP reply to vid=%d\n", vdev->vid);
-    LOG_VM_OUT("(%d) Sent ARP reply to VM\n", vdev->vid);
-    PRINT_PKTS(&m, 1, LOG_VM_OUT);
+
     rte_pktmbuf_free(m);
 
     return 0; // Handled successfully

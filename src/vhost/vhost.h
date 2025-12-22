@@ -9,6 +9,7 @@
 #include <rte_vhost.h>
 #include <sys/queue.h>
 
+#include "log.h"
 #include "src/include/fastpath.h"
 
 // rte = runtime env (dpdk)
@@ -44,8 +45,32 @@ int register_vhost_drivers();
 int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m);
 void unlink_vmdq(struct dataplane_context *ctx, struct vhost_dev *vdev);
 
-static inline unsigned vhost_poll(struct network_thread *t, unsigned num, unsigned vid, struct rte_mbuf **mbs) {
-    num = rte_vhost_dequeue_burst(vid, VIRTIO_TXQ, t->pool, mbs, num);
+static inline unsigned vhost_poll(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
+    STATS_TS(poll_vhost_start);
+    num = rte_vhost_dequeue_burst(vid, VIRTIO_TXQ, ctx->net.pool, pkts, num);
+    STATS_TS(poll_vhost_end);
+    STATS_TSADD(ctx, cyc_poll_vhost, poll_vhost_end - poll_vhost_start);
+    if (num == 0)
+        return 0;
+
+    STATS_ADD(ctx, pkt_vhost_rx, num);
+    LOG_VM_IN("[%d](%d) Received %d packets from VM\n", ctx->id, vid, num);
+    PRINT_PKTS(pkts, num, LOG_VM_IN);
+
+    return num;
+}
+
+static inline unsigned vhost_send(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
+    STATS_TS(send_vhost_start);
+    num = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
+    STATS_TS(send_vhost_end);
+    STATS_TSADD(ctx, cyc_send_vhost, send_vhost_end - send_vhost_start);
+    if (num == 0)
+        return 0;
+
+    STATS_ADD(ctx, pkt_vhost_tx, num);
+    LOG_VM_OUT("[%d](%d) Sent %d packets to VM\n", ctx->id, vid, num);
+    PRINT_PKTS(pkts, num, LOG_VM_OUT);
 
     return num;
 }

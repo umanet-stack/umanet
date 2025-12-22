@@ -13,7 +13,7 @@ void poll_eth_rx(struct dataplane_context *ctx) {
     uint16_t rx_count;
     struct rte_mbuf *pkts[MAX_PKT_BURST];
 
-    rx_count = network_poll(&ctx->net, MAX_PKT_BURST, pkts);
+    rx_count = network_poll(ctx, MAX_PKT_BURST, pkts);
     if (rx_count == 0)
         return;
 
@@ -62,7 +62,7 @@ void poll_eth_rx(struct dataplane_context *ctx) {
         LOG_VM_OUT("Forwarding %d packets to vid=%d\n", batches[vid].count, vid);
         PRINT_PKTS(batches[vid].pkts, batches[vid].count, LOG_VM_OUT);
         // vhost enqueue: pkts are COPIED to guest shared memory, must free
-        uint16_t sent = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, batches[vid].pkts, batches[vid].count);
+        uint16_t sent = vhost_send(ctx, batches[vid].count, vid, batches[vid].pkts);
         if (sent < batches[vid].count) {
             LOG_WARN("Failed to forward %d/%d packets to vid=%d\n", batches[vid].count - sent, batches[vid].count, vid);
         }
@@ -75,7 +75,7 @@ void poll_eth_rx(struct dataplane_context *ctx) {
 
             while (sent < batches[vid].count && retry++ < config.burst_rx_retry_num) { // max 4 retries
                 rte_delay_us(config.burst_rx_delay_time);
-                sent += rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, &batches[vid].pkts[sent], batches[vid].count - sent);
+                sent += vhost_send(ctx, batches[vid].count - sent, vid, &batches[vid].pkts[sent]);
             }
         }
 
@@ -87,7 +87,7 @@ void poll_eth_rx(struct dataplane_context *ctx) {
 }
 
 // moves packets from a software staging buffer (tx_q->m_table) to the NIC's hardware TX queue/ring
-void flush_eth_tx(struct mbuf_table *tx_q) {
+void flush_eth_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q) {
     uint16_t count;
     if (unlikely(tx_q == NULL)) {
         LOG_ERROR("Error: NULL tx_q in flush_eth_tx\n");
@@ -109,9 +109,7 @@ void flush_eth_tx(struct mbuf_table *tx_q) {
     }
 
     // Packets are given to NIC hardware, NIC takes ownership and frees after DMA completes (don't free yourself)
-    count = rte_eth_tx_burst(net_port_id, tx_q->txq_id, tx_q->m_table, tx_q->len);
-    LOG_ETH_OUT("(%d) Sent %d packets to NIC\n", tx_q->txq_id, count);
-    PRINT_PKTS(tx_q->m_table, count, LOG_ETH_OUT);
+    count = network_send(ctx, tx_q->len, tx_q->m_table);
 
     if (unlikely(count < tx_q->len))                         // fewer packets were sent than attempted
         free_pkts(&tx_q->m_table[count], tx_q->len - count); // free the unsent packets

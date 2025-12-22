@@ -84,11 +84,11 @@ void unlink_vmdq(struct dataplane_context *ctx, struct vhost_dev *vdev) {
             vdev->mac_address.addr_bytes[i] = 0;
 
         /*Clear out the receive buffers*/
-        rx_count = network_poll(&ctx->net, MAX_PKT_BURST, pkts_burst);
+        rx_count = network_poll(ctx, MAX_PKT_BURST, pkts_burst);
 
         while (rx_count) { // until queue is empty
             free_pkts(pkts_burst, rx_count);
-            rx_count = network_poll(&ctx->net, MAX_PKT_BURST, pkts_burst);
+            rx_count = network_poll(ctx, MAX_PKT_BURST, pkts_burst);
         }
 
         vdev->ready = DEVICE_MAC_LEARNING;

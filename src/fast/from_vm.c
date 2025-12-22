@@ -39,14 +39,10 @@ void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
 
     // copy pkt from guest vring buffer to DPDK mbuf (vm -> dpdk)
     // This can fail if the vhost connection is broken
-    STATS_TS(poll_vhost_start); // 30%
-    count = rte_vhost_dequeue_burst(vdev->vid, VIRTIO_TXQ, ctx->net.pool, pkts, MAX_PKT_BURST);
-    STATS_TS(poll_vhost_end);
-    STATS_TSADD(ctx, cyc_poll_vhost, poll_vhost_end - poll_vhost_start);
-    STATS_ADD(ctx, pkt_vhost_rx, count);
+    count = vhost_poll(ctx, MAX_PKT_BURST, vdev->vid, pkts);
 
     if (unlikely((int16_t)count < 0)) {
-        LOG_ERROR("Error: rte_vhost_dequeue_burst failed for vid=%d (device may be disconnected)\n", vdev->vid);
+        LOG_ERROR("Error: vhost_poll failed for vid=%d (device may be disconnected)\n", vdev->vid);
         vdev->remove = 1; // Mark device for removal
         return;
     }
@@ -171,14 +167,14 @@ static inline void virtio_tx_route(struct dataplane_context *ctx, struct vhost_d
             vdev->stats.tx++;
         }
         if (unlikely(tx_q->len == MAX_PKT_BURST)) // if the queue is full
-            flush_eth_tx(tx_q);                   // drain the queue (send packets to NIC)
+            flush_eth_tx(ctx, tx_q);              // drain the queue (send packets to NIC)
     }
 
     if (unlikely(tx_q->len == MAX_PKT_BURST)) // if the queue is full
-        flush_eth_tx(tx_q);                   // drain the queue (send packets to NIC)
+        flush_eth_tx(ctx, tx_q);              // drain the queue (send packets to NIC)
 
     STATS_TS(flush_eth_end);
-    STATS_TSADD(ctx, cyc_flush_eth, flush_eth_end - flush_eth_start);
+    // STATS_TSADD(ctx, cyc_flush_eth, flush_eth_end - flush_eth_start);
 
     // // send to TAP (host network stack via br0)
     // if (tap_count > 0) {
@@ -192,7 +188,7 @@ static inline void virtio_tx_route(struct dataplane_context *ctx, struct vhost_d
         virtio_tx_local(vdev, local_pkts, local_count);
     }
     STATS_TS(virtio_tx_end); // 30%
-    STATS_TSADD(ctx, cyc_virtio_tx, virtio_tx_end - virtio_tx_start);
+    // STATS_TSADD(ctx, cyc_virtio_tx, virtio_tx_end - virtio_tx_start);
 }
 
 // Transmits a packet to vhost device via virtqueue.
@@ -206,11 +202,8 @@ static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vho
         return;
     }
 
-    ret = rte_vhost_enqueue_burst(dst_vdev->vid, VIRTIO_RXQ, pkts, count);
+    ret = vhost_send(ctx, count, dst_vdev->vid, pkts);
     free_pkts(pkts, count);
-
-    LOG_VM_OUT("(%d) Sent packet to vid=%d\n", src_vdev->vid, dst_vdev->vid);
-    PRINT_PKTS(pkts, count, LOG_VM_OUT);
 
     if (unlikely(ret == 0)) {
         STATS_ADD(ctx, pkt_vhost_tx_fail, count);

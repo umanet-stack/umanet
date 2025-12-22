@@ -10,7 +10,7 @@
 #include <sys/queue.h>
 #include <unistd.h>
 
-static inline void drain_vhost_tx(struct mbuf_table *tx_q);
+static inline void drain_vhost_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q);
 static inline void cleanup_tx_queue_for_device(struct mbuf_table *tx_q, struct vhost_dev *vdev);
 
 int dataplane_init(void) {
@@ -72,10 +72,19 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     ctx->stat_cyc_loop_vhost = 0;
 
     ctx->stat_cyc_poll_eth = 0;
-    ctx->stat_cyc_flush_eth = 0;
+    ctx->stat_cyc_send_eth = 0;
+    ctx->stat_pkt_eth_rx = 0;
+    ctx->stat_pkt_eth_tx = 0;
+    ctx->stat_pkt_eth_tx_fail = 0;
+
     ctx->stat_cyc_poll_vhost = 0;
+    ctx->stat_cyc_send_vhost = 0;
+    ctx->stat_pkt_vhost_rx = 0;
+    ctx->stat_pkt_vhost_tx = 0;
+    ctx->stat_pkt_vhost_tx_fail = 0;
+
     ctx->stat_cyc_route_vhost = 0;
-    ctx->stat_cyc_virtio_tx = 0;
+    ctx->stat_cyc_route_eth = 0;
 
     return 0;
 }
@@ -83,9 +92,6 @@ int dataplane_context_init(struct dataplane_context *ctx) {
 void dataplane_context_destroy(struct dataplane_context *ctx) {}
 
 void dataplane_loop(struct dataplane_context *ctx) {
-    struct notify_blockstate nbs;
-    uint32_t ts;
-    uint64_t cyc, prev_cyc;
     int was_idle = 1;
 
     unsigned lcore_id = ctx->id;
@@ -131,9 +137,9 @@ void dataplane_loop(struct dataplane_context *ctx) {
 
         // Drain TX queue if it has packets (check is cheap, only drain on timeout)
         if (tx_q->len > 0)
-            drain_vhost_tx(tx_q);
+            drain_vhost_tx(ctx, tx_q);
         STATS_TS(drain_vhost_tx_end);
-        STATS_TSADD(ctx, cyc_flush_eth, drain_vhost_tx_end - sleep);
+        // STATS_TSADD(ctx, cyc_flush_eth, drain_vhost_tx_end - sleep);
 
         /*
          * Inform the configuration core that we have exited the
@@ -286,7 +292,7 @@ static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) {
         if (vdev == NULL)
             continue;
 
-        ret = vhost_poll(&ctx->net, n, vdev->vid, mbs);
+        ret = vhost_poll(ctx, n, vdev->vid, mbs);
         if (ret <= 0)
             continue;
         total += ret;
@@ -302,7 +308,7 @@ static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) {
     // for (int i = 0; i < n; i++) {
     //     uint16_t vhost_queue = pick_vhost_queue(ctx, mbs[i]);
     //     if (vhost_queue != 0) {
-    //         rte_vhost_enqueue_burst(vhost_queue, VIRTIO_TXQ, &mbs[i], 1);
+    //         rte_vhost_send(ctx, 1, vdev->vid, &mbs[i]);
     //     }
     // }
 
@@ -331,12 +337,13 @@ static inline void cleanup_tx_queue_for_device(struct mbuf_table *tx_q, struct v
     // so we flush all pending packets to the NIC before device removal
     if (tx_q->len > 0) {
         LOG_INFO("Flushing %u pending packets before device removal\n", tx_q->len);
-        flush_eth_tx(tx_q);
+        struct dataplane_context *ctx = ctxs[vdev->coreid];
+        flush_eth_tx(ctx, tx_q);
     }
 }
 
 // drain into NIC if timeout has elapsed
-static inline void drain_vhost_tx(struct mbuf_table *tx_q) {
+static inline void drain_vhost_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q) {
     // static = function-scope, keeps value between function calls
     static uint64_t prev_tsc; // previous timestamp
 
@@ -345,7 +352,7 @@ static inline void drain_vhost_tx(struct mbuf_table *tx_q) {
         prev_tsc = cur_tsc;
 
         LOG_INFO("TX queue drained after timeout with burst size %u\n", tx_q->len);
-        flush_eth_tx(tx_q);
+        flush_eth_tx(ctx, tx_q);
     }
 }
 
@@ -357,16 +364,24 @@ void dataplane_dump_stats(void) {
 
     for (i = 0; i < fp_cores_max; i++) {
         ctx = ctxs[i];
-        fprintf(stderr, "\nCORE %u:\n", i);
+        fprintf(stderr, "\n========== CORE %u ==========\n", i);
         fprintf(stderr, "loop: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_loop));
         fprintf(stderr, "\tloop_sleep: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_loop_sleep));
         fprintf(stderr, "\tloop_vdev: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_loop_vdev));
         fprintf(stderr, "\tloop_vhost: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_loop_vhost));
+
+        fprintf(stderr, "ETH:\n");
         fprintf(stderr, "poll_eth: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_poll_eth));
-        fprintf(stderr, "flush_eth: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_flush_eth));
+        fprintf(stderr, "send_eth: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_send_eth));
+        fprintf(stderr, "route_eth: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_route_eth));
+        fprintf(stderr, "pkt_eth_rx: %" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_rx));
+        fprintf(stderr, "pkt_eth_tx: %" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_tx));
+        fprintf(stderr, "pkt_eth_tx_fail: %" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_tx_fail));
+
+        fprintf(stderr, "VHOST:\n");
         fprintf(stderr, "poll_vhost: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_poll_vhost));
+        fprintf(stderr, "send_vhost: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_send_vhost));
         fprintf(stderr, "route_vhost: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_route_vhost));
-        fprintf(stderr, "virtio_tx: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_virtio_tx));
         fprintf(stderr, "pkt_vhost_rx: %" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_rx));
         fprintf(stderr, "pkt_vhost_tx: %" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_tx));
         fprintf(stderr, "pkt_vhost_tx_fail: %" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_tx_fail));

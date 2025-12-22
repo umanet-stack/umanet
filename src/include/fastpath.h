@@ -174,31 +174,24 @@ struct dataplane_context {
     uint64_t kernel_drop;
     /********************************************************/
     /* Stats */
-    // uint64_t stat_qm_poll;
-    // uint64_t stat_qm_empty;
-    // uint64_t stat_qm_total;
-
-    // uint64_t stat_rx_poll;
-    // uint64_t stat_rx_empty;
-    // uint64_t stat_rx_total;
-
-    // uint64_t stat_qs_poll;
-    // uint64_t stat_qs_empty;
-    // uint64_t stat_qs_total;
-    uint64_t stat_pkt_vhost_rx;
-    uint64_t stat_pkt_vhost_tx;
-    uint64_t stat_pkt_vhost_tx_fail;
-
     uint64_t stat_cyc_loop;
     uint64_t stat_cyc_loop_sleep;
     uint64_t stat_cyc_loop_vdev;
     uint64_t stat_cyc_loop_vhost;
 
     uint64_t stat_cyc_poll_eth;
-    uint64_t stat_cyc_flush_eth;
+    uint64_t stat_cyc_send_eth;
+    uint64_t stat_cyc_route_eth;
+    uint64_t stat_pkt_eth_rx;
+    uint64_t stat_pkt_eth_tx;
+    uint64_t stat_pkt_eth_tx_fail;
+
     uint64_t stat_cyc_poll_vhost;
+    uint64_t stat_cyc_send_vhost;
     uint64_t stat_cyc_route_vhost;
-    uint64_t stat_cyc_virtio_tx;
+    uint64_t stat_pkt_vhost_rx;
+    uint64_t stat_pkt_vhost_tx;
+    uint64_t stat_pkt_vhost_tx_fail;
 };
 
 extern struct dataplane_context **ctxs;
