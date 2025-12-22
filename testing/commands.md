@@ -19,8 +19,8 @@ echo off | sudo tee /sys/devices/system/cpu/smt/control
 
 ### TAP ########
 ./setup/tap/setup_br_tap.sh 0
-./setup/tap/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing
-./setup/tap/spawn_vms.sh 16 /proj/faasnetworkstack-PG0/testing
+./setup/tap/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing samenode
+./setup/tap/spawn_vms.sh 16 /proj/faasnetworkstack-PG0/testing multinode
 
 # run TAP one before DPDK to make it download iperf
 ### DPDK #######

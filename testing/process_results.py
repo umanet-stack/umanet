@@ -37,7 +37,7 @@ def load_results() -> Dict[str, dict]:
             
             # Extract the summary line
             # Format: [timestamp] start-iperf.sh[pid]: [date time] vmX:   Throughput: X Gbps | Bytes: X GB | Retransmits: X | CPU (host): X% | CPU (remote): X%
-            pattern = r'\[.*?\] start-iperf\.sh\[.*?\]: \[.*?\] ' + re.escape(vm_name) + r':\s+Throughput:\s+([\d.]+)\s+Gbps\s+\|\s+Bytes:\s+([\d.]+)\s+GB\s+\|\s+Retransmits:\s+(\d+)\s+\|\s+CPU\s+\(host\):\s+([\d.]+)%\s+\|\s+CPU\s+\(remote\):\s+([\d.]+)%'
+            pattern = r'\[.*?\] start-iperf\.sh\[.*?\]: \[.*?\] vm:\s+Throughput:\s+([\d.]+)\s+Gbps\s+\|\s+Bytes:\s+([\d.]+)\s+GB\s+\|\s+Retransmits:\s+(\d+)\s+\|\s+CPU\s+\(host\):\s+([\d.]+)%\s+\|\s+CPU\s+\(remote\):\s+([\d.]+)%'
             match = re.search(pattern, log_content)
             
             if match:

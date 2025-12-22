@@ -2,10 +2,11 @@
 set -e
 
 
-if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <num_vms> <res_dir>"
+if [ "$#" -ne 3 ]; then
+    echo "Usage: $0 <num_vms> <res_dir> <test_mode>"
     echo "  num_vms: number of VMs to spawn"
     echo "  res_dir: directory containing resources"
+    echo "  test_mode: test mode (samenode, multinode)"
     exit 1
 fi
 
@@ -14,6 +15,7 @@ NUM_VMS=$1
 RES_DIR=$2
 VMLINUX_DIR=$RES_DIR/kernels
 IMG_DIR=$RES_DIR/images
+TEST_MODE=$3
 CLOUDINIT_DIR=/tmp/cloudinit
 LOG_DIR="$(dirname "$0")/../../testing/logs"
 
@@ -24,8 +26,13 @@ mkdir -p "$LOG_DIR"
 spawn_vm() {
     local i=$1
     local logfile="$LOG_DIR/vm$i.log"
-    local VM_ROLE="$(if (( i % 2 == 0 )); then echo "server"; else echo "client"; fi)"
-    local VM_SERVER_IP="192.168.100.$((i+1))"
+    local VM_ROLE="client"
+    local VM_SERVER_IP="192.168.100.99"
+
+    if [ "$TEST_MODE" = "samenode" ]; then
+        VM_ROLE="$(if (( i % 2 == 0 )); then echo "server"; else echo "client"; fi)"
+        VM_SERVER_IP="192.168.100.$((i+1))"
+    fi
 
     sudo systemd-run --scope \
         -p AllowedCPUs=4-15 \
