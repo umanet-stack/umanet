@@ -13,8 +13,9 @@ fi
 NUM_VMS=$1
 # e.g. /proj/faasnetworkstack-PG0/testing
 RES_DIR=$2
-VMLINUX_DIR=$RES_DIR/kernels
-IMG_DIR=$RES_DIR/images
+VMLINUX_DIR=$RES_DIR
+IMG_DIR=$RES_DIR
+NETPLAN_CONFIG_DIR=$RES_DIR/netplans
 TEST_MODE=$3
 CLOUDINIT_DIR=/tmp/cloudinit
 LOG_DIR="$(dirname "$0")/../../testing/logs"
@@ -46,17 +47,19 @@ spawn_vm() {
     # Base64 encode the command to avoid space issues in kernel cmdline
     IPERF_COMMAND_B64=$(echo -n "$IPERF_COMMAND" | base64 -w 0)
 
+    NETPLAN_CONFIG=$(cat "$NETPLAN_CONFIG_DIR/network-vm$i")
+    NETPLAN_CONFIG_B64=$(echo -n "$NETPLAN_CONFIG" | base64 -w 0)
+    # echo "$NETPLAN_CONFIG_B64"
+
     sudo systemd-run --scope \
         -p AllowedCPUs=4-15 \
         -p CPUQuota=80% \
     cloud-hypervisor \
         --cpus boot=1 \
         --memory size=512M \
-        --kernel "$VMLINUX_DIR/vm$i-kernel.bin" \
-        --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket ROLE=$VM_ROLE IPERF_COMMAND_B64=$IPERF_COMMAND_B64" \
-        --disk \
-            path="$IMG_DIR/vm$i-img.raw" \
-            path="$CLOUDINIT_DIR/cloudinit-vm$i.img" \
+        --kernel "$VMLINUX_DIR/vmlinux.bin" \
+        --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket ROLE=$VM_ROLE IPERF_COMMAND_B64=$IPERF_COMMAND_B64 NETPLAN_CONFIG_B64=$NETPLAN_CONFIG_B64" \
+        --disk path="$IMG_DIR/vm-img.raw",readonly=on \
         --net "tap=tap$i,mac=12:34:56:78:90:$(printf '%02X' $i)" \
         > "$logfile" 2>&1 &
     

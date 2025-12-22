@@ -19,8 +19,8 @@ echo off | sudo tee /sys/devices/system/cpu/smt/control
 
 ### TAP ########
 ./setup/tap/setup_br_tap.sh 0
-./setup/tap/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing samenode
-./setup/tap/spawn_vms.sh 16 /proj/faasnetworkstack-PG0/testing multinode
+./setup/tap/spawn_vms.sh 2 /tmp samenode
+./setup/tap/spawn_vms.sh 16 /tmp multinode
 
 # run TAP one before DPDK to make it download iperf
 ### DPDK #######
@@ -54,10 +54,11 @@ sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' 
 sudo cloud-hypervisor \
 	--cpus boot=1 \
 	--memory size=512M \
-	--kernel /proj/faasnetworkstack-PG0/testing/kernels/vm0-kernel.bin \
+	--kernel /tmp/vmlinux.bin \
 	--cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
-	--disk path=/proj/faasnetworkstack-PG0/testing/images/vm0-img.raw path=/tmp/cloudinit/cloudinit-vm0.img \
-	--net "tap=tap0,mac=12:34:56:78:90:00" 
+	--net "tap=tap0,mac=12:34:56:78:90:00" \
+	--disk path=/tmp/vm-img.raw,readonly=on
+	# --disk path=/tmp/vm-img.raw path=/tmp/cloudinit/cloudinit-vm0.img
 
 # vm1
 sudo cloud-hypervisor \

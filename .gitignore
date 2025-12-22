@@ -1,6 +1,7 @@
 .cache
 build
 network-configs
+netplans
 user-datas
 testing/results
 logs

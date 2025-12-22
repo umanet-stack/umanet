@@ -21,12 +21,10 @@ create_iso() {
     # Copy files with correct names
     mcopy -oi "${output}" -s "${userdata}" ::user-data
     mcopy -oi "${output}" -s "${SCRIPT_DIR}/meta-data" ::meta-data
-    mcopy -oi "${output}" "${netconfig}" ::network-config
+    # mcopy -oi "${output}" "${netconfig}" ::network-config
 }
 
 # Create the ISOs
 sudo rm -rf /tmp/cloudinit
 mkdir -p /tmp/cloudinit
-for i in {0..31}; do
-  create_iso "/tmp/cloudinit/cloudinit-vm$i.img" "$SCRIPT_DIR/network-configs/network-vm$i" "$SCRIPT_DIR/user-datas/user-data-vm"
-done
+create_iso "/tmp/cloudinit/cloudinit-vm.img" "$SCRIPT_DIR/netplans/network-vm0" "$SCRIPT_DIR/user-datas/user-data-vm"
