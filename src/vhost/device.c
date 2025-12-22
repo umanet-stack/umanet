@@ -177,7 +177,8 @@ static int new_device(int vid) {
     }
     vdev->vid = vid;
 
-    // with 8 queues: VM 0,8,16,24 share queue 0; VM 1,9,17,25 share queue 1
+    // 1 queue per core
+    // with 3 queues: VM 0,3,6,9 share queue 0; VM 1,4,7,10 share queue 1
     vdev->rx_queue = vid % fp_cores_max;
 
     /*reset ready flag*/

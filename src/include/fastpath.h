@@ -111,7 +111,6 @@ struct vhost_dev { // vhost device
     int vid;                      // vhost device ID, assigned by dpdk
     uint64_t features;            // Virtio feature flags
     size_t hdr_len;               // Header length
-    uint16_t nr_vrings;           // Number of virtio rings
     struct rte_vhost_memory *mem; // Guest memory mapping
     struct device_statistics stats;
 
