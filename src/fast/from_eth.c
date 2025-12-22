@@ -31,8 +31,6 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
     for (uint16_t i = 0; i < rx_count; i++) {
         int target_vid = -1;
         struct vhost_dev *target_vdev = NULL;
-        // if (nat_translate_inbound(pkts[i], &target_vid) == 0) {
-        // }
         struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
         // TODOZ: Use a hash table keyed by MAC address
         target_vdev = find_vhost_dev_core(ctx, &eth_hdr->d_addr);
