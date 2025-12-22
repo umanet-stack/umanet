@@ -24,51 +24,42 @@ const uint16_t vlan_tags[64] = {
 
 static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev,
                                           struct rte_mbuf **pkts, uint16_t count);
-static inline void virtio_tx_route(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
-                                   uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag);
+static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
+                                    uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag);
 static void virtio_tx_offload(struct rte_mbuf *m);
 static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count);
 
 // receive packets from VM's TX queue, route them to the correct destination
-void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx) {
+void fastpath_from_vhost(struct vhost_dev *vdev, struct dataplane_context *ctx) {
     struct rte_mbuf *pkts[MAX_PKT_BURST];
     uint16_t count;
 
     if (unlikely(check_device_state(vdev, "poll_virtio_tx") != 0))
         return;
 
-    // copy pkt from guest vring buffer to DPDK mbuf (vm -> dpdk)
-    // This can fail if the vhost connection is broken
     count = vhost_poll(ctx, MAX_PKT_BURST, vdev->vid, pkts);
-
     if (unlikely((int16_t)count < 0)) {
         LOG_ERROR("Error: vhost_poll failed for vid=%d (device may be disconnected)\n", vdev->vid);
         vdev->remove = 1; // Mark device for removal
         return;
     }
 
-    if (count > 0) {
-        LOG_VM_IN("[vid=%d] Received %d packets from VM's TX queue\n", vdev->vid, count);
-        PRINT_PKTS(pkts, count, LOG_VM_IN);
-    }
-
     /* setup VMDq for the first packet */
     if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) { // device in MAC learning
-        LOG_INFO("[vid=%d] In MAC learning mode, processing first packet\n", vdev->vid);
+        LOG_INFO("(%d) In MAC learning mode, processing first packet\n", vdev->vid);
         if (vdev->remove || link_vmdq(vdev, pkts[0]) == -1) { // failed to learn MAC from first packet
-            LOG_ERROR("[vid=%d] MAC learning failed, dropping %d packets\n", vdev->vid, count);
+            LOG_ERROR("(%d) MAC learning failed, dropping %d packets\n", vdev->vid, count);
             free_pkts(pkts, count);
             return; // Early return after freeing packets
         }
-        LOG_INFO("[vid=%d] MAC learning successful, device now in RX mode\n", vdev->vid);
+        LOG_INFO("(%d) MAC learning successful, device now in RX mode\n", vdev->vid);
     }
 
-    virtio_tx_route(ctx, vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
+    route_vhost_pkts(ctx, vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
 }
 
-static inline void virtio_tx_route(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
-                                   uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag) {
-    STATS_TS(route_vhost_start);
+static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
+                                    uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag) {
     struct rte_mbuf *broadcast_pkts[MAX_PKT_BURST];
     struct rte_mbuf *external_pkts[MAX_PKT_BURST];
     struct rte_mbuf *local_pkts[MAX_PKT_BURST];
@@ -109,16 +100,13 @@ static inline void virtio_tx_route(struct dataplane_context *ctx, struct vhost_d
                     continue;
                 }
             }
-            LOG_INFO("(%d) TX: MAC address is external\n", vdev->vid);
+            LOG_INFO("(%d) TX: external packet (\n", vdev->vid);
             external_pkts[external_count++] = pkts[i];
             continue;
         }
 
         local_pkts[local_count++] = pkts[i];
     }
-
-    STATS_TS(route_vhost_end); // 7%
-    STATS_TSADD(ctx, cyc_route_vhost, route_vhost_end - route_vhost_start);
 
     // broadcast packets
     if (unlikely(broadcast_count > 0)) {
@@ -145,10 +133,7 @@ static inline void virtio_tx_route(struct dataplane_context *ctx, struct vhost_d
         }
     }
 
-    STATS_TS(flush_eth_start);
     // send to NIC
-    // uint32_t nat_ip = (128 << 24) | (110 << 16) | (219 << 8) | 130; // 128.110.219.130
-    // nat_translate_outbound(m, vdev->vid, nat_ip);
     struct rte_ether_hdr *eth_hdr;
     for (int i = 0; i < external_count; i++) {
         eth_hdr = rte_pktmbuf_mtod(external_pkts[i], struct rte_ether_hdr *);
@@ -169,26 +154,13 @@ static inline void virtio_tx_route(struct dataplane_context *ctx, struct vhost_d
         if (unlikely(tx_q->len == MAX_PKT_BURST)) // if the queue is full
             flush_eth_tx(ctx, tx_q);              // drain the queue (send packets to NIC)
     }
-
-    if (unlikely(tx_q->len == MAX_PKT_BURST)) // if the queue is full
-        flush_eth_tx(ctx, tx_q);              // drain the queue (send packets to NIC)
-
-    STATS_TS(flush_eth_end);
-    // STATS_TSADD(ctx, cyc_flush_eth, flush_eth_end - flush_eth_start);
-
-    // // send to TAP (host network stack via br0)
-    // if (tap_count > 0) {
-    //     int sent = tap_tx_burst(tap_pkts, tap_count);
-    //     LOG_INFO("(%d) Forwarded %d/%d packets to TAP interface\n", vdev->vid, sent, tap_count);
-    // }
+    if (unlikely(tx_q->len == MAX_PKT_BURST))
+        flush_eth_tx(ctx, tx_q);
 
     // send to local VM
-    STATS_TS(virtio_tx_start);
     if (local_count > 0) {
         virtio_tx_local(vdev, local_pkts, local_count);
     }
-    STATS_TS(virtio_tx_end); // 30%
-    // STATS_TSADD(ctx, cyc_virtio_tx, virtio_tx_end - virtio_tx_start);
 }
 
 // Transmits a packet to vhost device via virtqueue.

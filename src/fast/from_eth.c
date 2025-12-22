@@ -9,7 +9,7 @@
 #include "src/vhost/vhost.h"
 
 // receive packets from physical NIC and forward them to a VM
-void poll_eth_rx(struct dataplane_context *ctx) {
+void fastpath_from_eth(struct dataplane_context *ctx) {
     uint16_t rx_count;
     struct rte_mbuf *pkts[MAX_PKT_BURST];
 
@@ -110,7 +110,6 @@ void flush_eth_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q) {
 
     // Packets are given to NIC hardware, NIC takes ownership and frees after DMA completes (don't free yourself)
     count = network_send(ctx, tx_q->len, tx_q->m_table);
-
     if (unlikely(count < tx_q->len))                         // fewer packets were sent than attempted
         free_pkts(&tx_q->m_table[count], tx_q->len - count); // free the unsent packets
 

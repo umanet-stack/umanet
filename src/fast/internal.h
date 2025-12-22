@@ -41,9 +41,9 @@ void *util_create_shmsiszed(const char *name, size_t size, void *addr);
 
 int process_arp(struct vhost_dev *vdev, struct rte_mbuf *m);
 
-void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx);
+void fastpath_from_vhost(struct vhost_dev *vdev, struct dataplane_context *ctx);
 
 void flush_eth_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q);
-void poll_eth_rx(struct dataplane_context *ctx);
+void fastpath_from_eth(struct dataplane_context *ctx);
 
 #endif /* ndef INTERNAL_H_ */

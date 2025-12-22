@@ -45,6 +45,8 @@ int register_vhost_drivers();
 int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m);
 void unlink_vmdq(struct dataplane_context *ctx, struct vhost_dev *vdev);
 
+// copy pkt from guest vring buffer to DPDK mbuf (vm -> dpdk)
+// This can fail if the vhost connection is broken
 static inline unsigned vhost_poll(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
     STATS_TS(poll_vhost_start);
     num = rte_vhost_dequeue_burst(vid, VIRTIO_TXQ, ctx->net.pool, pkts, num);

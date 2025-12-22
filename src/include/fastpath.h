@@ -176,19 +176,18 @@ struct dataplane_context {
     /* Stats */
     uint64_t stat_cyc_loop;
     uint64_t stat_cyc_loop_sleep;
-    uint64_t stat_cyc_loop_vdev;
-    uint64_t stat_cyc_loop_vhost;
 
+    uint64_t stat_cyc_eth_fp;
     uint64_t stat_cyc_poll_eth;
     uint64_t stat_cyc_send_eth;
-    uint64_t stat_cyc_route_eth;
     uint64_t stat_pkt_eth_rx;
     uint64_t stat_pkt_eth_tx;
     uint64_t stat_pkt_eth_tx_fail;
 
+    uint64_t stat_cyc_vhost_fp;
     uint64_t stat_cyc_poll_vhost;
     uint64_t stat_cyc_send_vhost;
-    uint64_t stat_cyc_route_vhost;
+    uint64_t stat_cyc_vdev;
     uint64_t stat_pkt_vhost_rx;
     uint64_t stat_pkt_vhost_tx;
     uint64_t stat_pkt_vhost_tx_fail;

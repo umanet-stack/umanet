@@ -55,36 +55,32 @@ int dataplane_context_init(struct dataplane_context *ctx) {
 
     ctx->poll_next_ctx = ctx->id;
 
-    /* Initialize vhost device array for this context */
     memset(ctx->vhost.vdev_list, 0, sizeof(ctx->vhost.vdev_list));
     ctx->vhost.device_num = 0;
     ctx->vhost.dev_removal_flag = 0;
     ctx->vhost.poll_next_device = 0;
 
-    /* Initialize TX queue */
     memset(&ctx->vhost.tx_q, 0, sizeof(ctx->vhost.tx_q));
     ctx->vhost.tx_q.txq_id = ctx->id;
     ctx->vhost.tx_q.len = 0;
 
     ctx->stat_cyc_loop = 0;
     ctx->stat_cyc_loop_sleep = 0;
-    ctx->stat_cyc_loop_vdev = 0;
-    ctx->stat_cyc_loop_vhost = 0;
 
+    ctx->stat_cyc_eth_fp = 0;
     ctx->stat_cyc_poll_eth = 0;
     ctx->stat_cyc_send_eth = 0;
     ctx->stat_pkt_eth_rx = 0;
     ctx->stat_pkt_eth_tx = 0;
     ctx->stat_pkt_eth_tx_fail = 0;
 
+    ctx->stat_cyc_vhost_fp = 0;
     ctx->stat_cyc_poll_vhost = 0;
     ctx->stat_cyc_send_vhost = 0;
+    ctx->stat_cyc_vdev = 0;
     ctx->stat_pkt_vhost_rx = 0;
     ctx->stat_pkt_vhost_tx = 0;
     ctx->stat_pkt_vhost_tx_fail = 0;
-
-    ctx->stat_cyc_route_vhost = 0;
-    ctx->stat_cyc_route_eth = 0;
 
     return 0;
 }
@@ -138,8 +134,6 @@ void dataplane_loop(struct dataplane_context *ctx) {
         // Drain TX queue if it has packets (check is cheap, only drain on timeout)
         if (tx_q->len > 0)
             drain_vhost_tx(ctx, tx_q);
-        STATS_TS(drain_vhost_tx_end);
-        // STATS_TSADD(ctx, cyc_flush_eth, drain_vhost_tx_end - sleep);
 
         /*
          * Inform the configuration core that we have exited the
@@ -157,12 +151,12 @@ void dataplane_loop(struct dataplane_context *ctx) {
             continue;
         }
 
-        // receive packets from physical NIC and forward them to a VM
-        STATS_TS(poll_eth_start);
-        poll_eth_rx(ctx);
-        STATS_TS(poll_eth_end);
-        STATS_TSADD(ctx, cyc_poll_eth, poll_eth_end - poll_eth_start);
+        STATS_TS(eth_fp_start);
+        fastpath_from_eth(ctx);
+        STATS_TS(eth_fp_end);
+        STATS_TSADD(ctx, cyc_eth_fp, eth_fp_end - eth_fp_start);
 
+        STATS_TS(vhost_fp_start);
         for (int i = 0; i < current_device_num; i++) {
             STATS_TS(vdev_start);
             // Use modulo with bounds check to prevent out-of-bounds access
@@ -224,16 +218,13 @@ void dataplane_loop(struct dataplane_context *ctx) {
                 continue;
             }
             STATS_TS(vdev_end);
-            STATS_TSADD(ctx, cyc_loop_vdev, vdev_end - vdev_start);
+            STATS_TSADD(ctx, cyc_vdev, vdev_end - vdev_start);
 
             // TODOZ: Current: Round-robin through all devices, Optimization: Skip idle devices, batch processing
             // Double-check device is still valid before polling TX
             if (likely(!vdev->remove && vdev->ready != DEVICE_SAFE_REMOVE)) {
                 // receive packets from VM's TX queue, route them to the NIC or local VM
-                STATS_TS(loop_vhost_start);
-                poll_virtio_tx(vdev, ctx);
-                STATS_TS(loop_vhost_end);
-                STATS_TSADD(ctx, cyc_loop_vhost, loop_vhost_end - loop_vhost_start);
+                fastpath_from_vhost(vdev, ctx);
                 // Note: We can't easily get the count here without modifying poll_virtio_tx
                 // For now, assume we're busy if we're polling (conservative approach)
                 packets_received = 1; // Mark as potentially busy
@@ -247,27 +238,11 @@ void dataplane_loop(struct dataplane_context *ctx) {
             // Reset to 0 when no devices remain
             ctx->vhost.poll_next_device = 0;
         }
+        STATS_TS(vhost_fp_end);
+        STATS_TSADD(ctx, cyc_vhost_fp, vhost_fp_end - vhost_fp_start);
 
-        // Update idle state for adaptive pausing (TAS-style)
         was_idle = (packets_received == 0);
 
-        // /* count cycles of previous iteration if it was busy */
-        // prev_cyc = cyc;
-        // cyc = rte_get_tsc_cycles();
-        // if (!was_idle)
-        //     ctx->loadmon_cyc_busy += cyc - prev_cyc;
-
-        // // n += poll_rx(ctx, ts, cyc);
-        // STATS_TS(rx);
-        // // Flush TX buffer (send pkt)
-        // // tx_flush(ctx);
-
-        // n += poll_vhost_rx(ctx, ts);
-        // STATS_TS(qs);
-        // STATS_TSADD(ctx, cyc_qs, qs - qm);
-
-        // n += poll_rx(ctx, ts, cyc);      // Physical NIC - external traffic (later)
-        // n += poll_vhost_rx(ctx, ts);      // Vhost - VM traffic
         STATS_TS(loop_end);
         STATS_TSADD(ctx, cyc_loop, loop_end - loop_start);
     }
@@ -364,26 +339,37 @@ void dataplane_dump_stats(void) {
 
     for (i = 0; i < fp_cores_max; i++) {
         ctx = ctxs[i];
+        uint64_t loop = read_stat(&ctx->stat_cyc_loop);
+        uint64_t loop_sleep = read_stat(&ctx->stat_cyc_loop_sleep);
         fprintf(stderr, "\n========== CORE %u ==========\n", i);
-        fprintf(stderr, "loop: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_loop));
-        fprintf(stderr, "\tloop_sleep: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_loop_sleep));
-        fprintf(stderr, "\tloop_vdev: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_loop_vdev));
-        fprintf(stderr, "\tloop_vhost: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_loop_vhost));
+        fprintf(stderr, "FASTPATH:\n");
+        fprintf(stderr, "whole loop: \t%" PRIu64 "\n", loop);
+        fprintf(stderr, "loop_sleep: \t%" PRIu64 " (%.2f%%)\n", loop_sleep, (double)loop_sleep / loop * 100);
 
-        fprintf(stderr, "ETH:\n");
-        fprintf(stderr, "poll_eth: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_poll_eth));
-        fprintf(stderr, "send_eth: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_send_eth));
-        fprintf(stderr, "route_eth: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_route_eth));
-        fprintf(stderr, "pkt_eth_rx: %" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_rx));
-        fprintf(stderr, "pkt_eth_tx: %" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_tx));
-        fprintf(stderr, "pkt_eth_tx_fail: %" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_tx_fail));
+        uint64_t eth_fp = read_stat(&ctx->stat_cyc_eth_fp);
+        uint64_t eth_poll = read_stat(&ctx->stat_cyc_poll_eth);
+        uint64_t eth_send = read_stat(&ctx->stat_cyc_send_eth);
+        uint64_t eth_route = eth_fp - eth_poll - eth_send;
+        fprintf(stderr, "ETH FP: \t%" PRIu64 " (%.2f%%)\n", eth_fp, (double)eth_fp / loop * 100);
+        fprintf(stderr, "poll_eth: \t%" PRIu64 " (%.2f%%)\n", eth_poll, (double)eth_poll / eth_fp * 100);
+        fprintf(stderr, "send_eth: \t%" PRIu64 " (%.2f%%)\n", eth_send, (double)eth_send / eth_fp * 100);
+        fprintf(stderr, "route_eth: \t%" PRIu64 " (%.2f%%)\n", eth_route, (double)eth_route / eth_fp * 100);
+        fprintf(stderr, "pkt_eth_rx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_rx));
+        fprintf(stderr, "pkt_eth_tx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_tx));
+        fprintf(stderr, "pkt_eth_tx_fail: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_tx_fail));
 
-        fprintf(stderr, "VHOST:\n");
-        fprintf(stderr, "poll_vhost: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_poll_vhost));
-        fprintf(stderr, "send_vhost: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_send_vhost));
-        fprintf(stderr, "route_vhost: %" PRIu64 "\n", read_stat(&ctx->stat_cyc_route_vhost));
-        fprintf(stderr, "pkt_vhost_rx: %" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_rx));
-        fprintf(stderr, "pkt_vhost_tx: %" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_tx));
-        fprintf(stderr, "pkt_vhost_tx_fail: %" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_tx_fail));
+        uint64_t vhost_fp = read_stat(&ctx->stat_cyc_vhost_fp);
+        uint64_t vhost_poll = read_stat(&ctx->stat_cyc_poll_vhost);
+        uint64_t vhost_send = read_stat(&ctx->stat_cyc_send_vhost);
+        uint64_t vdev = read_stat(&ctx->stat_cyc_vdev);
+        uint64_t vhost_route = vhost_fp - vhost_poll - vhost_send - vdev;
+        fprintf(stderr, "VHOST FP: \t%" PRIu64 " (%.2f%%)\n", vhost_fp, (double)vhost_fp / loop * 100);
+        fprintf(stderr, "poll_vhost: \t%" PRIu64 " (%.2f%%)\n", vhost_poll, (double)vhost_poll / vhost_fp * 100);
+        fprintf(stderr, "send_vhost: \t%" PRIu64 " (%.2f%%)\n", vhost_send, (double)vhost_send / vhost_fp * 100);
+        fprintf(stderr, "vdev: \t%" PRIu64 " (%.2f%%)\n", vdev, (double)vdev / vhost_fp * 100);
+        fprintf(stderr, "route_vhost: \t%" PRIu64 " (%.2f%%)\n", vhost_route, (double)vhost_route / vhost_fp * 100);
+        fprintf(stderr, "pkt_vhost_rx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_rx));
+        fprintf(stderr, "pkt_vhost_tx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_tx));
+        fprintf(stderr, "pkt_vhost_tx_fail: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_tx_fail));
     }
 }
