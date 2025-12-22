@@ -189,10 +189,11 @@ void dataplane_dump_stats(void) {
         uint64_t eth_poll = read_stat(&ctx->stat_cyc_poll_eth);
         uint64_t eth_send = read_stat(&ctx->stat_cyc_send_eth);
         uint64_t eth_route = eth_fp - eth_poll - eth_send;
-        fprintf(stderr, "ETH FP: \t%" PRIu64 " (%.2f%%)\n", eth_fp, (double)eth_fp / loop * 100);
+        fprintf(stderr, "\nETH FP: \t%" PRIu64 " (%.2f%% of whole loop)\n", eth_fp, (double)eth_fp / loop * 100);
         fprintf(stderr, "poll_eth: \t%" PRIu64 " (%.2f%%)\n", eth_poll, (double)eth_poll / eth_fp * 100);
         fprintf(stderr, "send_eth: \t%" PRIu64 " (%.2f%%)\n", eth_send, (double)eth_send / eth_fp * 100);
         fprintf(stderr, "route_eth: \t%" PRIu64 " (%.2f%%)\n", eth_route, (double)eth_route / eth_fp * 100);
+        fprintf(stderr, "TOTAL ETH: \t %.2f%%\n", (double)(eth_poll + eth_send + eth_route) / eth_fp * 100);
         fprintf(stderr, "pkt_eth_rx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_rx));
         fprintf(stderr, "pkt_eth_tx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_tx));
         fprintf(stderr, "pkt_eth_tx_fail: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_tx_fail));
@@ -202,11 +203,13 @@ void dataplane_dump_stats(void) {
         uint64_t vhost_send = read_stat(&ctx->stat_cyc_send_vhost);
         uint64_t vdev = read_stat(&ctx->stat_cyc_vdev);
         uint64_t vhost_route = vhost_fp - vhost_poll - vhost_send - vdev;
-        fprintf(stderr, "VHOST FP: \t%" PRIu64 " (%.2f%%)\n", vhost_fp, (double)vhost_fp / loop * 100);
+        fprintf(stderr, "\nVHOST FP: \t%" PRIu64 " (%.2f%% of whole loop)\n", vhost_fp, (double)vhost_fp / loop * 100);
         fprintf(stderr, "poll_vhost: \t%" PRIu64 " (%.2f%%)\n", vhost_poll, (double)vhost_poll / vhost_fp * 100);
         fprintf(stderr, "send_vhost: \t%" PRIu64 " (%.2f%%)\n", vhost_send, (double)vhost_send / vhost_fp * 100);
-        fprintf(stderr, "vdev: \t%" PRIu64 " (%.2f%%)\n", vdev, (double)vdev / vhost_fp * 100);
+        fprintf(stderr, "vdev config: \t%" PRIu64 " (%.2f%%)\n", vdev, (double)vdev / vhost_fp * 100);
         fprintf(stderr, "route_vhost: \t%" PRIu64 " (%.2f%%)\n", vhost_route, (double)vhost_route / vhost_fp * 100);
+        fprintf(stderr, "TOTAL VHOST: \t %.2f%%\n",
+                (double)(vhost_poll + vhost_send + vdev + vhost_route) / vhost_fp * 100);
         fprintf(stderr, "pkt_vhost_rx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_rx));
         fprintf(stderr, "pkt_vhost_tx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_tx));
         fprintf(stderr, "pkt_vhost_tx_fail: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_tx_fail));
