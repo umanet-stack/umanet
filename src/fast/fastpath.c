@@ -94,6 +94,7 @@ void dataplane_loop(struct dataplane_context *ctx) {
     uint64_t last_active_ts = 0;
     int idle_count = 0;
     const uint64_t poll_cycle_tsc = rte_get_tsc_hz() / 1000000; // 1us in TSC cycles
+    uint64_t cyc;                                               // TSC cycles for adaptive pause
 
     while (!exited) {
         STATS_TS(loop_start);
@@ -137,6 +138,8 @@ void dataplane_loop(struct dataplane_context *ctx) {
         // If no devices, skip polling
         if (current_device_num == 0) {
             was_idle = 1;
+            STATS_TS(loop_end);
+            STATS_TSADD(ctx, cyc_loop, loop_end - loop_start);
             continue;
         }
 
