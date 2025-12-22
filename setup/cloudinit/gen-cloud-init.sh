@@ -28,5 +28,5 @@ create_iso() {
 sudo rm -rf /tmp/cloudinit
 mkdir -p /tmp/cloudinit
 for i in {0..31}; do
-  create_iso "/tmp/cloudinit/cloudinit-vm$i.img" "$SCRIPT_DIR/network-configs/network-vm$i" "$SCRIPT_DIR/user-datas/user-data-vm$i"
+  create_iso "/tmp/cloudinit/cloudinit-vm$i.img" "$SCRIPT_DIR/network-configs/network-vm$i" "$SCRIPT_DIR/user-datas/user-data-vm"
 done

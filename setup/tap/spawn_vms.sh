@@ -24,6 +24,8 @@ mkdir -p "$LOG_DIR"
 spawn_vm() {
     local i=$1
     local logfile="$LOG_DIR/vm$i.log"
+    local VM_ROLE="$(if (( i % 2 == 0 )); then echo "server"; else echo "client"; fi)"
+    local VM_SERVER_IP="192.168.100.$((i+1))"
 
     sudo systemd-run --scope \
         -p AllowedCPUs=4-15 \
@@ -32,7 +34,7 @@ spawn_vm() {
         --cpus boot=1 \
         --memory size=512M \
         --kernel "$VMLINUX_DIR/vm$i-kernel.bin" \
-        --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
+        --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket ROLE=$VM_ROLE SERVER_IP=$VM_SERVER_IP" \
         --disk \
             path="$IMG_DIR/vm$i-img.raw" \
             path="$CLOUDINIT_DIR/cloudinit-vm$i.img" \
