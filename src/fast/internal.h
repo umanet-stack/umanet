@@ -41,7 +41,7 @@ void *util_create_shmsiszed(const char *name, size_t size, void *addr);
 
 int process_arp(struct vhost_dev *vdev, struct rte_mbuf *m);
 
-void fastpath_from_vhost(struct vhost_dev *vdev, struct dataplane_context *ctx);
+uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_device_num);
 
 void flush_eth_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q);
 void fastpath_from_eth(struct dataplane_context *ctx);

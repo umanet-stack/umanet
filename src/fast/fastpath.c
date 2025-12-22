@@ -11,7 +11,6 @@
 #include <unistd.h>
 
 static inline void drain_vhost_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q);
-static inline void cleanup_tx_queue_for_device(struct mbuf_table *tx_q, struct vhost_dev *vdev);
 
 int dataplane_init(void) {
     if (FLEXNIC_INTERNAL_MEM_SIZE < sizeof(struct flextcp_pl_mem)) {
@@ -91,7 +90,6 @@ void dataplane_loop(struct dataplane_context *ctx) {
     int was_idle = 1;
 
     unsigned lcore_id = ctx->id;
-    struct vhost_dev *vdev;
     struct mbuf_table *tx_q;
 
     LOG_INFO("Procesing on Core %u started\n", lcore_id);
@@ -100,7 +98,7 @@ void dataplane_loop(struct dataplane_context *ctx) {
     tx_q->txq_id = ctx->id;
     LOG_INFO("TX queue ID: %u\n", tx_q->txq_id);
 
-    // Adaptive blocking state (similar to TAS)
+    // Adaptive blocking state
     uint64_t last_active_ts = 0;
     int idle_count = 0;
     const uint64_t poll_cycle_tsc = rte_get_tsc_hz() / 1000000; // 1us in TSC cycles
@@ -128,7 +126,6 @@ void dataplane_loop(struct dataplane_context *ctx) {
 #endif
         STATS_TS(sleep);
         STATS_TSADD(ctx, cyc_loop_sleep, sleep - loop_start);
-        // Track if we received any packets this iteration
         unsigned packets_received = 0;
 
         // Drain TX queue if it has packets (check is cheap, only drain on timeout)
@@ -157,163 +154,13 @@ void dataplane_loop(struct dataplane_context *ctx) {
         STATS_TSADD(ctx, cyc_eth_fp, eth_fp_end - eth_fp_start);
 
         STATS_TS(vhost_fp_start);
-        for (int i = 0; i < current_device_num; i++) {
-            STATS_TS(vdev_start);
-            // Use modulo with bounds check to prevent out-of-bounds access
-            uint16_t dev_idx = (ctx->vhost.poll_next_device + i) % MAX_VHOST_DEVICES_PER_CORE;
-
-            // Additional safety: ensure dev_idx is within current device count
-            if (dev_idx >= current_device_num) {
-                dev_idx = i; // Fallback to simple iteration
-            }
-
-            vdev = ctx->vhost.vdev_list[dev_idx];
-
-            // Add robust null check
-            if (vdev == NULL) {
-                LOG_WARN("Warning: NULL vdev at index %d (device_num=%d)\n", dev_idx, current_device_num);
-                continue;
-            }
-
-            if (unlikely(vdev->remove)) { // device is marked for removal
-                LOG_INFO("Removing device vid=%d from dataplane (current device_num=%d)\n", vdev->vid,
-                         ctx->vhost.device_num);
-
-                // Clean up any pending TX packets for this device
-                cleanup_tx_queue_for_device(&ctx->vhost.tx_q, vdev);
-
-                unlink_vmdq(ctx, vdev);
-                vdev->ready = DEVICE_SAFE_REMOVE;
-
-                // Remove from array by shifting remaining elements
-                for (int j = dev_idx; j < ctx->vhost.device_num - 1; j++) {
-                    ctx->vhost.vdev_list[j] = ctx->vhost.vdev_list[j + 1];
-                }
-                ctx->vhost.vdev_list[ctx->vhost.device_num - 1] = NULL;
-                ctx->vhost.device_num--;
-
-                // Adjust poll_next_device if needed
-                if (ctx->vhost.poll_next_device >= ctx->vhost.device_num && ctx->vhost.device_num > 0) {
-                    ctx->vhost.poll_next_device = 0;
-                }
-
-                LOG_INFO("Device removed, new device_num=%d\n", ctx->vhost.device_num);
-
-                // Update cached value to prevent accessing removed device
-                current_device_num = ctx->vhost.device_num;
-
-                // If we removed the last device, break out of loop
-                if (current_device_num == 0) {
-                    break;
-                }
-
-                // Don't increment i since we just shifted elements down
-                i--;
-                continue;
-            }
-
-            // Validate device is in a valid state before polling
-            if (vdev->ready != DEVICE_RX && vdev->ready != DEVICE_MAC_LEARNING) {
-                LOG_WARN("Warning: Device vid=%d in invalid state %d, skipping\n", vdev->vid, vdev->ready);
-                continue;
-            }
-            STATS_TS(vdev_end);
-            STATS_TSADD(ctx, cyc_vdev, vdev_end - vdev_start);
-
-            // TODOZ: Current: Round-robin through all devices, Optimization: Skip idle devices, batch processing
-            // Double-check device is still valid before polling TX
-            if (likely(!vdev->remove && vdev->ready != DEVICE_SAFE_REMOVE)) {
-                // receive packets from VM's TX queue, route them to the NIC or local VM
-                fastpath_from_vhost(vdev, ctx);
-                // Note: We can't easily get the count here without modifying poll_virtio_tx
-                // For now, assume we're busy if we're polling (conservative approach)
-                packets_received = 1; // Mark as potentially busy
-            }
-        }
-
-        // Update round-robin pointer with bounds check
-        if (ctx->vhost.device_num > 0) {
-            ctx->vhost.poll_next_device = (ctx->vhost.poll_next_device + 1) % ctx->vhost.device_num;
-        } else {
-            // Reset to 0 when no devices remain
-            ctx->vhost.poll_next_device = 0;
-        }
+        packets_received = fastpath_from_vhost(ctx, current_device_num);
         STATS_TS(vhost_fp_end);
         STATS_TSADD(ctx, cyc_vhost_fp, vhost_fp_end - vhost_fp_start);
 
         was_idle = (packets_received == 0);
-
         STATS_TS(loop_end);
         STATS_TSADD(ctx, cyc_loop, loop_end - loop_start);
-    }
-}
-
-// Poll vhost RX queues for incoming packets
-static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) {
-    int ret;
-    unsigned n = 0, total = 0;
-    struct rte_mbuf *mbs[BATCH_SIZE];
-    struct vhost_dev *vdev;
-
-    n = BATCH_SIZE;
-    // Check if the TX buffer has enough free slots, avoid overflow
-    if (TXBUF_SIZE - ctx->tx_num < n)
-        n = TXBUF_SIZE - ctx->tx_num;
-
-    // Poll multiple vhost devices/queues per core (round-robin)
-    for (int i = 0; i < ctx->vhost.device_num && total < n; i++) {
-        uint16_t dev_idx = (ctx->vhost.poll_next_device + i) % ctx->vhost.device_num;
-        vdev = ctx->vhost.vdev_list[dev_idx];
-        if (vdev == NULL)
-            continue;
-
-        ret = vhost_poll(ctx, n, vdev->vid, mbs);
-        if (ret <= 0)
-            continue;
-        total += ret;
-    }
-
-    // Update round-robin pointer
-    if (total > 0 && ctx->vhost.device_num > 0)
-        ctx->vhost.poll_next_device = (ctx->vhost.poll_next_device + 1) % ctx->vhost.device_num;
-
-    /* parse packets TCP headers (just timestamp option) to tcpopts */
-    // fast_flows_packet_parse(ctx, bhs, fss, tcpopts, n);
-
-    // for (int i = 0; i < n; i++) {
-    //     uint16_t vhost_queue = pick_vhost_queue(ctx, mbs[i]);
-    //     if (vhost_queue != 0) {
-    //         rte_vhost_send(ctx, 1, vdev->vid, &mbs[i]);
-    //     }
-    // }
-
-    // no. of pkts processed
-    return total;
-}
-
-// static inline uint16_t pick_vhost_queue(struct dataplane_context *ctx, struct rte_mbuf *pkt) {
-//     struct rte_ether_hdr *eth = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-//     for (int i = 0; i < ctx->vhost.device_num; i++) {
-//         if (memcmp(eth->d_addr.addr_bytes, ctx->vhost.vdev_list[i]->mac_address.addr_bytes, 6) == 0)
-//             return ctx->rx_queue;
-//     }
-//     return 0; // optional: drop or broadcast
-// }
-
-// Clean up TX queue entries that belong to a device being removed
-static inline void cleanup_tx_queue_for_device(struct mbuf_table *tx_q, struct vhost_dev *vdev) {
-    if (tx_q == NULL || vdev == NULL) {
-        return;
-    }
-
-    LOG_INFO("Cleaning up TX queue for device vid=%d (current queue len=%u)\n", vdev->vid, tx_q->len);
-
-    // Note: We can't easily identify which packets belong to which device,
-    // so we flush all pending packets to the NIC before device removal
-    if (tx_q->len > 0) {
-        LOG_INFO("Flushing %u pending packets before device removal\n", tx_q->len);
-        struct dataplane_context *ctx = ctxs[vdev->coreid];
-        flush_eth_tx(ctx, tx_q);
     }
 }
 

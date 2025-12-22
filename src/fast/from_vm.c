@@ -22,40 +22,106 @@ const uint16_t vlan_tags[64] = {
     1048, 1049, 1050, 1051, 1052, 1053, 1054, 1055, 1056, 1057, 1058, 1059, 1060, 1061, 1062, 1063,
 };
 
-static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev,
-                                          struct rte_mbuf **pkts, uint16_t count);
+static __rte_always_inline void vhost_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf **pkts,
+                                         uint16_t count);
 static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
                                     uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag);
 static void virtio_tx_offload(struct rte_mbuf *m);
-static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count);
+static __rte_always_inline int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count);
 
 // receive packets from VM's TX queue, route them to the correct destination
-void fastpath_from_vhost(struct vhost_dev *vdev, struct dataplane_context *ctx) {
+uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_device_num) {
     struct rte_mbuf *pkts[MAX_PKT_BURST];
+    struct vhost_dev *vdev;
     uint16_t count;
+    uint16_t packets_received = 0;
 
-    if (unlikely(check_device_state(vdev, "poll_virtio_tx") != 0))
-        return;
-
-    count = vhost_poll(ctx, MAX_PKT_BURST, vdev->vid, pkts);
-    if (unlikely((int16_t)count < 0)) {
-        LOG_ERROR("Error: vhost_poll failed for vid=%d (device may be disconnected)\n", vdev->vid);
-        vdev->remove = 1; // Mark device for removal
-        return;
-    }
-
-    /* setup VMDq for the first packet */
-    if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) { // device in MAC learning
-        LOG_INFO("(%d) In MAC learning mode, processing first packet\n", vdev->vid);
-        if (vdev->remove || link_vmdq(vdev, pkts[0]) == -1) { // failed to learn MAC from first packet
-            LOG_ERROR("(%d) MAC learning failed, dropping %d packets\n", vdev->vid, count);
-            free_pkts(pkts, count);
-            return; // Early return after freeing packets
+    for (int i = 0; i < current_device_num; i++) {
+        STATS_TS(vdev_start);
+        uint16_t dev_idx = (ctx->vhost.poll_next_device + i) % MAX_VHOST_DEVICES_PER_CORE;
+        // Additional safety: ensure dev_idx is within current device count
+        if (dev_idx >= current_device_num) {
+            dev_idx = i; // Fallback to simple iteration
         }
-        LOG_INFO("(%d) MAC learning successful, device now in RX mode\n", vdev->vid);
+
+        vdev = ctx->vhost.vdev_list[dev_idx];
+        if (unlikely(vdev == NULL)) {
+            LOG_WARN("Warning: NULL vdev at index %d (device_num=%d)\n", dev_idx, current_device_num);
+            continue;
+        }
+        if (unlikely(vdev->remove)) {
+            // device is marked for removal
+            LOG_INFO("(%d) Removing device from dataplane (device_num=%d)\n", vdev->vid, ctx->vhost.device_num);
+
+            struct mbuf_table *tx_q = &ctx->vhost.tx_q;
+            if (tx_q->len > 0) {
+                LOG_INFO("Flushing %u pending packets before device removal\n", tx_q->len);
+                flush_eth_tx(ctx, tx_q);
+            }
+
+            unlink_vmdq(ctx, vdev);
+            vdev->ready = DEVICE_SAFE_REMOVE;
+
+            // Remove from array by shifting remaining elements
+            for (int j = dev_idx; j < ctx->vhost.device_num - 1; j++) {
+                ctx->vhost.vdev_list[j] = ctx->vhost.vdev_list[j + 1];
+            }
+            ctx->vhost.vdev_list[ctx->vhost.device_num - 1] = NULL;
+            ctx->vhost.device_num--;
+
+            // Adjust poll_next_device if needed
+            if (ctx->vhost.poll_next_device >= ctx->vhost.device_num && ctx->vhost.device_num > 0) {
+                ctx->vhost.poll_next_device = 0;
+            }
+
+            LOG_INFO("Device removed, new device_num=%d\n", ctx->vhost.device_num);
+            // Update cached value to prevent accessing removed device
+            current_device_num = ctx->vhost.device_num;
+
+            // If we removed the last device, break out of loop
+            if (current_device_num == 0) {
+                break;
+            }
+
+            // Don't increment i since we just shifted elements down
+            i--;
+            continue;
+        }
+        STATS_TS(vdev_end);
+        STATS_TSADD(ctx, cyc_vdev, vdev_end - vdev_start);
+
+        // TODOZ: Current: Round-robin through all devices, Optimization: Skip idle devices, batch processing
+        count = vhost_poll(ctx, MAX_PKT_BURST, vdev->vid, pkts);
+        if (unlikely((int16_t)count < 0)) {
+            LOG_ERROR("Error: vhost_poll failed for vid=%d (device may be disconnected)\n", vdev->vid);
+            vdev->remove = 1; // Mark device for removal
+            return packets_received;
+        }
+        packets_received += count;
+
+        /* setup VMDq for the first packet */
+        if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) { // device in MAC learning
+            LOG_INFO("(%d) In MAC learning mode, processing first packet\n", vdev->vid);
+            if (vdev->remove || link_vmdq(vdev, pkts[0]) == -1) { // failed to learn MAC from first packet
+                LOG_ERROR("(%d) MAC learning failed, dropping %d packets\n", vdev->vid, count);
+                free_pkts(pkts, count);
+                return packets_received;
+            }
+            LOG_INFO("(%d) MAC learning successful, device now in RX mode\n", vdev->vid);
+        }
+
+        route_vhost_pkts(ctx, vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
     }
 
-    route_vhost_pkts(ctx, vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
+    // Update round-robin pointer with bounds check
+    if (ctx->vhost.device_num > 0) {
+        ctx->vhost.poll_next_device = (ctx->vhost.poll_next_device + 1) % ctx->vhost.device_num;
+    } else {
+        // Reset to 0 when no devices remain
+        ctx->vhost.poll_next_device = 0;
+    }
+
+    return packets_received;
 }
 
 static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
@@ -127,7 +193,7 @@ static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_
                         }
                         clone_pkts[clone_count++] = clone_pkt;
                     }
-                    virtio_tx(vdev2, vdev, clone_pkts, clone_count);
+                    vhost_tx(vdev2, vdev, clone_pkts, clone_count);
                 }
             }
         }
@@ -159,20 +225,15 @@ static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_
 
     // send to local VM
     if (local_count > 0) {
-        virtio_tx_local(vdev, local_pkts, local_count);
+        route_vhost_local(vdev, local_pkts, local_count);
     }
 }
 
 // Transmits a packet to vhost device via virtqueue.
-static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev,
-                                          struct rte_mbuf **pkts, uint16_t count) {
+static __rte_always_inline void vhost_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf **pkts,
+                                         uint16_t count) {
     uint16_t ret;
     struct dataplane_context *ctx = ctxs[src_vdev->coreid];
-
-    if (unlikely(check_device_state(dst_vdev, "virtio_tx") != 0)) {
-        free_pkts(pkts, count);
-        return;
-    }
 
     ret = vhost_send(ctx, count, dst_vdev->vid, pkts);
     free_pkts(pkts, count);
@@ -214,16 +275,9 @@ static __rte_always_inline void virtio_tx(struct vhost_dev *dst_vdev, struct vho
     }
 }
 
-/*
- * Check if the packet destination MAC address is for a local (same host) device. If so then put
- * the packet on that devices RX queue. If not then return.
- */
-static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count) {
+static __rte_always_inline int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count) {
     struct rte_ether_hdr *pkt_hdr;
     struct vhost_dev *dst_vdev;
-
-    if (unlikely(check_device_state(vdev, "virtio_tx_local") != 0))
-        return -1;
 
     // assume in 1 poll from vhost, all local pkts are for same dest vm
     pkt_hdr = rte_pktmbuf_mtod(pkts[0], struct rte_ether_hdr *);
@@ -241,8 +295,7 @@ static __rte_always_inline int virtio_tx_local(struct vhost_dev *vdev, struct rt
         return 0;
     }
 
-    LOG_INFO("(%d) TX: MAC address is local\n", dst_vdev->vid);
-    virtio_tx(dst_vdev, vdev, pkts, count);
+    vhost_tx(dst_vdev, vdev, pkts, count);
     return 0;
 }
 
