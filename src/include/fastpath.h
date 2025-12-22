@@ -124,7 +124,6 @@ struct vhost_dev { // vhost device
 /* Used for queueing bursts of TX packets. */
 struct mbuf_table {
     unsigned len;
-    unsigned txq_id;
     struct rte_mbuf *m_table[MAX_PKT_BURST];
 };
 

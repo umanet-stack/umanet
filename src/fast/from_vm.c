@@ -166,7 +166,7 @@ static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_
                     continue;
                 }
             }
-            LOG_INFO("(%d) TX: external packet (\n", vdev->vid);
+            LOG_INFO("(%d) TX: external packet\n", vdev->vid);
             external_pkts[external_count++] = pkts[i];
             continue;
         }

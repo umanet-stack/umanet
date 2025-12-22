@@ -60,7 +60,6 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     ctx->vhost.poll_next_device = 0;
 
     memset(&ctx->vhost.tx_q, 0, sizeof(ctx->vhost.tx_q));
-    ctx->vhost.tx_q.txq_id = ctx->id;
     ctx->vhost.tx_q.len = 0;
 
     ctx->stat_cyc_loop = 0;
@@ -87,18 +86,11 @@ int dataplane_context_init(struct dataplane_context *ctx) {
 void dataplane_context_destroy(struct dataplane_context *ctx) {}
 
 void dataplane_loop(struct dataplane_context *ctx) {
-    int was_idle = 1;
-
-    unsigned lcore_id = ctx->id;
-    struct mbuf_table *tx_q;
-
-    LOG_INFO("Procesing on Core %u started\n", lcore_id);
-
-    tx_q = &ctx->vhost.tx_q;
-    tx_q->txq_id = ctx->id;
-    LOG_INFO("TX queue ID: %u\n", tx_q->txq_id);
+    struct mbuf_table *tx_q = &ctx->vhost.tx_q;
+    LOG_INFO("Procesing on Core %u started\n", ctx->id);
 
     // Adaptive blocking state
+    int was_idle = 1;
     uint64_t last_active_ts = 0;
     int idle_count = 0;
     const uint64_t poll_cycle_tsc = rte_get_tsc_hz() / 1000000; // 1us in TSC cycles
