@@ -24,6 +24,19 @@ fi
 
 ninja -C build
 
+# delete tap0, br0
+for i in {0..31}; do
+  sudo ip link delete tap$i 2>/dev/null || true
+done
+sudo ip link delete br0 2>/dev/null || true
+echo "✅ br0 and taps deleted"
+
+sudo ip addr flush dev enp65s0f0np0
+sudo ip addr add 192.168.100.1/24 dev enp65s0f0np0
+sudo ip link set enp65s0f0np0 up
+echo "✅ set enp65s0f0np0 IP to 192.168.100.1/24"
+
+
 # EAL (dpdk) options (before --): -l cores, -n memory channels
 # Application options (after --): --fp-cores-max, --socket-file path, --stats interval
 # 

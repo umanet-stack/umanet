@@ -26,6 +26,11 @@ echo off | sudo tee /sys/devices/system/cpu/smt/control
 
 # run TAP one before DPDK to make it download iperf
 ### DPDK #######
+# make sure the set other node nic
+sudo ip addr flush dev enp65s0f0np0
+sudo ip addr add 192.168.100.99/24 dev enp65s0f0np0
+sudo ip link set enp65s0f0np0 up
+
 # SUPER IMPORTANT: no. of vhost must match no. of VMs!
 sudo ./build_and_run.sh 0000:41:00.0 test 3 24
 ./setup/dpdk/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing
