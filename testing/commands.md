@@ -14,8 +14,6 @@
 # xl170
 ./setup/setup_node.sh 0 ens1f1np1
 
-python ./testing/collector.py
-
 # disable SMT (2 threads/core => 1 thread/core)
 echo off | sudo tee /sys/devices/system/cpu/smt/control
 
@@ -76,6 +74,7 @@ iperf -c 192.168.100.2
 
 iperf3 -s
 iperf3 -c 192.168.100.2 -P 4 -t 10 -J
+iperf3 -c 192.168.100.99 -P 4 -t 10
 # uses 4 cores, 11Gi
 
 iperf3 -c 192.168.100.2 -P 4 -t 10 -J \
@@ -97,6 +96,7 @@ df -h
 
 systemctl status iperf
 sudo tcpdump -i br0
+sudo tcpdump -i enp65s0f0np0
 echo '{"vm":"vm12","throughput":12345}' | nc 192.168.100.1 9000
 
 lsof -i :9000

@@ -31,11 +31,11 @@ done
 sudo ip link delete br0 2>/dev/null || true
 echo "✅ br0 and taps deleted"
 
-sudo ip addr flush dev enp65s0f0np0
-sudo ip addr add 192.168.100.1/24 dev enp65s0f0np0
-sudo ip link set enp65s0f0np0 up
-echo "✅ set enp65s0f0np0 IP to 192.168.100.1/24"
-
+sudo ip addr flush dev enp65s0f0np0 || true
+sudo ip addr add 192.168.100.1/24 dev enp65s0f0np0 || true
+sudo ip link set enp65s0f0np0 master none || true
+sudo ip link set enp65s0f0np0 up || true
+echo "✅ set enp65s0f0np0 IP to 192.168.100.1/24 and removed from br0"
 
 # EAL (dpdk) options (before --): -l cores, -n memory channels
 # Application options (after --): --fp-cores-max, --socket-file path, --stats interval
