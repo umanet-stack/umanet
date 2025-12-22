@@ -3,6 +3,7 @@
 #include <rte_mbuf_core.h>
 
 #include "log.h"
+#include "src/fast/internal.h"
 #include "src/include/fastpath.h"
 #include "src/include/tas.h"
 #include "src/network/network.h"
@@ -37,8 +38,7 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
 
         if (target_vdev != NULL) {
             target_vid = target_vdev->vid;
-        } else {
-            // not for any vms, do ARP
+        } else if (process_arp(ctx, NULL, pkts[i], ARP_SRC_ETH) == 0) {
             continue;
         }
 

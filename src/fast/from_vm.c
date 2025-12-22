@@ -129,18 +129,16 @@ static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_
     struct rte_mbuf *broadcast_pkts[MAX_PKT_BURST];
     struct rte_mbuf *external_pkts[MAX_PKT_BURST];
     struct rte_mbuf *local_pkts[MAX_PKT_BURST];
-    struct rte_mbuf *tap_pkts[MAX_PKT_BURST];
     uint16_t broadcast_count = 0;
     uint16_t external_count = 0;
     uint16_t local_count = 0;
-    uint16_t tap_count = 0;
 
     for (int i = 0; i < count; i++) {
         struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
         // Intercept ARP requests for the gateway (vhost-switch acts as gateway)
         if (unlikely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP))) {
             LOG_INFO("(%d) TX: ARP packet received. Processing...\n", vdev->vid);
-            if (process_arp(vdev, pkts[i]) == 0) {
+            if (process_arp(ctx, vdev, pkts[i], ARP_SRC_VM) == 0) {
                 continue;
             }
             LOG_INFO("(%d) TX: Broadcasting ARP to other VMs\n", vdev->vid);
@@ -153,25 +151,29 @@ static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_
             continue;
         }
 
-        if (rte_is_same_ether_addr(&eth_hdr->d_addr, &config.mac)) {
-            // Check if destination IP is gateway IP (for collector on host)
-            if (likely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))) {
-                struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
-                uint32_t dst_ip = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
-                if (unlikely(dst_ip == config.ip)) {
-                    // Packet destined for gateway IP - forward to TAP (host network stack via br0)
-                    LOG_INFO("(%d) TX: Packet destined for gateway IP %u.%u.%u.%u -> forwarding to TAP\n", vdev->vid,
-                             (dst_ip >> 24) & 0xff, (dst_ip >> 16) & 0xff, (dst_ip >> 8) & 0xff, dst_ip & 0xff);
-                    tap_pkts[tap_count++] = pkts[i];
-                    continue;
-                }
-            }
-            LOG_INFO("(%d) TX: external packet\n", vdev->vid);
-            external_pkts[external_count++] = pkts[i];
+        // destination MAC matches local pattern 12:34:56:78:90:xx
+        if (eth_hdr->d_addr.addr_bytes[0] == 0x12 && eth_hdr->d_addr.addr_bytes[1] == 0x34 &&
+            eth_hdr->d_addr.addr_bytes[2] == 0x56 && eth_hdr->d_addr.addr_bytes[3] == 0x78 &&
+            eth_hdr->d_addr.addr_bytes[4] == 0x90) {
+            local_pkts[local_count++] = pkts[i];
             continue;
         }
 
-        local_pkts[local_count++] = pkts[i];
+        // Check if destination IP is gateway IP (for collector on host)
+        // if (likely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))) {
+        //     struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
+        //     uint32_t dst_ip = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
+        //     if (unlikely(dst_ip == config.ip)) {
+        //         // Packet destined for gateway IP - forward to TAP (host network stack via br0)
+        //         LOG_INFO("(%d) TX: Packet destined for gateway IP %u.%u.%u.%u -> do nothing\n", vdev->vid,
+        //                  (dst_ip >> 24) & 0xff, (dst_ip >> 16) & 0xff, (dst_ip >> 8) & 0xff, dst_ip & 0xff);
+        //         continue;
+        //     }
+        // }
+
+        // LOG_INFO("(%d) TX: external packet\n", vdev->vid);
+        // PRINT_PKTS(&pkts[i], 1, LOG_INFO);
+        external_pkts[external_count++] = pkts[i];
     }
 
     // broadcast packets

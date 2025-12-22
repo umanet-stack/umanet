@@ -39,7 +39,8 @@ extern volatile unsigned fp_scale_to;
 
 void *util_create_shmsiszed(const char *name, size_t size, void *addr);
 
-int process_arp(struct vhost_dev *vdev, struct rte_mbuf *m);
+enum arp_src { ARP_SRC_VM, ARP_SRC_ETH };
+int process_arp(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf *m, enum arp_src src);
 
 uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_device_num);
 
