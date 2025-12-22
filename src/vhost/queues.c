@@ -7,7 +7,7 @@
 #include <rte_mbuf_core.h>
 
 #include "log.h"
-#include "src/fast/network.h"
+#include "src/network/network.h"
 #include "src/vhost/vhost.h"
 
 // External reference to MAC lookup table
@@ -84,14 +84,11 @@ void unlink_vmdq(struct dataplane_context *ctx, struct vhost_dev *vdev) {
             vdev->mac_address.addr_bytes[i] = 0;
 
         /*Clear out the receive buffers*/
-        rx_count = rte_eth_rx_burst(net_port_id, ctx->rx_queue, pkts_burst, MAX_PKT_BURST);
+        rx_count = network_poll(&ctx->net, MAX_PKT_BURST, pkts_burst);
 
-        while (rx_count) {                 // until queue is empty
-            for (i = 0; i < rx_count; i++) // Frees each packet buffer back to mbuf pool
-                rte_pktmbuf_free(pkts_burst[i]);
-
-            // Receives next batch of packets from queue
-            rx_count = rte_eth_rx_burst(net_port_id, ctx->rx_queue, pkts_burst, MAX_PKT_BURST);
+        while (rx_count) { // until queue is empty
+            free_pkts(pkts_burst, rx_count);
+            rx_count = network_poll(&ctx->net, MAX_PKT_BURST, pkts_burst);
         }
 
         vdev->ready = DEVICE_MAC_LEARNING;

@@ -2,8 +2,8 @@
 #include "src/include/fastpath.h"
 #include "log.h"
 #include "src/fast/internal.h"
-#include "src/fast/network.h"
 #include "src/include/tas.h"
+#include "src/network/network.h"
 #include "src/vhost/vhost.h"
 #include <rte_mbuf_core.h>
 #include <string.h>
@@ -54,9 +54,6 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     }
 
     ctx->poll_next_ctx = ctx->id;
-    // 1 queue per core
-    // with 3 queues: VM 0,3,6,9 share queue 0; VM 1,4,7,10 share queue 1
-    ctx->rx_queue = ctx->id;
 
     /* Initialize vhost device array for this context */
     memset(ctx->vhost.vdev_list, 0, sizeof(ctx->vhost.vdev_list));

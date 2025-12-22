@@ -12,6 +12,7 @@
 #include "src/fast/internal.h"
 #include "src/include/fastpath.h"
 #include "src/include/tas.h"
+#include "src/network/network.h"
 #include "src/vhost/vhost.h"
 
 const uint16_t vlan_tags[64] = {

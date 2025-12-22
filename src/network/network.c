@@ -40,8 +40,8 @@
 #include <rte_spinlock.h>
 #include <rte_version.h>
 
+#include "../fast/internal.h"
 #include "../include/tas.h"
-#include "internal.h"
 #include <tas_memif.h>
 #include <utils.h>
 #include <utils_rng.h>

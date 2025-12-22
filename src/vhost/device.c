@@ -9,7 +9,7 @@
 #include <unistd.h>
 
 #include "log.h"
-#include "src/fast/network.h"
+#include "src/network/network.h"
 #include "src/vhost/vhost.h"
 
 // Global hash table for MAC address to vhost_dev lookup

@@ -31,7 +31,6 @@
 
 #include <rte_interrupts.h>
 
-#include "../../include/tas_memif.h"
 #include "../../include/utils_rng.h"
 
 #define BATCH_SIZE 16
@@ -67,6 +66,8 @@
 
 struct network_thread {
     struct rte_mempool *pool;
+    // ETH RX/TX queue assigned to core; same value as core id, 1 queue per core
+    // with 3 queues: VM 0,3,6,9 share queue 0; VM 1,4,7,10 share queue 1
     uint16_t queue_id;
 };
 
@@ -149,9 +150,6 @@ struct dataplane_context {
     uint16_t id;
     int evfd;
     struct rte_epoll_event ev;
-
-    // ETH RX queue number assigned to core; same value as id
-    uint16_t rx_queue;
 
     // vhost
     struct vhost_info vhost;

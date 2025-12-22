@@ -33,6 +33,7 @@
 #include <rte_memcpy.h>
 
 #include "../include/fastpath.h"
+#include "log.h"
 
 struct network_buf_handle;
 
@@ -45,6 +46,28 @@ int network_rx_interrupt_ctl(struct network_thread *t, int turnon);
 static inline void free_pkts(struct rte_mbuf **pkts, uint16_t n) {
     while (n--)
         rte_pktmbuf_free(pkts[n]);
+}
+
+static inline int network_poll(struct network_thread *t, unsigned num, struct rte_mbuf **pkts) {
+    num = rte_eth_rx_burst(net_port_id, t->queue_id, pkts, num);
+    if (num == 0)
+        return 0;
+
+    LOG_ETH_IN("Received %d packets from physical NIC\n", num);
+    PRINT_PKTS(pkts, num, LOG_ETH_IN);
+
+    return num;
+}
+
+static inline int network_send(struct network_thread *t, unsigned num, struct rte_mbuf **pkts) {
+    num = rte_eth_tx_burst(net_port_id, t->queue_id, pkts, num);
+    if (num == 0)
+        return 0;
+
+    LOG_ETH_OUT("Sent %d packets to physical NIC\n", num);
+    PRINT_PKTS(pkts, num, LOG_ETH_OUT);
+
+    return num;
 }
 
 #ifdef FLEXNIC_TRACE_TX

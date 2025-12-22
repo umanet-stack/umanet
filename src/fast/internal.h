@@ -25,6 +25,7 @@
 #ifndef INTERNAL_H_
 #define INTERNAL_H_
 
+#include "src/include/fastpath.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -35,8 +36,6 @@ extern int exited;
 extern unsigned fp_cores_max;
 extern volatile unsigned fp_cores_cur;
 extern volatile unsigned fp_scale_to;
-
-#include "network.h"
 
 void *util_create_shmsiszed(const char *name, size_t size, void *addr);
 

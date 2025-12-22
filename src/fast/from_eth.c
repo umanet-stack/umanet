@@ -3,9 +3,9 @@
 #include <rte_mbuf_core.h>
 
 #include "log.h"
-#include "src/fast/network.h"
 #include "src/include/fastpath.h"
 #include "src/include/tas.h"
+#include "src/network/network.h"
 #include "src/vhost/vhost.h"
 
 // receive packets from physical NIC and forward them to a VM
@@ -13,11 +13,9 @@ void poll_eth_rx(struct dataplane_context *ctx) {
     uint16_t rx_count;
     struct rte_mbuf *pkts[MAX_PKT_BURST];
 
-    rx_count = rte_eth_rx_burst(net_port_id, ctx->rx_queue, pkts, MAX_PKT_BURST);
-    if (!rx_count)
+    rx_count = network_poll(&ctx->net, MAX_PKT_BURST, pkts);
+    if (rx_count == 0)
         return;
-    LOG_ETH_IN("Received %d packets from physical NIC\n", rx_count);
-    PRINT_PKTS(pkts, rx_count, LOG_ETH_IN);
 
 // Batching structure: collect packets per destination VM
 // Max VID is typically small (<32), use array for O(1) lookup
