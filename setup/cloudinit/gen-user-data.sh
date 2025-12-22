@@ -56,26 +56,31 @@ write_files:
       for param in \$(cat /proc/cmdline); do
           case \$param in
               ROLE=*) export ROLE="\${param#ROLE=}";;
-              SERVER_IP=*) export SERVER_IP="\${param#SERVER_IP=}";;
+              IPERF_COMMAND_B64=*) export IPERF_COMMAND_B64="\${param#IPERF_COMMAND_B64=}";;
           esac
       done
+      
+      # Decode the base64-encoded command
+      if [ -n "\$IPERF_COMMAND_B64" ]; then
+          export IPERF_COMMAND=\$(echo -n "\$IPERF_COMMAND_B64" | base64 -d)
+      fi
       
       log() {
           echo "[\$(date '+%Y-%m-%d %H:%M:%S')] vm: \$1"
       }
 
       if [ "\$ROLE" = "server" ]; then
-          log "starting iperf server"
-          exec iperf3 -s
+          log "starting iperf server (\$IPERF_COMMAND)"
+          exec \$IPERF_COMMAND
       else
-          log "starting iperf client (target: \$SERVER_IP)"
+          log "starting iperf client (\$IPERF_COMMAND)"
           
           # Wait for server to be ready
           sleep 5
           
           # Run iperf test normally (shows progress in logs) and capture JSON output
           log "running iperf3 test..."
-          IPERF_OUTPUT=\$(iperf3 -c \$SERVER_IP -P 4 -t 30 -J 2>&1)
+          IPERF_OUTPUT=\$(\$IPERF_COMMAND 2>&1)
           IPERF_EXIT=\$?
           
           if [ \$IPERF_EXIT -ne 0 ]; then
