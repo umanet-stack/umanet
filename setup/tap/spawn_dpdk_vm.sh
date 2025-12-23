@@ -2,10 +2,11 @@
 set -e
 
 
-if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <num_vms> <res_dir>"
+if [ "$#" -ne 3 ]; then
+    echo "Usage: $0 <num_vms> <res_dir> <test_mode>"
     echo "  num_vms: number of VMs to spawn"
     echo "  res_dir: directory containing resources"
+    echo "  test_mode: test mode (samenode, multinode)"
     exit 1
 fi
 
@@ -14,6 +15,8 @@ NUM_VMS=$1
 RES_DIR=$2
 VMLINUX_DIR=$RES_DIR/kernels
 IMG_DIR=$RES_DIR/images
+RW_DISK_DIR=$RES_DIR/disks
+TEST_MODE=$3
 CLOUDINIT_DIR=/tmp/cloudinit
 LOG_DIR="$(dirname "$0")/../../testing/dpdk/logs"
 
