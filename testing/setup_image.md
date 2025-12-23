@@ -13,6 +13,15 @@ sudo cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm-img.raw
 # if you modify anything in cloud-init, you need to regen the rw disks and run cloud-init on it again.
 ./setup/cloudinit/gen-cloud-init.sh
 
+# setup node (allow internet NAT)
+# c6525-25g
+./setup/setup_node.sh 0 enp65s0f0np0
+# xl170
+./setup/setup_node.sh 0 ens1f1np1
+
+# disable SMT (2 threads/core => 1 thread/core)
+echo off | sudo tee /sys/devices/system/cpu/smt/control
+
 # first run: let it install packages + setup services (use tap to access internet)
 ./setup/tap/setup_br_tap.sh 0
 ./setup/tap/spawn_vms.sh 32 /tmp samenode

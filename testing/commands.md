@@ -1,35 +1,26 @@
 # tap
 ```bash
-./setup/download_img.sh
-# Cloud-init will NOT run again on these images, it only runs on first boot.
-# if you modify anything in cloud-init, you need to run copy_img and gen-cloud-init again.
-# copies 1 img/kernel per vm to /proj/{your_cloudlab_project}/testing
-./setup/copy_img.sh 24 /proj/faasnetworkstack-PG0/testing
-# ./setup/copy_img.sh 24 /tmp
-
-./setup/cloudinit/gen-cloud-init.sh
-
-# c6525-25g
-./setup/setup_node.sh 0 enp65s0f0np0
-# xl170
-./setup/setup_node.sh 0 ens1f1np1
-
-# disable SMT (2 threads/core => 1 thread/core)
-echo off | sudo tee /sys/devices/system/cpu/smt/control
-
-### TAP ########
 ./setup/tap/setup_br_tap.sh 0
 ./setup/tap/spawn_vms.sh 2 /tmp samenode
 ./setup/tap/spawn_vms.sh 16 /tmp multinode
 
-# run TAP one before DPDK to make it download iperf
-### DPDK #######
+# process results
+sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | tail -15
+python testing/process_results.py
+
+# kill all vms to end/reset experiment
+sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
+```
+
+# dpdk
+```bash
+# run TAP once before DPDK to make it download iperf
 # make sure the set other node nic
 sudo ip addr flush dev enp65s0f0np0
 sudo ip addr add 192.168.100.99/24 dev enp65s0f0np0
 sudo ip link set enp65s0f0np0 up
 
-# SUPER IMPORTANT: no. of vhost must match no. of VMs!
+# no. of vhost must match no. of VMs!
 sudo ./build_and_run.sh 0000:41:00.0 test 3 24
 ./setup/dpdk/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing
 
@@ -38,10 +29,8 @@ sudo ./build_and_run.sh 0000:41:00.0 test 3 16
 
 sudo ./build_and_run.sh 0000:41:00.0 test 3 8
 ./setup/dpdk/spawn_vms.sh 8 /proj/faasnetworkstack-PG0/testing
-################
 
 # process results
-sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | tail -15
 python testing/process_results.py
 
 # kill all vms to end/reset experiment
