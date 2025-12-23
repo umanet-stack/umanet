@@ -18,17 +18,9 @@ The switch worker loop continuously:
 - Drains packets from VM virtio TX queues and routes them (to other VMs or physical NIC)
 
 ## Setup
+- for vm setup, see `setup/setup_vm.md`
 ```bash
-./setup/download_img.sh
-# Cloud-init will NOT run again on these images, it only runs on first boot.
-./setup/copy_img.sh 24 /tmp
-./setup/cloudinit/gen-cloud-init.sh
 ./setup/init-dpdk.sh
-
-# c6525-25g
-./setup/setup_node.sh 0 enp65s0f0np0
-# xl170
-./setup/setup_node.sh 0 ens1f1np1
 
 # reserve hugepages
 # 8192 × 2 MB = 16 GB mem for hugepages
@@ -77,54 +69,9 @@ sudo ninja -C build install
 sudo vhost-switch -l 2-3 -n 4 -b 0000:01:00.0 -- --portmask 0x1 --socket-file /mnt/huge/sock0 --stats 1
 ```
 
-## Setup VM img/fs
-1. don't touch noble-server-cloudimg-amd64.raw, copy it
-2. add packages + first commands via `user-data`, add networking via `network-config`
-3. spawn each vm automatically
-```bash
-
-
-sudo rm -f /tmp/vm*-img.raw /tmp/vm*-kernel.bin
-cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm0-img.raw
-cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm1-img.raw
-cp /tmp/vmlinux.bin /tmp/vm0-kernel.bin
-cp /tmp/vmlinux.bin /tmp/vm1-kernel.bin
-```
-
 ## Development
 - `./build_and_run.sh` to check it builds and runs
 - spin up a CH VM to test the TCP stack works
-```bash
-sudo ip addr del 10.10.1.10/24 dev ens4
-
-sudo ip link set ens4 up
-sudo ip addr add 10.10.1.10/24 dev ens4
-sudo ip route add default via 10.10.1.1
-
-sudo ip link set ens4 up
-sudo ip addr add 10.10.1.20/24 dev ens4
-sudo ip route add default via 10.10.1.1
-
-# vm0
-sudo cloud-hypervisor \
-  --cpus boot=1 \
-  --memory size=512M,hugepages=on,shared=true \
-  --kernel /proj/faasnetworkstack-PG0/testing/kernels/vm0-kernel.bin \
-  --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
-  --disk path=/proj/faasnetworkstack-PG0/testing/images/vm0-img.raw path=/tmp/cloudinit/cloudinit-vm0.img \
-  --net mac=12:34:56:78:90:00,vhost_user=true,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=2048
-
-# vm1
-sudo cloud-hypervisor \
-  --cpus boot=1 \
-  --memory size=512M,hugepages=on,shared=true \
-  --kernel /proj/faasnetworkstack-PG0/testing/kernels/vm1-kernel.bin \
-  --cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
-  --disk path=/proj/faasnetworkstack-PG0/testing/images/vm1-img.raw path=/tmp/cloudinit/cloudinit-vm1.img \
-  --net mac=12:34:56:78:90:01,vhost_user=true,socket=/mnt/huge/sock1,num_queues=2,vhost_mode=client,queue_size=2048
-
-ps aux | grep cloud-hypervisor | grep -v grep | awk '{print $2}' | xargs kill -9
-```
 
 ### VM packets
 eth0/ens4 always send ARP pkt every sec, great for testing vhost connectivity
@@ -140,13 +87,3 @@ sudo ip neigh add 10.10.1.1 lladdr 02:00:00:00:00:01 dev ens4 nud permanent
 ```
 - vm will now send TCP/UDP pkts asking for 8.8.8.8
     - pinging pkts will also show
-    
-### Testing
-```bash
-# no. of TX/RX queues in NIC e.g. combined 32 = 32TX + 32RX
-# canonical: 1 core uses 1TX + 1RX
-ethtool -l enp65s0f0np0
-
-iperf -s
-iperf -c 10.10.1.10
-```

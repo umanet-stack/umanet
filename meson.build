@@ -16,21 +16,21 @@ dpdk = dependency('libdpdk', required: true)
 include_dirs = include_directories('include')
 
 sources = files(
-	'src/main.c',
+	'lib/utils/log.c',
+	'lib/utils/rng.c',
+	'lib/utils/utils.c',
 	'src/config/config.c',
+	'src/fast/arp.c',
+	'src/fast/fastpath.c',
+	'src/fast/from_eth.c',
+	'src/fast/from_vm.c',
+	'src/network/nat.c',
+	'src/network/network.c',
+	'src/network/tap.c',
 	'src/vhost/device.c',
 	'src/vhost/queues.c',
-	'src/fast/virtio.c',
-	'src/fast/eth.c',
-	'src/fast/network.c',
-	'src/fast/fastpath.c',
-	'src/fast/arp.c',
-	'src/fast/nat.c',
-	'src/fast/tap.c',
+	'src/main.c',
 	'src/shm.c',
-	'lib/utils/rng.c',
-	'src/utils/utils.c',
-	'src/utils/log.c',
 )
 
 # Compiler flags

@@ -25,54 +25,26 @@
 #ifndef INTERNAL_H_
 #define INTERNAL_H_
 
+#include "src/include/fastpath.h"
 #include <stddef.h>
 #include <stdint.h>
 
 #include <rte_config.h>
 #include <rte_ether.h>
 
-#define BUFFER_SIZE 2048
-
-// #define FLEXNIC_TRACING
-#ifdef FLEXNIC_TRACING
-#include <tas_trace.h>
-#define FLEXNIC_TRACE_RX
-#define FLEXNIC_TRACE_TX
-#define FLEXNIC_TRACE_DMA
-#define FLEXNIC_TRACE_QMAN
-#define FLEXNIC_TRACE_LEN (1024 * 1024 * 32)
-int trace_thread_init(uint16_t id);
-int trace_event(uint16_t type, uint16_t length, const void *buf);
-int trace_event2(uint16_t type, uint16_t len_1, const void *buf_1, uint16_t len_2, const void *buf_2);
-#endif
-// #define DATAPLANE_STATS
-
 extern int exited;
 extern unsigned fp_cores_max;
 extern volatile unsigned fp_cores_cur;
 extern volatile unsigned fp_scale_to;
 
-// #include "dma.h"
-#include "network.h"
-
-#define QMAN_SET_RATE (1 << 0)
-#define QMAN_SET_MAXCHUNK (1 << 1)
-#define QMAN_SET_AVAIL (1 << 3)
-#define QMAN_ADD_AVAIL (1 << 4)
-
-int qman_thread_init(struct dataplane_context *ctx);
-uint32_t qman_timestamp(uint64_t tsc);
-int qman_poll(struct qman_thread *t, unsigned num, unsigned *q_ids, uint16_t *q_bytes);
-int qman_set(struct qman_thread *t, uint32_t id, uint32_t rate, uint32_t avail, uint16_t max_chunk, uint8_t flags);
-uint32_t qman_next_ts(struct qman_thread *t, uint32_t cur_ts);
-
 void *util_create_shmsiszed(const char *name, size_t size, void *addr);
 
-int process_arp(struct vhost_dev *vdev, struct rte_mbuf *m);
+enum arp_src { ARP_SRC_VM, ARP_SRC_ETH };
+int process_arp(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf *m, enum arp_src src);
 
-void poll_virtio_tx(struct vhost_dev *vdev, struct dataplane_context *ctx);
+uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_device_num);
 
-void flush_eth_tx(struct mbuf_table *tx_q);
-void poll_eth_rx(struct vhost_dev *vdev);
+void flush_eth_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q);
+void fastpath_from_eth(struct dataplane_context *ctx);
 
 #endif /* ndef INTERNAL_H_ */

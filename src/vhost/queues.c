@@ -3,11 +3,15 @@
  */
 
 #include <rte_ethdev.h>
+#include <rte_hash.h>
 #include <rte_mbuf_core.h>
 
-#include "src/fast/network.h"
-#include "src/utils/utils.h"
+#include "log.h"
+#include "src/network/network.h"
 #include "src/vhost/vhost.h"
+
+// External reference to MAC lookup table
+extern struct rte_hash *mac_lookup_table;
 
 /*
  * This function learns the MAC address of the device and registers this along with a
@@ -42,6 +46,17 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
     // Changes state from DEVICE_MAC_LEARNING to DEVICE_RX
     vdev->ready = DEVICE_RX;
 
+    // Add to MAC lookup hash table for fast O(1) lookup
+    if (mac_lookup_table != NULL) {
+        ret = rte_hash_add_key_data(mac_lookup_table, &vdev->mac_address, vdev);
+        if (ret < 0) {
+            LOG_WARN("(%d) Failed to add MAC to lookup table (ret=%d)\n", vdev->vid, ret);
+            // Continue anyway - fallback to linear search will work
+        } else {
+            LOG_INFO("(%d) MAC added to lookup table\n", vdev->vid);
+        }
+    }
+
     return 0;
 }
 
@@ -49,26 +64,31 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
  * Removes MAC address and vlan tag from VMDQ. Ensures that nothing is adding buffers to the RX
  * queue before disabling RX on the device.
  */
-void unlink_vmdq(struct vhost_dev *vdev) {
+void unlink_vmdq(struct dataplane_context *ctx, struct vhost_dev *vdev) {
     unsigned i = 0;
     unsigned rx_count;
     struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
 
     if (vdev->ready == DEVICE_RX) {
+        // Remove from MAC lookup hash table before clearing MAC
+        if (mac_lookup_table != NULL) {
+            int ret = rte_hash_del_key(mac_lookup_table, &vdev->mac_address);
+            if (ret < 0 && ret != -ENOENT) {
+                LOG_WARN("(%d) Failed to remove MAC from lookup table (ret=%d)\n", vdev->vid, ret);
+            }
+        }
+
         /*clear MAC and VLAN settings*/
         rte_eth_dev_mac_addr_remove(net_port_id, &vdev->mac_address);
         for (i = 0; i < 6; i++)
             vdev->mac_address.addr_bytes[i] = 0;
 
         /*Clear out the receive buffers*/
-        rx_count = rte_eth_rx_burst(net_port_id, (uint16_t)vdev->rx_queue, pkts_burst, MAX_PKT_BURST);
+        rx_count = network_poll(ctx, MAX_PKT_BURST, pkts_burst);
 
-        while (rx_count) {                 // until queue is empty
-            for (i = 0; i < rx_count; i++) // Frees each packet buffer back to mbuf pool
-                rte_pktmbuf_free(pkts_burst[i]);
-
-            // Receives next batch of packets from queue
-            rx_count = rte_eth_rx_burst(net_port_id, (uint16_t)vdev->rx_queue, pkts_burst, MAX_PKT_BURST);
+        while (rx_count) { // until queue is empty
+            free_pkts(pkts_burst, rx_count);
+            rx_count = network_poll(ctx, MAX_PKT_BURST, pkts_burst);
         }
 
         vdev->ready = DEVICE_MAC_LEARNING;

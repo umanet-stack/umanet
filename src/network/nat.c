@@ -1,6 +1,5 @@
-#include "nat.h"
-#include "src/vhost/vhost.h"
-
+#include "src/network/nat.h"
+#include "log.h"
 #include <rte_cycles.h>
 #include <rte_ether.h>
 #include <rte_hash.h>

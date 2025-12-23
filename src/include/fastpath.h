@@ -31,15 +31,43 @@
 
 #include <rte_interrupts.h>
 
-#include "../../include/tas_memif.h"
 #include "../../include/utils_rng.h"
 
 #define BATCH_SIZE 16
 #define BUFCACHE_SIZE 128
 #define TXBUF_SIZE (2 * BATCH_SIZE)
 
+#define DATAPLANE_TSCS
+
+#ifdef DATAPLANE_STATS
+#ifdef DATAPLANE_TSCS
+#define STATS_TS(n) uint64_t n = rte_get_tsc_cycles()
+#define STATS_TSADD(c, f, n) __sync_fetch_and_add(&c->stat_##f, n)
+#else
+#define STATS_TS(n)                                                                                                    \
+    do {                                                                                                               \
+    } while (0)
+#define STATS_TSADD(c, f, n)                                                                                           \
+    do {                                                                                                               \
+    } while (0)
+#endif
+#define STATS_ADD(c, f, n) __sync_fetch_and_add(&c->stat_##f, n)
+#else
+#define STATS_TS(n)                                                                                                    \
+    do {                                                                                                               \
+    } while (0)
+#define STATS_TSADD(c, f, n)                                                                                           \
+    do {                                                                                                               \
+    } while (0)
+#define STATS_ADD(c, f, n)                                                                                             \
+    do {                                                                                                               \
+    } while (0)
+#endif
+
 struct network_thread {
     struct rte_mempool *pool;
+    // ETH RX/TX queue assigned to core; same value as core id, 1 queue per core
+    // with 3 queues: VM 0,3,6,9 share queue 0; VM 1,4,7,10 share queue 1
     uint16_t queue_id;
 };
 
@@ -72,8 +100,6 @@ struct device_statistics {
 struct vhost_dev { // vhost device
     // Device MAC address (Obtained on first TX packet).
     struct rte_ether_addr mac_address;
-    // ETH RX queue number assigned to vhost device
-    uint16_t rx_queue;
     /**< Data core that the device is added to. */
     uint16_t coreid;
     /**< A device is set as ready if the MAC address has been set. */
@@ -84,9 +110,12 @@ struct vhost_dev { // vhost device
     int vid;                      // vhost device ID, assigned by dpdk
     uint64_t features;            // Virtio feature flags
     size_t hdr_len;               // Header length
-    uint16_t nr_vrings;           // Number of virtio rings
     struct rte_vhost_memory *mem; // Guest memory mapping
     struct device_statistics stats;
+
+    // Rate-limited logging for failed enqueue attempts
+    uint64_t last_failed_log_ts; // TSC timestamp of last log
+    uint64_t failed_pkts_count;  // Cumulative failed packets since last log
 } __rte_cache_aligned;
 
 #define MAX_PKT_BURST 32              /* Max packets processed per burst (RX/TX) */
@@ -95,7 +124,6 @@ struct vhost_dev { // vhost device
 /* Used for queueing bursts of TX packets. */
 struct mbuf_table {
     unsigned len;
-    unsigned txq_id;
     struct rte_mbuf *m_table[MAX_PKT_BURST];
 };
 
@@ -143,26 +171,25 @@ struct dataplane_context {
     uint64_t loadmon_cyc_busy;
 
     uint64_t kernel_drop;
-#ifdef DATAPLANE_STATS
     /********************************************************/
     /* Stats */
-    uint64_t stat_qm_poll;
-    uint64_t stat_qm_empty;
-    uint64_t stat_qm_total;
+    uint64_t stat_cyc_loop;
+    uint64_t stat_cyc_loop_sleep;
 
-    uint64_t stat_rx_poll;
-    uint64_t stat_rx_empty;
-    uint64_t stat_rx_total;
+    uint64_t stat_cyc_eth_fp;
+    uint64_t stat_cyc_poll_eth;
+    uint64_t stat_cyc_send_eth;
+    uint64_t stat_pkt_eth_rx;
+    uint64_t stat_pkt_eth_tx;
+    uint64_t stat_pkt_eth_tx_fail;
 
-    uint64_t stat_qs_poll;
-    uint64_t stat_qs_empty;
-    uint64_t stat_qs_total;
-
-    uint64_t stat_cyc_db;
-    uint64_t stat_cyc_qm;
-    uint64_t stat_cyc_rx;
-    uint64_t stat_cyc_qs;
-#endif
+    uint64_t stat_cyc_vhost_fp;
+    uint64_t stat_cyc_poll_vhost;
+    uint64_t stat_cyc_send_vhost;
+    uint64_t stat_cyc_vdev;
+    uint64_t stat_pkt_vhost_rx;
+    uint64_t stat_pkt_vhost_tx;
+    uint64_t stat_pkt_vhost_tx_fail;
 };
 
 extern struct dataplane_context **ctxs;
@@ -171,8 +198,6 @@ int dataplane_init(void);
 int dataplane_context_init(struct dataplane_context *ctx);
 void dataplane_context_destroy(struct dataplane_context *ctx);
 void dataplane_loop(struct dataplane_context *ctx);
-#ifdef DATAPLANE_STATS
 void dataplane_dump_stats(void);
-#endif
 
 #endif /* ndef FASTPATH_H_ */

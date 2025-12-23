@@ -33,6 +33,7 @@
 #include <rte_memcpy.h>
 
 #include "../include/fastpath.h"
+#include "log.h"
 
 struct network_buf_handle;
 
@@ -41,6 +42,41 @@ extern uint16_t rss_reta_size;
 
 int network_thread_init(struct dataplane_context *ctx);
 int network_rx_interrupt_ctl(struct network_thread *t, int turnon);
+
+static inline void free_pkts(struct rte_mbuf **pkts, uint16_t n) {
+    while (n--)
+        rte_pktmbuf_free(pkts[n]);
+}
+
+static inline int network_poll(struct dataplane_context *ctx, unsigned num, struct rte_mbuf **pkts) {
+    STATS_TS(poll_eth_start);
+    num = rte_eth_rx_burst(net_port_id, ctx->net.queue_id, pkts, num);
+    STATS_TS(poll_eth_end);
+    STATS_TSADD(ctx, cyc_poll_eth, poll_eth_end - poll_eth_start);
+    if (num == 0)
+        return 0;
+
+    STATS_ADD(ctx, pkt_eth_rx, num);
+    LOG_ETH_IN("[%d] Received %d packets from physical NIC\n", ctx->id, num);
+    PRINT_PKTS(pkts, num, LOG_ETH_IN);
+
+    return num;
+}
+
+static inline int network_send(struct dataplane_context *ctx, unsigned num, struct rte_mbuf **pkts) {
+    STATS_TS(send_eth_start);
+    num = rte_eth_tx_burst(net_port_id, ctx->net.queue_id, pkts, num);
+    STATS_TS(send_eth_end);
+    STATS_TSADD(ctx, cyc_send_eth, send_eth_end - send_eth_start);
+    if (num == 0)
+        return 0;
+
+    STATS_ADD(ctx, pkt_eth_tx, num);
+    LOG_ETH_OUT("[%d] Sent %d packets to physical NIC\n", ctx->id, num);
+    PRINT_PKTS(pkts, num, LOG_ETH_OUT);
+
+    return num;
+}
 
 #ifdef FLEXNIC_TRACE_TX
 unsigned i;

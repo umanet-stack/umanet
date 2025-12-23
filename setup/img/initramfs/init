@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eux
+
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t devtmpfs none /dev
+
+mkdir -p /lower /upper /newroot
+mount -o ro /dev/vda1 /lower
+mount /dev/vdb /upper
+
+mkdir -p /upper/upper /upper/work
+mount -t overlay overlay \
+  -o lowerdir=/lower,upperdir=/upper/upper,workdir=/upper/work \
+  /newroot
+
+exec switch_root /newroot /sbin/init

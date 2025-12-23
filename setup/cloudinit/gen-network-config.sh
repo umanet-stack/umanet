@@ -4,11 +4,11 @@ set -ex
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-rm -f "$SCRIPT_DIR/network-configs/network-vm"*
-mkdir -p "$SCRIPT_DIR/network-configs"
+rm -f "$SCRIPT_DIR/netplans/network-vm"*
+mkdir -p "$SCRIPT_DIR/netplans"
 for i in {0..31}; do
   MAC_ADDRESS="12:34:56:78:90:$(printf "%02X" $i)"
-  cat > "$SCRIPT_DIR/network-configs/network-vm$i" <<EOF
+  cat > "$SCRIPT_DIR/netplans/network-vm$i" <<EOF
 version: 2
 ethernets:
   ens4:
@@ -25,3 +25,7 @@ ethernets:
     optional: true
 EOF
 done
+
+# rm -f "/tmp/netplans/network-vm"*
+# mkdir -p "/tmp/netplans"
+# cp "$SCRIPT_DIR/netplans/network-vm"* "/tmp/netplans"

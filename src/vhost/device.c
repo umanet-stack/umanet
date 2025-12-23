@@ -3,11 +3,18 @@
  */
 
 #include "../include/tas.h"
+#include <rte_hash.h>
+#include <rte_jhash.h>
 #include <rte_malloc.h>
 #include <unistd.h>
 
-#include "src/fast/network.h"
+#include "log.h"
+#include "src/network/network.h"
 #include "src/vhost/vhost.h"
+
+// Global hash table for MAC address to vhost_dev lookup
+struct rte_hash *mac_lookup_table = NULL;
+#define MAC_LOOKUP_TABLE_SIZE 256 // Support up to 256 devices
 
 int check_device_state(struct vhost_dev *vdev, const char *func) {
     if (unlikely(vdev == NULL)) {
@@ -30,15 +37,27 @@ int check_device_state(struct vhost_dev *vdev, const char *func) {
 }
 
 struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
-    struct vhost_dev *vdev;
-
-    for (int i = 0; i < fp_cores_max; i++) {
-        struct dataplane_context *ctx = ctxs[i];
-        for (int j = 0; j < ctx->vhost.device_num; j++) {
-            vdev = ctx->vhost.vdev_list[j];
-            if (vdev != NULL && vdev->ready == DEVICE_RX && rte_is_same_ether_addr(mac, &vdev->mac_address))
-                return vdev;
+    if (unlikely(mac_lookup_table == NULL)) {
+        // Hash table not initialized yet, fall back to linear search
+        struct vhost_dev *vdev;
+        for (int i = 0; i < fp_cores_max; i++) {
+            struct dataplane_context *ctx = ctxs[i];
+            if (ctx == NULL)
+                continue;
+            for (int j = 0; j < ctx->vhost.device_num; j++) {
+                vdev = ctx->vhost.vdev_list[j];
+                if (vdev != NULL && vdev->ready == DEVICE_RX && rte_is_same_ether_addr(mac, &vdev->mac_address))
+                    return vdev;
+            }
         }
+        return NULL;
+    }
+
+    // Fast O(1) hash lookup
+    struct vhost_dev *vdev = NULL;
+    int ret = rte_hash_lookup_data(mac_lookup_table, mac, (void **)&vdev);
+    if (ret >= 0 && vdev != NULL && vdev->ready == DEVICE_RX) {
+        return vdev;
     }
 
     return NULL;
@@ -130,6 +149,14 @@ static void destroy_device(int vid) {
     LOG_INFO("(%d) device has been removed from data core %d (device_num now=%d)\n", vdev->vid, ctx->id,
              ctx->vhost.device_num);
 
+    // Remove from MAC lookup table if MAC was registered
+    if (mac_lookup_table != NULL && vdev->ready == DEVICE_RX) {
+        int ret = rte_hash_del_key(mac_lookup_table, &vdev->mac_address);
+        if (ret < 0 && ret != -ENOENT) {
+            LOG_WARN("Warning: Failed to remove MAC from lookup table for vid=%d (ret=%d)\n", vdev->vid, ret);
+        }
+    }
+
     rte_free(vdev);
 }
 
@@ -150,9 +177,6 @@ static int new_device(int vid) {
         return -1;
     }
     vdev->vid = vid;
-
-    // with 8 queues: VM 0,8,16,24 share queue 0; VM 1,9,17,25 share queue 1
-    vdev->rx_queue = vid % fp_cores_max;
 
     /*reset ready flag*/
     vdev->ready = DEVICE_MAC_LEARNING;
@@ -225,6 +249,8 @@ static int new_device(int vid) {
 
     LOG_INFO("(%d) device has been added to data core %d\n", vid, vdev->coreid);
 
+    // Note: MAC address will be added to lookup table when learned in link_vmdq()
+
     return 0;
 }
 
@@ -246,11 +272,45 @@ void unregister_vhost_drivers(int socket_num, const char *path) {
         if (ret != 0)
             LOG_ERROR("Fail to unregister vhost driver for %s.\n", path + i * PATH_MAX);
     }
+
+    // Cleanup MAC lookup hash table
+    if (mac_lookup_table != NULL) {
+        rte_hash_free(mac_lookup_table);
+        mac_lookup_table = NULL;
+        LOG_INFO("MAC lookup hash table destroyed\n");
+    }
+}
+
+// Initialize MAC lookup hash table
+static int init_mac_lookup_table(void) {
+    struct rte_hash_parameters hash_params = {
+        .name = "mac_lookup_table",
+        .entries = MAC_LOOKUP_TABLE_SIZE,
+        .key_len = sizeof(struct rte_ether_addr),
+        .hash_func = rte_jhash,
+        .hash_func_init_val = 0,
+        .socket_id = rte_socket_id(),
+    };
+
+    mac_lookup_table = rte_hash_create(&hash_params);
+    if (mac_lookup_table == NULL) {
+        LOG_ERROR("Failed to create MAC lookup hash table\n");
+        return -1;
+    }
+
+    LOG_INFO("MAC lookup hash table initialized (size=%d)\n", MAC_LOOKUP_TABLE_SIZE);
+    return 0;
 }
 
 int register_vhost_drivers() {
     uint64_t flags = 0;
     // Note: vdev_list is already initialized in dataplane_context_init()
+
+    // Initialize MAC lookup hash table
+    if (init_mac_lookup_table() != 0) {
+        LOG_ERROR("Failed to initialize MAC lookup table\n");
+        return -1;
+    }
 
     if (config.client_mode)
         flags |= RTE_VHOST_USER_CLIENT;

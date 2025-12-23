@@ -3,7 +3,7 @@
  */
 
 #include "config.h"
-#include "src/utils/utils.h"
+#include "utils.h"
 #include <getopt.h>
 #include <rte_ethdev.h>
 #include <rte_log.h>

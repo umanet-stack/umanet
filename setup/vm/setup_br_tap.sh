@@ -31,6 +31,11 @@ sudo ip link set br0 up || true
 sudo ip addr add 192.168.10${NODE_ID}.1/24 dev br0 || true
 echo "✅ br0 created"
 
+# add enp65s0f0np0 to br0
+sudo ip addr flush dev enp65s0f0np0 || true
+sudo ip link set enp65s0f0np0 master br0 || true
+echo "✅ enp65s0f0np0: removed IP and added to br0"
+
 # create taps
 for i in {0..31}; do
   sudo ip tuntap add dev tap$i mode tap user $USER || true

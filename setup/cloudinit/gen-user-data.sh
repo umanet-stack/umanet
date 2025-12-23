@@ -6,10 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 rm -f "$SCRIPT_DIR/user-datas/user-data-vm"*
 mkdir -p "$SCRIPT_DIR/user-datas"
-for i in {0..31}; do
-  ROLE=$(if [ $((i % 2)) -eq 0 ]; then echo "server"; else echo "client"; fi)
-  SERVER_IP="192.168.100.$((i+1))"
-  cat > "$SCRIPT_DIR/user-datas/user-data-vm$i" <<EOF
+cat > "$SCRIPT_DIR/user-datas/user-data-vm" <<EOF
 #cloud-config
 packages:
   - iperf
@@ -33,10 +30,7 @@ write_files:
       [Resolve]
       DNS=8.8.8.8 8.8.4.4
     permissions: '0644'
-  - path: /etc/vm_role
-    content: |
-      VM_INDEX=$i
-      ROLE=$ROLE
+
   - path: /etc/systemd/system/iperf.service
     permissions: '0644'
     content: |
@@ -59,24 +53,35 @@ write_files:
     permissions: '0755'
     content: |
       #!/bin/bash
-      source /etc/vm_role
+      # Parse kernel command-line parameters
+      for param in \$(cat /proc/cmdline); do
+          case \$param in
+              ROLE=*) export ROLE="\${param#ROLE=}";;
+              IPERF_COMMAND_B64=*) export IPERF_COMMAND_B64="\${param#IPERF_COMMAND_B64=}";;
+          esac
+      done
+      
+      # Decode the base64-encoded command
+      if [ -n "\$IPERF_COMMAND_B64" ]; then
+          export IPERF_COMMAND=\$(echo -n "\$IPERF_COMMAND_B64" | base64 -d)
+      fi
       
       log() {
-          echo "[\$(date '+%Y-%m-%d %H:%M:%S')] vm\$VM_INDEX: \$1"
+          echo "[\$(date '+%Y-%m-%d %H:%M:%S')] vm: \$1"
       }
 
       if [ "\$ROLE" = "server" ]; then
-          log "starting iperf server"
-          exec iperf3 -s
+          log "starting iperf server (\$IPERF_COMMAND)"
+          exec \$IPERF_COMMAND
       else
-          log "starting iperf client (target: $SERVER_IP)"
+          log "starting iperf client (\$IPERF_COMMAND)"
           
           # Wait for server to be ready
           sleep 5
           
           # Run iperf test normally (shows progress in logs) and capture JSON output
           log "running iperf3 test..."
-          IPERF_OUTPUT=\$(iperf3 -c $SERVER_IP -P 4 -t 30 -J 2>&1)
+          IPERF_OUTPUT=\$(\$IPERF_COMMAND 2>&1)
           IPERF_EXIT=\$?
           
           if [ \$IPERF_EXIT -ne 0 ]; then
@@ -120,4 +125,3 @@ runcmd:
   - systemctl start iperf
 
 EOF
-done

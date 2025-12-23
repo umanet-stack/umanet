@@ -22,6 +22,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "log.h"
 #include "src/config/config.h"
 #include "src/include/fastpath.h"
 #include <assert.h>
@@ -39,14 +40,14 @@
 #include <rte_spinlock.h>
 #include <rte_version.h>
 
+#include "../fast/internal.h"
 #include "../include/tas.h"
-#include "../vhost/vhost.h"
-#include "internal.h"
 #include <tas_memif.h>
 #include <utils.h>
 #include <utils_rng.h>
 
 #define PERTHREAD_MBUFS 2048
+#define BUFFER_SIZE 2048
 #define MBUF_SIZE (BUFFER_SIZE + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
 #define RX_DESCRIPTORS 256
 #define TX_DESCRIPTORS 128

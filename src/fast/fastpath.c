@@ -1,43 +1,16 @@
 
 #include "src/include/fastpath.h"
+#include "log.h"
 #include "src/fast/internal.h"
-#include "src/fast/network.h"
 #include "src/include/tas.h"
+#include "src/network/network.h"
 #include "src/vhost/vhost.h"
 #include <rte_mbuf_core.h>
 #include <string.h>
 #include <sys/queue.h>
 #include <unistd.h>
 
-#define DATAPLANE_TSCS
-
-#ifdef DATAPLANE_STATS
-#ifdef DATAPLANE_TSCS
-#define STATS_TS(n) uint64_t n = rte_get_tsc_cycles()
-#define STATS_TSADD(c, f, n) __sync_fetch_and_add(&c->stat_##f, n)
-#else
-#define STATS_TS(n)                                                                                                    \
-    do {                                                                                                               \
-    } while (0)
-#define STATS_TSADD(c, f, n)                                                                                           \
-    do {                                                                                                               \
-    } while (0)
-#endif
-#define STATS_ADD(c, f, n) __sync_fetch_and_add(&c->stat_##f, n)
-#else
-#define STATS_TS(n)                                                                                                    \
-    do {                                                                                                               \
-    } while (0)
-#define STATS_TSADD(c, f, n)                                                                                           \
-    do {                                                                                                               \
-    } while (0)
-#define STATS_ADD(c, f, n)                                                                                             \
-    do {                                                                                                               \
-    } while (0)
-#endif
-
-static inline void drain_vhost_tx(struct mbuf_table *tx_q);
-static inline void cleanup_tx_queue_for_device(struct mbuf_table *tx_q, struct vhost_dev *vdev);
+static inline void drain_vhost_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q);
 
 int dataplane_init(void) {
     if (FLEXNIC_INTERNAL_MEM_SIZE < sizeof(struct flextcp_pl_mem)) {
@@ -81,16 +54,31 @@ int dataplane_context_init(struct dataplane_context *ctx) {
 
     ctx->poll_next_ctx = ctx->id;
 
-    /* Initialize vhost device array for this context */
     memset(ctx->vhost.vdev_list, 0, sizeof(ctx->vhost.vdev_list));
     ctx->vhost.device_num = 0;
     ctx->vhost.dev_removal_flag = 0;
     ctx->vhost.poll_next_device = 0;
 
-    /* Initialize TX queue */
     memset(&ctx->vhost.tx_q, 0, sizeof(ctx->vhost.tx_q));
-    ctx->vhost.tx_q.txq_id = ctx->id;
     ctx->vhost.tx_q.len = 0;
+
+    ctx->stat_cyc_loop = 0;
+    ctx->stat_cyc_loop_sleep = 0;
+
+    ctx->stat_cyc_eth_fp = 0;
+    ctx->stat_cyc_poll_eth = 0;
+    ctx->stat_cyc_send_eth = 0;
+    ctx->stat_pkt_eth_rx = 0;
+    ctx->stat_pkt_eth_tx = 0;
+    ctx->stat_pkt_eth_tx_fail = 0;
+
+    ctx->stat_cyc_vhost_fp = 0;
+    ctx->stat_cyc_poll_vhost = 0;
+    ctx->stat_cyc_send_vhost = 0;
+    ctx->stat_cyc_vdev = 0;
+    ctx->stat_pkt_vhost_rx = 0;
+    ctx->stat_pkt_vhost_tx = 0;
+    ctx->stat_pkt_vhost_tx_fail = 0;
 
     return 0;
 }
@@ -98,35 +86,44 @@ int dataplane_context_init(struct dataplane_context *ctx) {
 void dataplane_context_destroy(struct dataplane_context *ctx) {}
 
 void dataplane_loop(struct dataplane_context *ctx) {
-    struct notify_blockstate nbs;
-    uint32_t ts;
-    uint64_t cyc, prev_cyc;
+    struct mbuf_table *tx_q = &ctx->vhost.tx_q;
+    LOG_INFO("Procesing on Core %u started\n", ctx->id);
+
+    // Adaptive blocking state
     int was_idle = 1;
-
-    unsigned lcore_id = ctx->id;
-    struct vhost_dev *vdev;
-    struct mbuf_table *tx_q;
-
-    LOG_INFO("Procesing on Core %u started\n", lcore_id);
-
-    tx_q = &ctx->vhost.tx_q;
-    tx_q->txq_id = ctx->id;
-    LOG_INFO("TX queue ID: %u\n", tx_q->txq_id);
+    uint64_t last_active_ts = 0;
+    int idle_count = 0;
+    const uint64_t poll_cycle_tsc = rte_get_tsc_hz() / 1000000; // 1us in TSC cycles
+    uint64_t cyc;                                               // TSC cycles for adaptive pause
 
     while (!exited) {
+        STATS_TS(loop_start);
 #ifdef DEBUG
         sleep(1);
 #else
-        // Minimal yield for vhost virtqueue operations (10 microseconds)
-        // Vhost-user requires brief CPU yield for virtqueue state updates to complete
-        // 10us = 100x faster than 1ms, negligible performance impact (~100K iterations/sec)
-        usleep(1);
-        // rte_pause();
+        // Adaptive pause: only pause when idle to allow vhost-user state sync
+        // Similar to TAS's adaptive blocking, but using rte_pause() instead of epoll
+        // since vhost-user doesn't support eventfd notifications
+        cyc = rte_get_tsc_cycles();
+        if (was_idle) {
+            idle_count++;
+            // After being idle for multiple iterations, pause to allow vhost-user sync
+            // This gives the vhost-user backend time to update shared memory
+            if (idle_count > 2 || (cyc - last_active_ts > poll_cycle_tsc)) {
+                rte_pause();
+            }
+        } else {
+            idle_count = 0;
+            last_active_ts = cyc;
+        }
 #endif
+        STATS_TS(sleep);
+        STATS_TSADD(ctx, cyc_loop_sleep, sleep - loop_start);
+        unsigned packets_received = 0;
 
-        LOG_INFO("Draining TX queue into NIC...\n");
+        // Drain TX queue if it has packets (check is cheap, only drain on timeout)
         if (tx_q->len > 0)
-            drain_vhost_tx(tx_q);
+            drain_vhost_tx(ctx, tx_q);
 
         /*
          * Inform the configuration core that we have exited the
@@ -140,181 +137,30 @@ void dataplane_loop(struct dataplane_context *ctx) {
 
         // If no devices, skip polling
         if (current_device_num == 0) {
+            was_idle = 1;
+            STATS_TS(loop_end);
+            STATS_TSADD(ctx, cyc_loop, loop_end - loop_start);
             continue;
         }
 
-        for (int i = 0; i < current_device_num; i++) {
-            // Use modulo with bounds check to prevent out-of-bounds access
-            uint16_t dev_idx = (ctx->vhost.poll_next_device + i) % MAX_VHOST_DEVICES_PER_CORE;
+        STATS_TS(eth_fp_start);
+        fastpath_from_eth(ctx);
+        STATS_TS(eth_fp_end);
+        STATS_TSADD(ctx, cyc_eth_fp, eth_fp_end - eth_fp_start);
 
-            // Additional safety: ensure dev_idx is within current device count
-            if (dev_idx >= current_device_num) {
-                dev_idx = i; // Fallback to simple iteration
-            }
+        STATS_TS(vhost_fp_start);
+        packets_received = fastpath_from_vhost(ctx, current_device_num);
+        STATS_TS(vhost_fp_end);
+        STATS_TSADD(ctx, cyc_vhost_fp, vhost_fp_end - vhost_fp_start);
 
-            vdev = ctx->vhost.vdev_list[dev_idx];
-
-            // Add robust null check
-            if (vdev == NULL) {
-                LOG_WARN("Warning: NULL vdev at index %d (device_num=%d)\n", dev_idx, current_device_num);
-                continue;
-            }
-
-            if (unlikely(vdev->remove)) { // device is marked for removal
-                LOG_INFO("Removing device vid=%d from dataplane (current device_num=%d)\n", vdev->vid,
-                         ctx->vhost.device_num);
-
-                // Clean up any pending TX packets for this device
-                cleanup_tx_queue_for_device(&ctx->vhost.tx_q, vdev);
-
-                unlink_vmdq(vdev);
-                vdev->ready = DEVICE_SAFE_REMOVE;
-
-                // Remove from array by shifting remaining elements
-                for (int j = dev_idx; j < ctx->vhost.device_num - 1; j++) {
-                    ctx->vhost.vdev_list[j] = ctx->vhost.vdev_list[j + 1];
-                }
-                ctx->vhost.vdev_list[ctx->vhost.device_num - 1] = NULL;
-                ctx->vhost.device_num--;
-
-                // Adjust poll_next_device if needed
-                if (ctx->vhost.poll_next_device >= ctx->vhost.device_num && ctx->vhost.device_num > 0) {
-                    ctx->vhost.poll_next_device = 0;
-                }
-
-                LOG_INFO("Device removed, new device_num=%d\n", ctx->vhost.device_num);
-
-                // Update cached value to prevent accessing removed device
-                current_device_num = ctx->vhost.device_num;
-
-                // If we removed the last device, break out of loop
-                if (current_device_num == 0) {
-                    break;
-                }
-
-                // Don't increment i since we just shifted elements down
-                i--;
-                continue;
-            }
-
-            // Validate device is in a valid state before polling
-            if (vdev->ready != DEVICE_RX && vdev->ready != DEVICE_MAC_LEARNING) {
-                LOG_WARN("Warning: Device vid=%d in invalid state %d, skipping\n", vdev->vid, vdev->ready);
-                continue;
-            }
-
-            if (likely(vdev->ready == DEVICE_RX)) {
-                LOG_INFO("Polling eth rx...\n");
-                // receive packets from physical NIC and forward them to a VM
-                poll_eth_rx(vdev);
-            }
-
-            // Double-check device is still valid before polling TX
-            if (likely(!vdev->remove && vdev->ready != DEVICE_SAFE_REMOVE)) {
-                LOG_INFO("Polling virtio tx...\n");
-                // receive packets from VM's TX queue, route them to the NIC or local VM
-                poll_virtio_tx(vdev, ctx);
-            }
-        }
-
-        // Update round-robin pointer with bounds check
-        if (ctx->vhost.device_num > 0) {
-            ctx->vhost.poll_next_device = (ctx->vhost.poll_next_device + 1) % ctx->vhost.device_num;
-        } else {
-            // Reset to 0 when no devices remain
-            ctx->vhost.poll_next_device = 0;
-        }
-
-        // /* count cycles of previous iteration if it was busy */
-        // prev_cyc = cyc;
-        // cyc = rte_get_tsc_cycles();
-        // if (!was_idle)
-        //     ctx->loadmon_cyc_busy += cyc - prev_cyc;
-
-        // // n += poll_rx(ctx, ts, cyc);
-        // STATS_TS(rx);
-        // // Flush TX buffer (send pkt)
-        // // tx_flush(ctx);
-
-        // n += poll_vhost_rx(ctx, ts);
-        // STATS_TS(qs);
-        // STATS_TSADD(ctx, cyc_qs, qs - qm);
-
-        // n += poll_rx(ctx, ts, cyc);      // Physical NIC - external traffic (later)
-        // n += poll_vhost_rx(ctx, ts);      // Vhost - VM traffic
-    }
-}
-
-// Poll vhost RX queues for incoming packets
-static unsigned poll_vhost_rx(struct dataplane_context *ctx, uint32_t ts) {
-    int ret;
-    unsigned n = 0, total = 0;
-    struct rte_mbuf *mbs[BATCH_SIZE];
-    struct vhost_dev *vdev;
-
-    n = BATCH_SIZE;
-    // Check if the TX buffer has enough free slots, avoid overflow
-    if (TXBUF_SIZE - ctx->tx_num < n)
-        n = TXBUF_SIZE - ctx->tx_num;
-
-    // Poll multiple vhost devices/queues per core (round-robin)
-    for (int i = 0; i < ctx->vhost.device_num && total < n; i++) {
-        uint16_t dev_idx = (ctx->vhost.poll_next_device + i) % ctx->vhost.device_num;
-        vdev = ctx->vhost.vdev_list[dev_idx];
-        if (vdev == NULL)
-            continue;
-
-        ret = vhost_poll(&ctx->net, n, vdev->vid, mbs);
-        if (ret <= 0)
-            continue;
-        total += ret;
-    }
-
-    // Update round-robin pointer
-    if (total > 0 && ctx->vhost.device_num > 0)
-        ctx->vhost.poll_next_device = (ctx->vhost.poll_next_device + 1) % ctx->vhost.device_num;
-
-    /* parse packets TCP headers (just timestamp option) to tcpopts */
-    // fast_flows_packet_parse(ctx, bhs, fss, tcpopts, n);
-
-    // for (int i = 0; i < n; i++) {
-    //     uint16_t vhost_queue = pick_vhost_queue(ctx, mbs[i]);
-    //     if (vhost_queue != 0) {
-    //         rte_vhost_enqueue_burst(vhost_queue, VIRTIO_TXQ, &mbs[i], 1);
-    //     }
-    // }
-
-    // no. of pkts processed
-    return total;
-}
-
-static inline uint16_t pick_vhost_queue(struct dataplane_context *ctx, struct rte_mbuf *pkt) {
-    struct rte_ether_hdr *eth = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-    for (int i = 0; i < ctx->vhost.device_num; i++) {
-        if (memcmp(eth->d_addr.addr_bytes, ctx->vhost.vdev_list[i]->mac_address.addr_bytes, 6) == 0)
-            return ctx->vhost.vdev_list[i]->rx_queue;
-    }
-    return 0; // optional: drop or broadcast
-}
-
-// Clean up TX queue entries that belong to a device being removed
-static inline void cleanup_tx_queue_for_device(struct mbuf_table *tx_q, struct vhost_dev *vdev) {
-    if (tx_q == NULL || vdev == NULL) {
-        return;
-    }
-
-    LOG_INFO("Cleaning up TX queue for device vid=%d (current queue len=%u)\n", vdev->vid, tx_q->len);
-
-    // Note: We can't easily identify which packets belong to which device,
-    // so we flush all pending packets to the NIC before device removal
-    if (tx_q->len > 0) {
-        LOG_INFO("Flushing %u pending packets before device removal\n", tx_q->len);
-        flush_eth_tx(tx_q);
+        was_idle = (packets_received == 0);
+        STATS_TS(loop_end);
+        STATS_TSADD(ctx, cyc_loop, loop_end - loop_start);
     }
 }
 
 // drain into NIC if timeout has elapsed
-static inline void drain_vhost_tx(struct mbuf_table *tx_q) {
+static inline void drain_vhost_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q) {
     // static = function-scope, keeps value between function calls
     static uint64_t prev_tsc; // previous timestamp
 
@@ -323,6 +169,52 @@ static inline void drain_vhost_tx(struct mbuf_table *tx_q) {
         prev_tsc = cur_tsc;
 
         LOG_INFO("TX queue drained after timeout with burst size %u\n", tx_q->len);
-        flush_eth_tx(tx_q);
+        flush_eth_tx(ctx, tx_q);
+    }
+}
+
+static inline uint64_t read_stat(uint64_t *p) { return __sync_lock_test_and_set(p, 0); }
+
+void dataplane_dump_stats(void) {
+    struct dataplane_context *ctx;
+    unsigned i;
+
+    for (i = 0; i < fp_cores_max; i++) {
+        ctx = ctxs[i];
+        uint64_t loop = read_stat(&ctx->stat_cyc_loop);
+        uint64_t loop_sleep = read_stat(&ctx->stat_cyc_loop_sleep);
+        fprintf(stderr, "\n========== CORE %u ==========\n", i);
+        fprintf(stderr, "FASTPATH:\n");
+        fprintf(stderr, "whole loop: \t%" PRIu64 "\n", loop);
+        fprintf(stderr, "loop_sleep: \t%" PRIu64 " (%.2f%%)\n", loop_sleep, (double)loop_sleep / loop * 100);
+
+        uint64_t eth_fp = read_stat(&ctx->stat_cyc_eth_fp);
+        uint64_t eth_poll = read_stat(&ctx->stat_cyc_poll_eth);
+        uint64_t eth_send = read_stat(&ctx->stat_cyc_send_eth);
+        uint64_t eth_route = eth_fp - eth_poll - eth_send;
+        fprintf(stderr, "\nETH FP: \t%" PRIu64 " (%.2f%% of whole loop)\n", eth_fp, (double)eth_fp / loop * 100);
+        fprintf(stderr, "poll_eth: \t%" PRIu64 " (%.2f%%)\n", eth_poll, (double)eth_poll / eth_fp * 100);
+        fprintf(stderr, "send_eth: \t%" PRIu64 " (%.2f%%)\n", eth_send, (double)eth_send / eth_fp * 100);
+        fprintf(stderr, "route_eth: \t%" PRIu64 " (%.2f%%)\n", eth_route, (double)eth_route / eth_fp * 100);
+        fprintf(stderr, "TOTAL ETH: \t %.2f%%\n", (double)(eth_poll + eth_send + eth_route) / eth_fp * 100);
+        fprintf(stderr, "pkt_eth_rx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_rx));
+        fprintf(stderr, "pkt_eth_tx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_tx));
+        fprintf(stderr, "pkt_eth_tx_fail: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_tx_fail));
+
+        uint64_t vhost_fp = read_stat(&ctx->stat_cyc_vhost_fp);
+        uint64_t vhost_poll = read_stat(&ctx->stat_cyc_poll_vhost);
+        uint64_t vhost_send = read_stat(&ctx->stat_cyc_send_vhost);
+        uint64_t vdev = read_stat(&ctx->stat_cyc_vdev);
+        uint64_t vhost_route = vhost_fp - vhost_poll - vhost_send - vdev;
+        fprintf(stderr, "\nVHOST FP: \t%" PRIu64 " (%.2f%% of whole loop)\n", vhost_fp, (double)vhost_fp / loop * 100);
+        fprintf(stderr, "poll_vhost: \t%" PRIu64 " (%.2f%%)\n", vhost_poll, (double)vhost_poll / vhost_fp * 100);
+        fprintf(stderr, "send_vhost: \t%" PRIu64 " (%.2f%%)\n", vhost_send, (double)vhost_send / vhost_fp * 100);
+        fprintf(stderr, "vdev config: \t%" PRIu64 " (%.2f%%)\n", vdev, (double)vdev / vhost_fp * 100);
+        fprintf(stderr, "route_vhost: \t%" PRIu64 " (%.2f%%)\n", vhost_route, (double)vhost_route / vhost_fp * 100);
+        fprintf(stderr, "TOTAL VHOST: \t %.2f%%\n",
+                (double)(vhost_poll + vhost_send + vdev + vhost_route) / vhost_fp * 100);
+        fprintf(stderr, "pkt_vhost_rx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_rx));
+        fprintf(stderr, "pkt_vhost_tx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_tx));
+        fprintf(stderr, "pkt_vhost_tx_fail: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_tx_fail));
     }
 }

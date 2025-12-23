@@ -2,9 +2,8 @@
 """
 Process iperf3 test results and generate reports
 """
-import json
-import os
 import re
+import argparse
 from pathlib import Path
 from typing import Dict, List
 import matplotlib.pyplot as plt
@@ -13,22 +12,26 @@ matplotlib.use('Agg')  # Non-interactive backend
 import numpy as np
 from datetime import datetime
 
-# Directories
-LOGS_DIR = Path("testing/logs")
-REPORTS_DIR = Path("testing/reports")
+# Get script directory to make paths relative to it
+SCRIPT_DIR = Path(__file__).parent.resolve()
 
 
-def load_results() -> Dict[str, dict]:
-    """Extract results from VM log files (odd-numbered VMs only)"""
+def load_results(logs_dir: Path, process_all_vms: bool = False) -> Dict[str, dict]:
+    """Extract results from VM log files
+    
+    Args:
+        logs_dir: Directory containing VM log files
+        process_all_vms: If True, process all VMs. If False, process only odd-numbered VMs (clients).
+    """
     results = {}
     
-    # Find all odd-numbered VM log files (vm1, vm3, vm5, etc.)
-    for log_file in sorted(LOGS_DIR.glob("vm*.log")):
+    # Find all VM log files
+    for log_file in sorted(logs_dir.glob("vm*.log")):
         vm_name = log_file.stem  # e.g., "vm1"
         vm_num = int(vm_name[2:])  # Extract number: "vm1" -> 1
         
-        # Only process odd-numbered VMs (clients)
-        if vm_num % 2 == 0:
+        # Only process odd-numbered VMs (clients) if process_all_vms is False
+        if not process_all_vms and vm_num % 2 == 0:
             continue
         
         try:
@@ -37,7 +40,7 @@ def load_results() -> Dict[str, dict]:
             
             # Extract the summary line
             # Format: [timestamp] start-iperf.sh[pid]: [date time] vmX:   Throughput: X Gbps | Bytes: X GB | Retransmits: X | CPU (host): X% | CPU (remote): X%
-            pattern = r'\[.*?\] start-iperf\.sh\[.*?\]: \[.*?\] ' + re.escape(vm_name) + r':\s+Throughput:\s+([\d.]+)\s+Gbps\s+\|\s+Bytes:\s+([\d.]+)\s+GB\s+\|\s+Retransmits:\s+(\d+)\s+\|\s+CPU\s+\(host\):\s+([\d.]+)%\s+\|\s+CPU\s+\(remote\):\s+([\d.]+)%'
+            pattern = r'\[.*?\] start-iperf\.sh\[.*?\]: \[.*?\] vm:\s+Throughput:\s+([\d.]+)\s+Gbps\s+\|\s+Bytes:\s+([\d.]+)\s+GB\s+\|\s+Retransmits:\s+(\d+)\s+\|\s+CPU\s+\(host\):\s+([\d.]+)%\s+\|\s+CPU\s+\(remote\):\s+([\d.]+)%'
             match = re.search(pattern, log_content)
             
             if match:
@@ -46,6 +49,11 @@ def load_results() -> Dict[str, dict]:
                 retransmits = int(match.group(3))
                 cpu_host = float(match.group(4))
                 cpu_remote = float(match.group(5))
+                
+                # Skip VMs with invalid data (0 throughput, negative values, etc.)
+                if throughput_gbps <= 0 or bytes_gb <= 0:
+                    print(f"⚠️  Skipping {vm_name}: Invalid data (throughput={throughput_gbps} Gbps, bytes={bytes_gb} GB)")
+                    continue
                 
                 # Extract intervals from log text
                 # Format: "[timestamp] start-iperf.sh[pid]:   [0-1.001431s] 10.13 Gbps"
@@ -64,13 +72,13 @@ def load_results() -> Dict[str, dict]:
                         if line_match:
                             start = float(line_match.group(1))
                             end = float(line_match.group(2))
-                            throughput_gbps = float(line_match.group(3))
+                            throughput_gbps_interval = float(line_match.group(3))
                             intervals.append({
                                 'sum': {
                                     'start': start,
                                     'end': end,
-                                    'bits_per_second': throughput_gbps * 1e9,
-                                    'bytes': throughput_gbps * 1e9 * (end - start) / 8  # Approximate
+                                    'bits_per_second': throughput_gbps_interval * 1e9,
+                                    'bytes': throughput_gbps_interval * 1e9 * (end - start) / 8  # Approximate
                                 }
                             })
                 
@@ -94,7 +102,7 @@ def load_results() -> Dict[str, dict]:
                     'intervals': intervals if intervals else []
                 }
             else:
-                print(f"⚠️  Could not find summary line in {log_file}")
+                print(f"⚠️  Skipping {vm_name}: Could not find summary line in {log_file}")
         except Exception as e:
             print(f"⚠️  Error processing {log_file}: {e}")
     
@@ -358,17 +366,76 @@ See the following plots for detailed analysis:
     print(f"✅ Saved report: {output_path}")
 
 
+def get_next_report_number(base_dir: Path) -> int:
+    """Find the next report number by counting existing report-* directories"""
+    if not base_dir.exists():
+        return 0
+    
+    existing_reports = []
+    for item in base_dir.iterdir():
+        if item.is_dir() and item.name.startswith("report-"):
+            try:
+                num = int(item.name.split("-")[1])
+                existing_reports.append(num)
+            except (ValueError, IndexError):
+                continue
+    
+    if not existing_reports:
+        return 0
+    
+    return max(existing_reports) + 1
+
+
 def main():
     """Main processing pipeline"""
+    parser = argparse.ArgumentParser(description="Process iperf3 test results and generate reports")
+    parser.add_argument(
+        "folder",
+        nargs="?",
+        default="testing",
+        help="Folder name relative to script directory (default: testing)"
+    )
+    parser.add_argument(
+        "mode",
+        nargs="?",
+        choices=["samenode", "multinode"],
+        default="samenode",
+        help="Processing mode: 'samenode' (process only odd VMs) or 'multinode' (process all VMs) (default: samenode)"
+    )
+    args = parser.parse_args()
+    
+    # Determine if we should process all VMs
+    process_all_vms = (args.mode == "multinode")
+    
+    # Set up directories relative to script
+    base_dir = SCRIPT_DIR / args.folder
+    logs_dir = base_dir / "logs"
+    reports_base_dir = base_dir
+    
+    # Create base directory if it doesn't exist
+    base_dir.mkdir(exist_ok=True, parents=True)
+    
+    # Find next report number
+    report_num = get_next_report_number(reports_base_dir)
+    reports_dir = reports_base_dir / f"report-{report_num}"
+    reports_dir.mkdir(exist_ok=True, parents=True)
+    
     print("🔥 Processing iperf3 results...")
+    print(f"📁 Base folder: {base_dir}")
+    print(f"📁 Logs folder: {logs_dir}")
+    print(f"📁 Reports folder: {reports_dir}")
     print()
     
-    # Create reports directory
-    REPORTS_DIR.mkdir(exist_ok=True, parents=True)
+    # Check if logs directory exists
+    if not logs_dir.exists():
+        print(f"❌ Logs directory not found: {logs_dir}")
+        print(f"   Please ensure log files are in: {logs_dir}/")
+        return
     
     # Load results
     print("📂 Loading results...")
-    results = load_results()
+    print(f"   Mode: {args.mode} ({'processing all VMs' if process_all_vms else 'processing odd VMs only'})")
+    results = load_results(logs_dir, process_all_vms=process_all_vms)
     print(f"   Found {len(results)} VM results")
     print()
     
@@ -385,14 +452,14 @@ def main():
     
     # Generate plots
     print("📈 Generating plots...")
-    plot_throughput_timeseries(timeseries, REPORTS_DIR / "throughput_timeseries.png")
-    plot_per_vm_throughput(per_vm_stats, REPORTS_DIR / "throughput_per_vm.png")
-    plot_cpu_utilization(per_vm_stats, REPORTS_DIR / "cpu_utilization.png")
+    plot_throughput_timeseries(timeseries, reports_dir / "throughput_timeseries.png")
+    plot_per_vm_throughput(per_vm_stats, reports_dir / "throughput_per_vm.png")
+    plot_cpu_utilization(per_vm_stats, reports_dir / "cpu_utilization.png")
     print()
     
     # Generate report
     print("📝 Generating markdown report...")
-    generate_markdown_report(per_vm_stats, overall_stats, REPORTS_DIR / "report.md")
+    generate_markdown_report(per_vm_stats, overall_stats, reports_dir / "report.md")
     print()
     
     # Print summary
@@ -406,7 +473,7 @@ def main():
     print(f"Avg Server CPU:       {overall_stats['avg_cpu_remote_percent']:.2f}%")
     print("=" * 60)
     print()
-    print(f"✅ All reports saved to: {REPORTS_DIR}/")
+    print(f"✅ All reports saved to: {reports_dir}/")
     print()
 
 

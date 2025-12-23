@@ -1,28 +1,30 @@
+#include "internal.h"
+#include "log.h"
 #include "src/include/fastpath.h"
 #include "src/include/tas.h"
+#include "src/network/network.h"
 #include "src/vhost/vhost.h"
 #include <rte_arp.h>
 #include <rte_ethdev.h>
 #include <rte_mbuf_core.h>
 #include <rte_vhost.h>
 
-int process_arp(struct vhost_dev *vdev, struct rte_mbuf *m) {
+int process_arp(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf *m, enum arp_src src) {
     struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
     struct rte_arp_hdr *arp = (struct rte_arp_hdr *)(eth + 1);
     if (arp->arp_opcode != rte_cpu_to_be_16(RTE_ARP_OP_REQUEST)) {
-        LOG_WARN("(%d) ARP: Not a request, ignoring\n", vdev->vid);
+        LOG_WARN("[%d] ARP: Not a request, ignoring\n", ctx->id);
         return -1; // Not handled, should be forwarded
     }
 
     uint32_t req_ip = rte_be_to_cpu_32(arp->arp_data.arp_tip); // big to little endian
     if (req_ip != config.ip) {
         // ARP request for another VM, should be broadcast to all VMs
-        LOG_INFO("(%d) ARP: Request for VM IP %u.%u.%u.%u, forwarding to other VMs\n", vdev->vid, (req_ip >> 24) & 0xff,
+        LOG_INFO("[%d] ARP: Request for VM IP %u.%u.%u.%u, forwarding to other VMs\n", ctx->id, (req_ip >> 24) & 0xff,
                  (req_ip >> 16) & 0xff, (req_ip >> 8) & 0xff, req_ip & 0xff);
         return -1; // Not for gateway, forward to VMs
     }
 
-    // Swap Ethernet addresses
     rte_ether_addr_copy(&eth->s_addr, &eth->d_addr); // dst MAC = src MAC
     rte_ether_addr_copy(&config.mac, &eth->s_addr);  // src MAC = our MAC
 
@@ -42,11 +44,16 @@ int process_arp(struct vhost_dev *vdev, struct rte_mbuf *m) {
     arp->arp_data.arp_tip = orig_ip;
 
     // Send back to VM
-    int ret = rte_vhost_enqueue_burst(vdev->vid, VIRTIO_RXQ, &m, 1);
-    if (unlikely(ret == 0))
-        LOG_WARN("Failed to enqueue ARP reply to vid=%d\n", vdev->vid);
-    LOG_VM_OUT("(%d) Sent ARP reply to VM\n", vdev->vid);
-    PRINT_PKTS(&m, 1, LOG_VM_OUT);
+    if (src == ARP_SRC_VM) {
+        int ret = vhost_send(ctx, 1, vdev->vid, &m);
+        if (unlikely(ret == 0))
+            LOG_WARN("[%d] Failed to enqueue ARP reply to vid=%d\n", ctx->id, vdev->vid);
+    } else if (src == ARP_SRC_ETH) {
+        int ret = network_send(ctx, 1, &m);
+        if (unlikely(ret == 0))
+            LOG_WARN("[%d] Failed to send ARP reply to physical NIC\n", ctx->id);
+    }
+
     rte_pktmbuf_free(m);
 
     return 0; // Handled successfully
