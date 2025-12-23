@@ -1,8 +1,8 @@
 # tap
 ```bash
-./setup/tap/setup_br_tap.sh 0
-./setup/tap/spawn_vms.sh 2 /tmp samenode
-./setup/tap/spawn_vms.sh 16 /tmp multinode
+./setup/vm/setup_br_tap.sh 0
+./setup/vm/spawn_vms.sh tap 32 /tmp samenode
+./setup/vm/spawn_vms.sh tap 16 /tmp multinode
 
 # process results
 sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | tail -15
@@ -22,13 +22,13 @@ sudo ip link set enp65s0f0np0 up
 
 # no. of vhost must match no. of VMs!
 sudo ./build_and_run.sh 0000:41:00.0 test 3 32
-./setup/dpdk/spawn_vms.sh 32 /proj/faasnetworkstack-PG0/testing
+./setup/vm/spawn_vms.sh dpdk 32 /tmp samenode
 
 sudo ./build_and_run.sh 0000:41:00.0 test 3 16
-./setup/dpdk/spawn_vms.sh 16 /proj/faasnetworkstack-PG0/testing
+./setup/vm/spawn_vms.sh dpdk 16 /tmp samenode
 
 sudo ./build_and_run.sh 0000:41:00.0 test 3 8
-./setup/dpdk/spawn_vms.sh 8 /proj/faasnetworkstack-PG0/testing
+./setup/vm/spawn_vms.sh dpdk 8 /tmp samenode
 
 # process results
 python testing/process_results.py dpdk

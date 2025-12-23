@@ -23,8 +23,8 @@ sudo cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm-img.raw
 echo off | sudo tee /sys/devices/system/cpu/smt/control
 
 # first run: let it install packages + setup services (use tap to access internet)
-./setup/tap/setup_br_tap.sh 0
-./setup/tap/spawn_vms.sh 32 /tmp samenode
+./setup/vm/setup_br_tap.sh 0
+./setup/vm/spawn_vms.sh tap 32 /tmp samenode
 
 # kill all vms when done
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"

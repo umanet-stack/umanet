@@ -2,23 +2,23 @@
 set -e
 
 
-if [ "$#" -ne 3 ]; then
-    echo "Usage: $0 <num_vms> <res_dir> <test_mode>"
+if [ "$#" -ne 4 ]; then
+    echo "Usage: $0 <network> <num_vms> <res_dir> <test_mode>"
+    echo "  network: network type (tap, dpdk)"
     echo "  num_vms: number of VMs to spawn"
     echo "  res_dir: directory containing resources"
     echo "  test_mode: test mode (samenode, multinode)"
     exit 1
 fi
 
-NUM_VMS=$1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+NETWORK=$1
+NUM_VMS=$2
 # e.g. /proj/faasnetworkstack-PG0/testing
-RES_DIR=$2
-VMLINUX_DIR=$RES_DIR
-IMG_DIR=$RES_DIR
-RW_DISK_DIR=$RES_DIR/disks
-TEST_MODE=$3
-CLOUDINIT_DIR=/tmp/cloudinit
-LOG_DIR="$(dirname "$0")/../../testing/tap/logs"
+RES_DIR=$3
+TEST_MODE=$4
+LOG_DIR="$(dirname "$0")/../../testing/$NETWORK/logs"
 
 # Create log directory
 rm -rf "$LOG_DIR"/*
@@ -26,7 +26,6 @@ mkdir -p "$LOG_DIR"
 
 spawn_vm() {
     local i=$1
-    local logfile="$LOG_DIR/vm$i.log"
     local VM_ROLE=""
     local IPERF_COMMAND=""
 
@@ -44,23 +43,14 @@ spawn_vm() {
         IPERF_COMMAND="iperf3 -c 192.168.100.99 -p $PORT -P 4 -t 30 -J"
     fi
     
-    # Base64 encode the command to avoid space issues in kernel cmdline
-    IPERF_COMMAND_B64=$(echo -n "$IPERF_COMMAND" | base64 -w 0)
-
-    sudo systemd-run --scope \
-        -p AllowedCPUs=4-15 \
-        -p CPUQuota=80% \
-    cloud-hypervisor \
-        --cpus boot=1 \
-        --memory size=512M \
-        --kernel "$VMLINUX_DIR/vmlinux.bin" \
-        --initramfs /tmp/initramfs-overlay.img \
-        --cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket ROLE=$VM_ROLE IPERF_COMMAND_B64=$IPERF_COMMAND_B64" \
-        --disk path="$IMG_DIR/vm-img.raw",readonly=on path="$RW_DISK_DIR/state-$i.img" path="$CLOUDINIT_DIR/cloudinit-vm$i.img" \
-        --net "tap=tap$i,mac=12:34:56:78:90:$(printf '%02X' $i)" \
-        > "$logfile" 2>&1 &
-    
-    echo "  VM$i -> $logfile"
+    if [ "$NETWORK" = "tap" ]; then
+        $SCRIPT_DIR/spawn_tap_vm.sh "$i" "$RES_DIR" "$VM_ROLE" "$IPERF_COMMAND"
+    elif [ "$NETWORK" = "dpdk" ]; then
+        $SCRIPT_DIR/spawn_dpdk_vm.sh "$i" "$RES_DIR" "$VM_ROLE" "$IPERF_COMMAND"
+    else
+        echo "Invalid network type: $NETWORK"
+        exit 1
+    fi
 }
 
 if [ "$TEST_MODE" = "samenode" ]; then
