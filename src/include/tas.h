@@ -67,6 +67,8 @@ void notify_slowpath_core(void);
 int notify_canblock(struct notify_blockstate *nbs, int had_data, uint64_t tsc);
 void notify_canblock_reset(struct notify_blockstate *nbs);
 
+int init_mac_flow_table(void);
+
 /* should become config options */
 #define FLEXNIC_INTERNAL_MEM_SIZE (1024 * 1024 * 32)
 #define FLEXNIC_NUM_QMQUEUES (128 * 1024)
