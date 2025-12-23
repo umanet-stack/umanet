@@ -6,12 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 rm -f "$SCRIPT_DIR/user-datas/user-data-vm"*
 mkdir -p "$SCRIPT_DIR/user-datas"
-cat > "$SCRIPT_DIR/user-datas/user-data-vm$i" <<EOF
+cat > "$SCRIPT_DIR/user-datas/user-data-vm" <<EOF
 #cloud-config
-# Disable cloud-init network configuration - we configure network via netplan.service
-network:
-  config: disabled
-
 packages:
   - iperf
   - iperf3
@@ -35,82 +31,13 @@ write_files:
       DNS=8.8.8.8 8.8.4.4
     permissions: '0644'
 
-  - path: /etc/systemd/system/netplan.service
-    permissions: '0644'
-    content: |
-      [Unit]
-      Description=Inject Netplan Config from Cmdline
-      DefaultDependencies=no
-      After=systemd-modules-load.service systemd-udev-trigger.service
-      Before=network-pre.target
-      Wants=network-pre.target
-
-      [Service]
-      Type=oneshot
-      ExecStart=/usr/local/bin/netplan-gen.sh
-      RemainAfterExit=yes
-      StandardOutput=journal+console
-      StandardError=journal+console
-      Environment="TMPDIR=/run"
-
-      [Install]
-      WantedBy=multi-user.target
-    
-  - path: /usr/local/bin/netplan-gen.sh
-    permissions: '0755'
-    content: |
-      #!/bin/bash
-      # Parse kernel command-line parameters
-      for param in \$(cat /proc/cmdline); do
-          case \$param in
-              NETPLAN_CONFIG_B64=*) export NETPLAN_CONFIG_B64="\${param#NETPLAN_CONFIG_B64=}";;
-          esac
-      done
-
-      log() {
-          echo "[\$(date '+%Y-%m-%d %H:%M:%S')] vm: \$1"
-      }
-
-      # Decode the base64-encoded command
-      if [ -n "\$NETPLAN_CONFIG_B64" ]; then
-          export NETPLAN_CONFIG=\$(echo -n "\$NETPLAN_CONFIG_B64" | base64 -d)
-      else
-          log "NETPLAN_CONFIG_B64 is not set"
-          exit 1
-      fi
-      
-      log "injecting netplan config (\$NETPLAN_CONFIG)"
-      # Write to /run/netplan with high priority (99-) to override cloud-init config from /etc
-      # Netplan processes both /etc/netplan and /run/netplan, with lexicographic ordering
-      # Note: systemd services run as root, so no sudo needed
-      mkdir -p /run/netplan
-      echo "\$NETPLAN_CONFIG" > /run/netplan/99-cmdline.yaml
-      chmod 0644 /run/netplan/99-cmdline.yaml
-      log "netplan config written to /run/netplan/99-cmdline.yaml"
-
-      log "running netplan generate..."
-      netplan generate
-      log "running netplan apply..."
-      netplan apply
-      log "netplan applied successfully"
-      
-      # Verify the interface came up (wait a moment for it to configure)
-      sleep 2
-      if ip addr show | grep -q "192.168.100"; then
-          log "Network interface configured successfully"
-      else
-          log "WARNING: Network interface may not be configured correctly"
-          log "Current IP addresses:"
-          ip addr show 2>&1 | while IFS= read -r line; do log "  \$line"; done
-      fi
-
   - path: /etc/systemd/system/iperf.service
     permissions: '0644'
     content: |
       [Unit]
       Description=iperf role
-      After=netplan.service network.target
-      Wants=network.target
+      After=network-online.target
+      Wants=network-online.target
 
       [Service]
       Type=simple
@@ -196,7 +123,5 @@ runcmd:
   - systemctl daemon-reload
   - systemctl enable iperf
   - systemctl start iperf
-  - systemctl enable netplan
-  - systemctl start netplan
 
 EOF

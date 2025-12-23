@@ -49,8 +49,17 @@ sudo cloud-hypervisor \
 	--memory size=512M \
 	--kernel /tmp/vmlinux.bin \
 	--initramfs /tmp/initramfs-overlay.img \
-	--disk path=/tmp/vm-img.raw,readonly=on path=/tmp/disks/state-0.img \
+	--disk path=/tmp/vm-img.raw,readonly=on path=/tmp/disks/state-0.img path=/tmp/cloudinit/cloudinit-vm0.img \
 	--cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
 	--net "tap=tap0,mac=12:34:56:78:90:00"
+
+sudo cloud-hypervisor \
+	--cpus boot=1 \
+	--memory size=512M \
+	--kernel /tmp/vmlinux.bin \
+	--initramfs /tmp/initramfs-overlay.img \
+	--disk path=/tmp/vm-img.raw,readonly=on path=/tmp/disks/state-1.img path=/tmp/cloudinit/cloudinit-vm1.img \
+	--cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
+	--net "tap=tap1,mac=12:34:56:78:90:01"
 
 ```
