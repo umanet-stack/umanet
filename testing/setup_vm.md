@@ -1,6 +1,6 @@
 # Setup CH image
 ```bash
-./setup/download_img.sh
+./setup/img/download_img.sh
 # base read-only image (ubuntu cloudimg)
 sudo rm -f /tmp/vm-img.raw
 sudo cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm-img.raw
@@ -65,4 +65,14 @@ sudo cloud-hypervisor \
 	--disk path=/tmp/vm-img.raw,readonly=on path=/tmp/disks/state-0.img path=/tmp/cloudinit/cloudinit-vm0.img \
 	--cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
 	--net mac=12:34:56:78:90:00,vhost_user=true,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=4096
+
+# vm1 DPDK
+sudo cloud-hypervisor \
+	--cpus boot=1 \
+	--memory size=512M,hugepages=on,shared=true \
+	--kernel /tmp/vmlinux.bin \
+	--initramfs /tmp/initramfs-overlay.img \
+	--disk path=/tmp/vm-img.raw,readonly=on path=/tmp/disks/state-1.img path=/tmp/cloudinit/cloudinit-vm1.img \
+	--cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
+	--net mac=12:34:56:78:90:01,vhost_user=true,socket=/mnt/huge/sock1,num_queues=2,vhost_mode=client,queue_size=4096
 ```

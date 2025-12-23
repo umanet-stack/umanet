@@ -44,7 +44,7 @@ iperf -s
 iperf -c 192.168.100.2
 
 iperf3 -s
-iperf3 -c 192.168.100.2 -P 4 -t 10 -J
+iperf3 -c 192.168.100.2 -P 4 -t 10 
 iperf3 -c 192.168.100.99 -P 4 -t 10
 # uses 4 cores, 11Gi
 
