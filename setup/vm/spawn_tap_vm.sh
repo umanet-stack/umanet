@@ -36,4 +36,4 @@ cloud-hypervisor \
     --net "tap=tap$i,mac=12:34:56:78:90:$(printf '%02X' $i)" \
     > "$logfile" 2>&1 &
 
-echo "  VM$i -> $logfile"
+echo "  VM$i -> $COMMAND"

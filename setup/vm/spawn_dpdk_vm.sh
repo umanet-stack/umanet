@@ -37,7 +37,7 @@ cloud-hypervisor \
     --net "mac=12:34:56:78:90:$(printf '%02X' $i),vhost_user=true,socket=/mnt/huge/sock$i,num_queues=2,vhost_mode=client,queue_size=4096" \
     > "$logfile" 2>&1 &
 
-echo "  VM$i -> $logfile"
+echo "  VM$i -> $COMMAND"
 
 # mem is NOT bottleneck (tested, same throughput with 256MB)
 # queue_size sets both TX/RX's no. of descriptors, larger may reduce warnings of vhost pkt enqueue failures

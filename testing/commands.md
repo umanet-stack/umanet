@@ -2,7 +2,7 @@
 ```bash
 ./setup/vm/setup_br_tap.sh 0
 ./setup/vm/spawn_vms.sh tap 32 /tmp samenode
-./setup/vm/spawn_vms.sh tap 16 /tmp multinode
+./setup/vm/spawn_vms.sh tap 32 /tmp multinode
 
 # process results
 sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | tail -15
