@@ -7,3 +7,7 @@ testing/results
 logs
 reports*
 __pycache__
+bin
+sbin
+linuxrc
+initramfs-overlay.img
