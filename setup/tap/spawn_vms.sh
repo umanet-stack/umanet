@@ -18,7 +18,7 @@ IMG_DIR=$RES_DIR
 RW_DISK_DIR=$RES_DIR/disks
 TEST_MODE=$3
 CLOUDINIT_DIR=/tmp/cloudinit
-LOG_DIR="$(dirname "$0")/../../testing/logs"
+LOG_DIR="$(dirname "$0")/../../testing/tap/logs"
 
 # Create log directory
 rm -rf "$LOG_DIR"/*

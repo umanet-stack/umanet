@@ -5,7 +5,7 @@ netplans
 user-datas
 testing/results
 logs
-reports*
+report*
 __pycache__
 bin
 sbin

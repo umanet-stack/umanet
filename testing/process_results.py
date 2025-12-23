@@ -2,9 +2,8 @@
 """
 Process iperf3 test results and generate reports
 """
-import json
-import os
 import re
+import argparse
 from pathlib import Path
 from typing import Dict, List
 import matplotlib.pyplot as plt
@@ -13,17 +12,16 @@ matplotlib.use('Agg')  # Non-interactive backend
 import numpy as np
 from datetime import datetime
 
-# Directories
-LOGS_DIR = Path("testing/logs")
-REPORTS_DIR = Path("testing/reports")
+# Get script directory to make paths relative to it
+SCRIPT_DIR = Path(__file__).parent.resolve()
 
 
-def load_results() -> Dict[str, dict]:
+def load_results(logs_dir: Path) -> Dict[str, dict]:
     """Extract results from VM log files (odd-numbered VMs only)"""
     results = {}
     
     # Find all odd-numbered VM log files (vm1, vm3, vm5, etc.)
-    for log_file in sorted(LOGS_DIR.glob("vm*.log")):
+    for log_file in sorted(logs_dir.glob("vm*.log")):
         vm_name = log_file.stem  # e.g., "vm1"
         vm_num = int(vm_name[2:])  # Extract number: "vm1" -> 1
         
@@ -363,17 +361,65 @@ See the following plots for detailed analysis:
     print(f"✅ Saved report: {output_path}")
 
 
+def get_next_report_number(base_dir: Path) -> int:
+    """Find the next report number by counting existing report-* directories"""
+    if not base_dir.exists():
+        return 0
+    
+    existing_reports = []
+    for item in base_dir.iterdir():
+        if item.is_dir() and item.name.startswith("report-"):
+            try:
+                num = int(item.name.split("-")[1])
+                existing_reports.append(num)
+            except (ValueError, IndexError):
+                continue
+    
+    if not existing_reports:
+        return 0
+    
+    return max(existing_reports) + 1
+
+
 def main():
     """Main processing pipeline"""
+    parser = argparse.ArgumentParser(description="Process iperf3 test results and generate reports")
+    parser.add_argument(
+        "folder",
+        nargs="?",
+        default="testing",
+        help="Folder name relative to script directory (default: testing)"
+    )
+    args = parser.parse_args()
+    
+    # Set up directories relative to script
+    base_dir = SCRIPT_DIR / args.folder
+    logs_dir = base_dir / "logs"
+    reports_base_dir = base_dir
+    
+    # Create base directory if it doesn't exist
+    base_dir.mkdir(exist_ok=True, parents=True)
+    
+    # Find next report number
+    report_num = get_next_report_number(reports_base_dir)
+    reports_dir = reports_base_dir / f"report-{report_num}"
+    reports_dir.mkdir(exist_ok=True, parents=True)
+    
     print("🔥 Processing iperf3 results...")
+    print(f"📁 Base folder: {base_dir}")
+    print(f"📁 Logs folder: {logs_dir}")
+    print(f"📁 Reports folder: {reports_dir}")
     print()
     
-    # Create reports directory
-    REPORTS_DIR.mkdir(exist_ok=True, parents=True)
+    # Check if logs directory exists
+    if not logs_dir.exists():
+        print(f"❌ Logs directory not found: {logs_dir}")
+        print(f"   Please ensure log files are in: {logs_dir}/")
+        return
     
     # Load results
     print("📂 Loading results...")
-    results = load_results()
+    results = load_results(logs_dir)
     print(f"   Found {len(results)} VM results")
     print()
     
@@ -390,14 +436,14 @@ def main():
     
     # Generate plots
     print("📈 Generating plots...")
-    plot_throughput_timeseries(timeseries, REPORTS_DIR / "throughput_timeseries.png")
-    plot_per_vm_throughput(per_vm_stats, REPORTS_DIR / "throughput_per_vm.png")
-    plot_cpu_utilization(per_vm_stats, REPORTS_DIR / "cpu_utilization.png")
+    plot_throughput_timeseries(timeseries, reports_dir / "throughput_timeseries.png")
+    plot_per_vm_throughput(per_vm_stats, reports_dir / "throughput_per_vm.png")
+    plot_cpu_utilization(per_vm_stats, reports_dir / "cpu_utilization.png")
     print()
     
     # Generate report
     print("📝 Generating markdown report...")
-    generate_markdown_report(per_vm_stats, overall_stats, REPORTS_DIR / "report.md")
+    generate_markdown_report(per_vm_stats, overall_stats, reports_dir / "report.md")
     print()
     
     # Print summary
@@ -411,7 +457,7 @@ def main():
     print(f"Avg Server CPU:       {overall_stats['avg_cpu_remote_percent']:.2f}%")
     print("=" * 60)
     print()
-    print(f"✅ All reports saved to: {REPORTS_DIR}/")
+    print(f"✅ All reports saved to: {reports_dir}/")
     print()
 
 

@@ -6,7 +6,7 @@
 
 # process results
 sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | tail -15
-python testing/process_results.py
+python testing/process_results.py tap
 
 # kill all vms to end/reset experiment
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
@@ -31,7 +31,7 @@ sudo ./build_and_run.sh 0000:41:00.0 test 3 8
 ./setup/dpdk/spawn_vms.sh 8 /proj/faasnetworkstack-PG0/testing
 
 # process results
-python testing/process_results.py
+python testing/process_results.py dpdk
 
 # kill all vms to end/reset experiment
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"

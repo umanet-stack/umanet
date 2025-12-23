@@ -15,7 +15,7 @@ RES_DIR=$2
 VMLINUX_DIR=$RES_DIR/kernels
 IMG_DIR=$RES_DIR/images
 CLOUDINIT_DIR=/tmp/cloudinit
-LOG_DIR="$(dirname "$0")/../../testing/logs"
+LOG_DIR="$(dirname "$0")/../../testing/dpdk/logs"
 
 # Create log directory
 rm -rf "$LOG_DIR"/*
