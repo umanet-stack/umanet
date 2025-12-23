@@ -32,6 +32,8 @@
 #include <rte_config.h>
 #include <rte_ether.h>
 
+extern struct rte_hash *mac_flow_table;
+
 extern int exited;
 extern unsigned fp_cores_max;
 extern volatile unsigned fp_cores_cur;
@@ -46,5 +48,7 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
 
 void flush_eth_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q);
 void fastpath_from_eth(struct dataplane_context *ctx);
+
+struct rte_flow *install_mac_flow(uint16_t port_id, const struct rte_ether_addr *mac, uint16_t queue_id);
 
 #endif /* ndef INTERNAL_H_ */

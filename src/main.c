@@ -104,6 +104,12 @@ int main(int argc, char *argv[]) {
         goto error_shm_cleanup;
     }
 
+    if (init_mac_flow_table() != 0) {
+        res = EXIT_FAILURE;
+        LOG_ERROR("init_mac_flow_table failed\n");
+        goto error_network_cleanup;
+    }
+
     // LOG_INFO("Initializing TAP interface (vtap0)...\n");
     // if (tap_init() != 0) {
     //     LOG_WARN("Failed to initialize TAP interface - packets to gateway IP will be dropped\n");

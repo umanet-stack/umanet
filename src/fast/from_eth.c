@@ -1,5 +1,6 @@
 #include <generic/rte_cycles.h>
 #include <rte_ethdev.h>
+#include <rte_hash.h>
 #include <rte_mbuf_core.h>
 
 #include "log.h"
@@ -13,6 +14,7 @@
 void fastpath_from_eth(struct dataplane_context *ctx) {
     uint16_t rx_count;
     struct rte_mbuf *pkts[MAX_PKT_BURST];
+    struct rte_flow *flow;
 
     rx_count = network_poll(ctx, MAX_PKT_BURST, pkts);
     if (rx_count == 0)
@@ -33,6 +35,17 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
         int target_vid = -1;
         struct vhost_dev *target_vdev = NULL;
         struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
+
+        // flow steering by mac address
+        // pkts that are not for vm will also get installed to a flow table
+        flow = NULL;
+        rte_hash_lookup_data(mac_flow_table, &eth_hdr->d_addr, (void **)&flow);
+        if (unlikely(flow == NULL)) {
+            // vm MAC: 12:34:56:78:90:xx
+            uint8_t vm_id = eth_hdr->d_addr.addr_bytes[5] - '0';
+            install_mac_flow(net_port_id, &eth_hdr->d_addr, vm_id % fp_cores_max);
+        }
+
         // TODOZ: Use a hash table keyed by MAC address
         target_vdev = find_vhost_dev_core(ctx, &eth_hdr->d_addr);
 

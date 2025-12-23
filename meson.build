@@ -22,6 +22,7 @@ sources = files(
 	'src/config/config.c',
 	'src/fast/arp.c',
 	'src/fast/fastpath.c',
+	'src/fast/flow.c',
 	'src/fast/from_eth.c',
 	'src/fast/from_vm.c',
 	'src/network/nat.c',
