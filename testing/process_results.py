@@ -16,17 +16,22 @@ from datetime import datetime
 SCRIPT_DIR = Path(__file__).parent.resolve()
 
 
-def load_results(logs_dir: Path) -> Dict[str, dict]:
-    """Extract results from VM log files (odd-numbered VMs only)"""
+def load_results(logs_dir: Path, process_all_vms: bool = False) -> Dict[str, dict]:
+    """Extract results from VM log files
+    
+    Args:
+        logs_dir: Directory containing VM log files
+        process_all_vms: If True, process all VMs. If False, process only odd-numbered VMs (clients).
+    """
     results = {}
     
-    # Find all odd-numbered VM log files (vm1, vm3, vm5, etc.)
+    # Find all VM log files
     for log_file in sorted(logs_dir.glob("vm*.log")):
         vm_name = log_file.stem  # e.g., "vm1"
         vm_num = int(vm_name[2:])  # Extract number: "vm1" -> 1
         
-        # Only process odd-numbered VMs (clients)
-        if vm_num % 2 == 0:
+        # Only process odd-numbered VMs (clients) if process_all_vms is False
+        if not process_all_vms and vm_num % 2 == 0:
             continue
         
         try:
@@ -390,7 +395,17 @@ def main():
         default="testing",
         help="Folder name relative to script directory (default: testing)"
     )
+    parser.add_argument(
+        "mode",
+        nargs="?",
+        choices=["samenode", "multinode"],
+        default="samenode",
+        help="Processing mode: 'samenode' (process only odd VMs) or 'multinode' (process all VMs) (default: samenode)"
+    )
     args = parser.parse_args()
+    
+    # Determine if we should process all VMs
+    process_all_vms = (args.mode == "multinode")
     
     # Set up directories relative to script
     base_dir = SCRIPT_DIR / args.folder
@@ -419,7 +434,8 @@ def main():
     
     # Load results
     print("📂 Loading results...")
-    results = load_results(logs_dir)
+    print(f"   Mode: {args.mode} ({'processing all VMs' if process_all_vms else 'processing odd VMs only'})")
+    results = load_results(logs_dir, process_all_vms=process_all_vms)
     print(f"   Found {len(results)} VM results")
     print()
     

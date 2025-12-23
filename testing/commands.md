@@ -1,15 +1,17 @@
+# report packages
+```bash
+sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | tail -15
+```
+
 # tap
 ```bash
 ./setup/vm/setup_br_tap.sh 0
 ./setup/vm/spawn_vms.sh tap 32 /tmp samenode
+python testing/process_results.py tap samenode
+
 ./setup/vm/spawn_vms.sh tap 32 /tmp multinode
+python testing/process_results.py tap multinode
 
-# process results
-sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | tail -15
-python testing/process_results.py tap
-
-# kill all vms to end/reset experiment
-sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
 ```
 
 # dpdk
@@ -18,12 +20,11 @@ sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' 
 # no. of vhost must match no. of VMs!
 sudo ./build_and_run.sh 0000:41:00.0 test 3 32
 ./setup/vm/spawn_vms.sh dpdk 32 /tmp samenode
+python testing/process_results.py dpdk samenode
 
-sudo ./build_and_run.sh 0000:41:00.0 test 3 16
-./setup/vm/spawn_vms.sh dpdk 16 /tmp samenode
-
-# process results
-python testing/process_results.py dpdk
+sudo ./build_and_run.sh 0000:41:00.0 test 3 32
+./setup/vm/spawn_vms.sh dpdk 32 /tmp multinode
+python testing/process_results.py dpdk multinode
 
 # kill all vms to end/reset experiment
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
