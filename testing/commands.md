@@ -21,8 +21,8 @@ sudo ip addr add 192.168.100.99/24 dev enp65s0f0np0
 sudo ip link set enp65s0f0np0 up
 
 # no. of vhost must match no. of VMs!
-sudo ./build_and_run.sh 0000:41:00.0 test 3 24
-./setup/dpdk/spawn_vms.sh 24 /proj/faasnetworkstack-PG0/testing
+sudo ./build_and_run.sh 0000:41:00.0 test 3 32
+./setup/dpdk/spawn_vms.sh 32 /proj/faasnetworkstack-PG0/testing
 
 sudo ./build_and_run.sh 0000:41:00.0 test 3 16
 ./setup/dpdk/spawn_vms.sh 16 /proj/faasnetworkstack-PG0/testing
@@ -39,25 +39,6 @@ sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' 
 
 ## manual
 ```bash
-# vm0
-sudo cloud-hypervisor \
-	--cpus boot=1 \
-	--memory size=512M \
-	--kernel /tmp/vmlinux.bin \
-	--cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
-	--net "tap=tap0,mac=12:34:56:78:90:00" \
-	--disk path=/tmp/vm-img.raw,readonly=on
-	# --disk path=/tmp/vm-img.raw path=/tmp/cloudinit/cloudinit-vm0.img
-
-# vm1
-sudo cloud-hypervisor \
-	--cpus boot=1 \
-	--memory size=512M \
-	--kernel /proj/faasnetworkstack-PG0/testing/kernels/vm1-kernel.bin \
-	--cmdline "console=ttyS0 console=hvc0 root=/dev/vda1 rw systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
-	--disk path=/proj/faasnetworkstack-PG0/testing/images/vm1-img.raw path=/tmp/cloudinit/cloudinit-vm1.img \
-	--net "tap=tap1,mac=12:34:56:78:90:01" 
-
 # testing
 iperf -s
 iperf -c 192.168.100.2
@@ -118,4 +99,8 @@ sudo sysctl -w kernel.perf_event_paranoid=0
 perf top
 # hot functions per thread
 perf top -H
+
+# no. of TX/RX queues in NIC e.g. combined 32 = 32TX + 32RX
+# canonical: 1 core uses 1TX + 1RX
+ethtool -l enp65s0f0np0
 ```
