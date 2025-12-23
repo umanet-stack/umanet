@@ -15,11 +15,6 @@ sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' 
 # dpdk
 ```bash
 # run TAP once before DPDK to make it download iperf
-# make sure the set other node nic
-sudo ip addr flush dev enp65s0f0np0
-sudo ip addr add 192.168.100.99/24 dev enp65s0f0np0
-sudo ip link set enp65s0f0np0 up
-
 # no. of vhost must match no. of VMs!
 sudo ./build_and_run.sh 0000:41:00.0 test 3 32
 ./setup/vm/spawn_vms.sh dpdk 32 /tmp samenode
@@ -27,14 +22,19 @@ sudo ./build_and_run.sh 0000:41:00.0 test 3 32
 sudo ./build_and_run.sh 0000:41:00.0 test 3 16
 ./setup/vm/spawn_vms.sh dpdk 16 /tmp samenode
 
-sudo ./build_and_run.sh 0000:41:00.0 test 3 8
-./setup/vm/spawn_vms.sh dpdk 8 /tmp samenode
-
 # process results
 python testing/process_results.py dpdk
 
 # kill all vms to end/reset experiment
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
+```
+
+## multinode setup
+```bash
+# make sure the set other node nic
+sudo ip addr flush dev enp65s0f0np0
+sudo ip addr add 192.168.100.99/24 dev enp65s0f0np0
+sudo ip link set enp65s0f0np0 up
 ```
 
 ## manual
