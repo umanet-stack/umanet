@@ -5,11 +5,12 @@ sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | t
 
 # tap
 ```bash
+# need to rerun br/tap setup after dpdk test
 ./setup/vm/setup_br_tap.sh 0
 ./setup/vm/spawn_vms.sh tap 32 /tmp samenode
 python testing/process_results.py tap samenode
 
-./setup/vm/spawn_vms.sh tap 32 /tmp multinode
+./setup/vm/spawn_vms.sh tap 10 /tmp multinode
 python testing/process_results.py tap multinode
 
 ```
