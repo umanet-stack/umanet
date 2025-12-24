@@ -165,6 +165,7 @@ struct dataplane_context {
     /********************************************************/
     /* polling queues */
     uint32_t poll_next_ctx;
+    uint64_t prev_tsc;
 
     /********************************************************/
     /* pre-allocated buffers for polling doorbells and queue manager */

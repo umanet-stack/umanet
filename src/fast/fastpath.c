@@ -53,6 +53,7 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     }
 
     ctx->poll_next_ctx = ctx->id;
+    ctx->prev_tsc = 0;
 
     memset(ctx->vhost.vdev_list, 0, sizeof(ctx->vhost.vdev_list));
     ctx->vhost.device_num = 0;
@@ -94,24 +95,24 @@ void dataplane_loop(struct dataplane_context *ctx) {
 
     while (!exited) {
         STATS_TS(start);
-#ifdef DEBUG
-        sleep(1);
-#else
-        // Adaptive pause: only pause when idle to allow vhost-user state sync
-        // Similar to TAS's adaptive blocking, but using rte_pause() instead of epoll
-        // since vhost-user doesn't support eventfd notifications
-        if (was_idle) {
-            idle_count++;
-            // After being idle for multiple iterations, pause to allow vhost-user sync
-            // This gives the vhost-user backend time to update shared memory
-            if (idle_count > 2 || (start - last_active_ts > poll_cycle_tsc)) {
-                rte_pause();
-            }
-        } else {
-            idle_count = 0;
-            last_active_ts = start;
-        }
-#endif
+        // #ifdef DEBUG
+        //         sleep(1);
+        // #else
+        //         // Adaptive pause: only pause when idle to allow vhost-user state sync
+        //         // Similar to TAS's adaptive blocking, but using rte_pause() instead of epoll
+        //         // since vhost-user doesn't support eventfd notifications
+        //         if (was_idle) {
+        //             idle_count++;
+        //             // After being idle for multiple iterations, pause to allow vhost-user sync
+        //             // This gives the vhost-user backend time to update shared memory
+        //             if (idle_count > 2 || (start - last_active_ts > poll_cycle_tsc)) {
+        //                 rte_pause();
+        //             }
+        //         } else {
+        //             idle_count = 0;
+        //             last_active_ts = start;
+        //         }
+        // #endif
         unsigned packets_received = 0;
 
         // Drain TX queue if it has packets (check is cheap, only drain on timeout)
@@ -131,6 +132,7 @@ void dataplane_loop(struct dataplane_context *ctx) {
         // If no devices, skip polling
         if (current_device_num == 0) {
             was_idle = 1;
+            rte_pause();
             continue;
         }
 
@@ -149,14 +151,11 @@ void dataplane_loop(struct dataplane_context *ctx) {
 
 // drain into NIC if timeout has elapsed
 static inline void drain_vhost_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q) {
-    // static = function-scope, keeps value between function calls
-    static uint64_t prev_tsc; // previous timestamp
-
     uint64_t cur_tsc = rte_rdtsc();
-    if (unlikely(cur_tsc - prev_tsc > MBUF_TABLE_DRAIN_TSC)) {
-        prev_tsc = cur_tsc;
+    if (unlikely(cur_tsc - ctx->prev_tsc > MBUF_TABLE_DRAIN_TSC)) {
+        ctx->prev_tsc = cur_tsc;
 
-        LOG_INFO("TX queue drained after timeout with burst size %u\n", tx_q->len);
+        // LOG_INFO("TX queue drained after timeout with burst size %u\n", tx_q->len);
         flush_eth_tx(ctx, tx_q);
     }
 }
