@@ -29,7 +29,7 @@ sudo systemd-run --scope \
     -p CPUQuota=80% \
 cloud-hypervisor \
     --cpus boot=1 \
-    --memory size=512M,hugepages=on,shared=true \
+    --memory size=512M,hugepages=on,shared=on \
     --kernel "$RES_DIR/vmlinux.bin" \
     --initramfs /tmp/initramfs-overlay.img \
     --cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket ROLE=$ROLE IPERF_COMMAND_B64=$IPERF_COMMAND_B64" \
