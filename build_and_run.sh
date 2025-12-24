@@ -50,4 +50,8 @@ sudo ./build/vhost-switch \
   --file-prefix=vhost \
   -a $PCI_ADDR \
   --socket-mem 4096,0 \
+  --huge-dir /mnt/huge \
+  --iova-mode=pa \
+  --no-hpet \
+  --no-telemetry \
   -- --fp-cores-max $FP_CORES_MAX --ip-addr 192.168.100.1/24 --socket-dir /mnt/huge --nb-sockets $NUM_VMS --stats 0
