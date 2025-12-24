@@ -23,16 +23,14 @@ const uint16_t vlan_tags[64] = {
 };
 
 static void vhost_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf **pkts, uint16_t count);
-static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev **vdevs, struct rte_mbuf **pkts,
-                             uint16_t *pkts_count, uint16_t current_device_num);
+static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
+                             uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag);
 static void virtio_tx_offload(struct rte_mbuf *m);
 static int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count);
 
 // receive packets from VM's TX queue, route them to the correct destination
 uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_device_num) {
-    struct rte_mbuf *pkts[MAX_PKT_BURST * MAX_VHOST_DEVICES_PER_CORE];
-    struct vhost_dev *vdevs[MAX_VHOST_DEVICES_PER_CORE];
-    uint16_t pkts_count[MAX_VHOST_DEVICES_PER_CORE];
+    struct rte_mbuf *pkts[MAX_PKT_BURST];
     struct vhost_dev *vdev;
     uint16_t count;
     uint16_t packets_received = 0;
@@ -88,17 +86,15 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
             continue;
         }
 
-        vdevs[i] = vdev;
         // STATS_TS(vhost_poll_start);
         // TODOZ: Current: Round-robin through all devices, Optimization: Skip idle devices, batch processing
-        count = vhost_poll(ctx, MAX_PKT_BURST, vdev->vid, pkts + i * MAX_PKT_BURST);
+        count = vhost_poll(ctx, MAX_PKT_BURST, vdev->vid, pkts);
         if (unlikely((int16_t)count < 0)) {
             LOG_ERROR("Error: vhost_poll failed for vid=%d (device may be disconnected)\n", vdev->vid);
             vdev->remove = 1; // Mark device for removal
             return packets_received;
         }
         packets_received += count;
-        pkts_count[i] = count;
         // STATS_TS(vhost_poll_end);
         // STATS_TSADD(ctx, cyc_vhost_poll, vhost_poll_end - vhost_poll_start);
 
@@ -112,6 +108,8 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
             }
             LOG_INFO("(%d) MAC learning successful, device now in RX mode\n", vdev->vid);
         }
+
+        route_vhost_pkts(ctx, vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
     }
 
     // Update round-robin pointer with bounds check
@@ -122,121 +120,60 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
         ctx->vhost.poll_next_device = 0;
     }
 
-    route_vhost_pkts(ctx, vdevs, pkts, pkts_count, current_device_num);
-
     return packets_received;
 }
 
-static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev **vdevs, struct rte_mbuf **pkts,
-                             uint16_t *pkts_count, uint16_t current_device_num) {
+static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
+                             uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag) {
     struct rte_mbuf *broadcast_pkts[MAX_PKT_BURST];
     struct rte_mbuf *external_pkts[MAX_PKT_BURST];
-    struct rte_mbuf *local_pkts[MAX_PKT_BURST * MAX_VHOST_DEVICES_PER_CORE];
+    struct rte_mbuf *local_pkts[MAX_PKT_BURST];
     uint16_t broadcast_count = 0;
     uint16_t external_count = 0;
-    uint16_t local_counts[MAX_VHOST_DEVICES_PER_CORE];
-    memset(local_counts, 0, sizeof(local_counts));
-    struct mbuf_table *tx_q = &ctx->vhost.tx_q;
-    // uint16_t vlan_tag;
-    struct vhost_dev *vdev;
-    struct rte_mbuf *pkt;
-    // vlan_tags[vdev->vid]
+    uint16_t local_count = 0;
 
-    for (int i = 0; i < current_device_num; i++) {
-        // Skip devices with no packets
-        if (unlikely(pkts_count[i] == 0)) {
+    for (int i = 0; i < count; i++) {
+        struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
+        // Intercept ARP requests for the gateway (vhost-switch acts as gateway)
+        if (unlikely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP))) {
+            LOG_INFO("(%d) TX: ARP packet received. Processing...\n", vdev->vid);
+            if (process_arp(ctx, vdev, pkts[i], ARP_SRC_VM) == 0) {
+                continue;
+            }
+            LOG_INFO("(%d) TX: Broadcasting ARP to other VMs\n", vdev->vid);
+        }
+
+        if (unlikely(rte_is_broadcast_ether_addr(&eth_hdr->d_addr))) {
+            // broadcast is sent first, then external (it will free pkts)
+            broadcast_pkts[broadcast_count++] = pkts[i];
+            external_pkts[external_count++] = rte_pktmbuf_clone(pkts[i], pkts[i]->pool);
             continue;
         }
 
-        vdev = vdevs[i];
-        if (unlikely(vdev == NULL)) {
-            LOG_WARN("Warning: NULL vdev at index %d in route_vhost_pkts\n", i);
-            // Free any packets for this device
-            for (int j = 0; j < pkts_count[i]; j++) {
-                if (pkts[i * MAX_PKT_BURST + j] != NULL) {
-                    rte_pktmbuf_free(pkts[i * MAX_PKT_BURST + j]);
-                }
-            }
+        // destination MAC matches local pattern 12:34:56:78:90:xx
+        if (eth_hdr->d_addr.addr_bytes[0] == 0x12 && eth_hdr->d_addr.addr_bytes[1] == 0x34 &&
+            eth_hdr->d_addr.addr_bytes[2] == 0x56 && eth_hdr->d_addr.addr_bytes[3] == 0x78 &&
+            eth_hdr->d_addr.addr_bytes[4] == 0x90) {
+            local_pkts[local_count++] = pkts[i];
             continue;
         }
 
-        local_counts[i] = 0;
+        // Check if destination IP is gateway IP (for collector on host)
+        // if (likely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))) {
+        //     struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
+        //     uint32_t dst_ip = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
+        //     if (unlikely(dst_ip == config.ip)) {
+        //         // Packet destined for gateway IP - forward to TAP (host network stack via br0)
+        //         LOG_INFO("(%d) TX: Packet destined for gateway IP %u.%u.%u.%u -> do nothing\n", vdev->vid,
+        //                  (dst_ip >> 24) & 0xff, (dst_ip >> 16) & 0xff, (dst_ip >> 8) & 0xff, dst_ip & 0xff);
+        //         continue;
+        //     }
+        // }
 
-        // Only process the actual number of packets returned by vhost_poll
-        for (int j = 0; j < pkts_count[i]; j++) {
-            pkt = pkts[i * MAX_PKT_BURST + j];
-            if (unlikely(pkt == NULL)) {
-                LOG_WARN("Warning: NULL packet at index %d for device %d\n", j, i);
-                continue;
-            }
-            struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-
-            printf("arp\n");
-            fflush(stdout);
-            // Intercept ARP requests for the gateway (vhost-switch acts as gateway)
-            if (unlikely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP))) {
-                LOG_INFO("(%d) TX: ARP packet received. Processing...\n", vdev->vid);
-                printf("process_arp\n");
-                fflush(stdout);
-                if (process_arp(ctx, vdev, pkt, ARP_SRC_VM) == 0) {
-                    continue;
-                }
-                printf("process_arp done\n");
-                fflush(stdout);
-                LOG_INFO("(%d) TX: Broadcasting ARP to other VMs\n", vdev->vid);
-            }
-
-            printf("broadcast\n");
-            fflush(stdout);
-            if (unlikely(rte_is_broadcast_ether_addr(&eth_hdr->d_addr))) {
-                // broadcast is sent first, then external (it will free pkts)
-                broadcast_pkts[broadcast_count++] = pkt;
-
-                external_pkts[external_count] = rte_pktmbuf_clone(pkt, pkt->pool);
-                if (external_pkts[external_count]->ol_flags & PKT_TX_TCP_SEG) // if TCP segmentation offload is enabled
-                    virtio_tx_offload(external_pkts[external_count]);         // prepare checksum offloads
-                external_count++;
-                continue;
-            }
-
-            printf("local\n");
-            fflush(stdout);
-            // destination MAC matches local pattern 12:34:56:78:90:xx
-            if (eth_hdr->d_addr.addr_bytes[0] == 0x12 && eth_hdr->d_addr.addr_bytes[1] == 0x34 &&
-                eth_hdr->d_addr.addr_bytes[2] == 0x56 && eth_hdr->d_addr.addr_bytes[3] == 0x78 &&
-                eth_hdr->d_addr.addr_bytes[4] == 0x90) {
-                local_pkts[i * MAX_PKT_BURST + local_counts[i]] = pkt;
-                local_counts[i]++;
-                continue;
-            }
-
-            // Check if destination IP is gateway IP (for collector on host)
-            // if (likely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))) {
-            //     struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
-            //     uint32_t dst_ip = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
-            //     if (unlikely(dst_ip == config.ip)) {
-            //         // Packet destined for gateway IP - forward to TAP (host network stack via br0)
-            //         LOG_INFO("(%d) TX: Packet destined for gateway IP %u.%u.%u.%u -> do nothing\n", vdev->vid,
-            //                  (dst_ip >> 24) & 0xff, (dst_ip >> 16) & 0xff, (dst_ip >> 8) & 0xff, dst_ip & 0xff);
-            //         continue;
-            //     }
-            // }
-
-            // LOG_INFO("(%d) TX: external packet\n", vdev->vid);
-            // PRINT_PKTS(&pkts[i], 1, LOG_INFO);
-            printf("external\n");
-            fflush(stdout);
-            external_pkts[external_count] = pkt;
-            if (external_pkts[external_count]->ol_flags & PKT_TX_TCP_SEG) // if TCP segmentation offload is enabled
-                virtio_tx_offload(external_pkts[external_count]);         // prepare checksum offloads
-            external_count++;
-            printf("external_count: %d\n", external_count);
-            fflush(stdout);
-        }
+        // LOG_INFO("(%d) TX: external packet\n", vdev->vid);
+        // PRINT_PKTS(&pkts[i], 1, LOG_INFO);
+        external_pkts[external_count++] = pkts[i];
     }
-    printf("done\n");
-    printf("broadcast_count: %d\n", broadcast_count);
-    fflush(stdout);
 
     // broadcast packets
     if (unlikely(broadcast_count > 0)) {
@@ -263,23 +200,24 @@ static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev **v
         }
     }
 
-    printf("external_count: %d\n", external_count);
-    fflush(stdout);
     // send to NIC
-    // struct rte_ether_hdr *eth_hdr;
+    struct rte_ether_hdr *eth_hdr;
     for (int i = 0; i < external_count; i++) {
-        // eth_hdr = rte_pktmbuf_mtod(external_pkts[i], struct rte_ether_hdr *);
-        // if (unlikely(eth_hdr->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))) {
-        //     external_pkts[i]->ol_flags |= PKT_TX_VLAN_PKT; // offload flag indicating NIC should insert VLAN tag
-        //     external_pkts[i]->vlan_tci = vlan_tag;         // Tag Control Information
-        // }
+        eth_hdr = rte_pktmbuf_mtod(external_pkts[i], struct rte_ether_hdr *);
+        if (unlikely(eth_hdr->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))) {
+            external_pkts[i]->ol_flags |= PKT_TX_VLAN_PKT; // offload flag indicating NIC should insert VLAN tag
+            external_pkts[i]->vlan_tci = vlan_tag;         // Tag Control Information
+        }
+
+        if (external_pkts[i]->ol_flags & PKT_TX_TCP_SEG) // if TCP segmentation offload is enabled
+            virtio_tx_offload(external_pkts[i]);         // prepare checksum offloads
 
         // Add packet to the TX queue's mbuf table
         tx_q->m_table[tx_q->len++] = external_pkts[i];
-        // if (config.enable_stats) {
-        //     vdev->stats.tx_total++;
-        //     vdev->stats.tx++;
-        // }
+        if (config.enable_stats) {
+            vdev->stats.tx_total++;
+            vdev->stats.tx++;
+        }
         if (unlikely(tx_q->len == MAX_PKT_BURST)) // if the queue is full
             flush_eth_tx(ctx, tx_q);              // drain the queue (send packets to NIC)
     }
@@ -287,10 +225,8 @@ static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev **v
         flush_eth_tx(ctx, tx_q);
 
     // send to local VM
-    for (int i = 0; i < current_device_num; i++) {
-        if (local_counts[i] == 0)
-            continue;
-        route_vhost_local(vdevs[i], local_pkts + i * MAX_PKT_BURST, local_counts[i]);
+    if (local_count > 0) {
+        route_vhost_local(vdev, local_pkts, local_count);
     }
 }
 
@@ -339,7 +275,6 @@ static void vhost_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, str
     }
 }
 
-// merge with route_vhost_pkts
 static int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count) {
     struct rte_ether_hdr *pkt_hdr;
     struct vhost_dev *dst_vdev;
