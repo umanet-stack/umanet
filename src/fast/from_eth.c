@@ -16,10 +16,10 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
     struct rte_mbuf *pkts[MAX_PKT_BURST];
     struct rte_flow *flow;
 
-    STATS_TS(eth_poll_start);
+    // STATS_TS(eth_poll_start);
     rx_count = network_poll(ctx, MAX_PKT_BURST, pkts);
-    STATS_TS(eth_poll_end);
-    STATS_TSADD(ctx, cyc_eth_poll, eth_poll_end - eth_poll_start);
+    // STATS_TS(eth_poll_end);
+    // STATS_TSADD(ctx, cyc_eth_poll, eth_poll_end - eth_poll_start);
     if (rx_count == 0)
         return;
 
@@ -33,7 +33,6 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
     } batches[MAX_VID];
     memset(batches, 0, sizeof(batches));
 
-    STATS_TS(eth_sort_start);
     // Sort packets by destination VM (batching phase)
     for (uint16_t i = 0; i < rx_count; i++) {
         int target_vid = -1;
@@ -68,10 +67,7 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
             rte_pktmbuf_free(pkts[i]);
         }
     }
-    STATS_TS(eth_sort_end);
-    STATS_TSADD(ctx, cyc_eth_sort, eth_sort_end - eth_sort_start);
 
-    STATS_TS(eth_tx_vm_start);
     // Enqueue batches to other VMs (forwarding phase)
     for (int vid = 0; vid < MAX_VID; vid++) {
         if (batches[vid].count == 0)
@@ -102,8 +98,6 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
             rte_atomic64_add(&batches[vid].vdev->stats.rx_atomic, sent);
         }
     }
-    STATS_TS(eth_tx_vm_end);
-    STATS_TSADD(ctx, cyc_eth_tx_vm, eth_tx_vm_end - eth_tx_vm_start);
 }
 
 // moves packets from a software staging buffer (tx_q->m_table) to the NIC's hardware TX queue/ring

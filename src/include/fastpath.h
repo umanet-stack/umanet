@@ -41,8 +41,11 @@
 
 #ifdef DATAPLANE_STATS
 #ifdef DATAPLANE_TSCS
+// USE SPARINGLY, it is partially serializing, forces the CPU to drain speculation
+// The CPU cannot overlap work before and after rdtsc.
+// In a large function, this kills instruction-level parallelism.
 #define STATS_TS(n) uint64_t n = rte_get_tsc_cycles()
-// Use regular addition instead of atomic - stats are per-core, no contention
+// Use regular addition instead of atomic (stats are per-core, no contention)
 #define STATS_TSADD(c, f, n) (c->stat_##f += (n))
 #else
 #define STATS_TS(n)                                                                                                    \
@@ -175,24 +178,12 @@ struct dataplane_context {
     /********************************************************/
     /* Stats */
     uint64_t stat_cyc_loop;
-    uint64_t stat_cyc_loop_sleep;
 
     uint64_t stat_cyc_eth_fp;
     uint64_t stat_cyc_eth_poll;
-    uint64_t stat_cyc_eth_sort;
-    uint64_t stat_cyc_eth_tx_vm;
 
     uint64_t stat_cyc_vhost_fp;
-    uint64_t stat_cyc_vhost_vdev;
-    uint64_t stat_cyc_vhost_vmdq;
     uint64_t stat_cyc_vhost_poll;
-    uint64_t stat_cyc_vhost_route;
-    uint64_t stat_cyc_vhost_route_inner;
-    uint64_t stat_cyc_vhost_route_init;
-    uint64_t stat_cyc_vhost_sort;
-    uint64_t stat_cyc_vhost_tx_eth;
-    uint64_t stat_cyc_vhost_tx_vm;
-    uint64_t stat_cyc_vhost_broadcast;
 
     uint64_t stat_pkt_eth_rx;
     uint64_t stat_pkt_eth_tx;
