@@ -25,7 +25,7 @@ struct nat_key {
     uint16_t ext_port; // External port
     uint16_t nat_port; // Our translated port
     uint8_t protocol;  // Protocol
-} __rte_packed_begin __rte_packed_end;
+} __rte_packed;
 
 // Initialize NAT subsystem
 int nat_init(uint32_t nic_ip);

@@ -29,11 +29,11 @@ cd ~
 # wget https://fast.dpdk.org/rel/dpdk-19.11.14.tar.xz
 # tar xf dpdk-19.11.14.tar.xz
 # mv dpdk-stable-19.11.14 dpdk-inst
-wget https://fast.dpdk.org/rel/dpdk-25.11.tar.xz
-tar xf dpdk-25.11.tar.xz
-mv dpdk-25.11 dpdk-inst-25
+wget https://fast.dpdk.org/rel/dpdk-21.11.9.tar.xz
+tar xf dpdk-21.11.9.tar.xz
+mv dpdk-stable-21.11.9 dpdk-inst-21.11.9
 
-cd ~/dpdk-inst-25
+cd ~/dpdk-inst-21.11.9
 # Disable kernel modules to avoid KNI build issues on newer kernels
 # rm -rf build && meson build -Denable_kmods=false
 sudo apt install -y python3-pip python3-venv
@@ -42,8 +42,9 @@ source ~/dpdk-venv/bin/activate
 pip install --upgrade pip
 pip install pyelftools
 
-rm -rf build && meson build
-cd ~/dpdk-inst-25/build
+# rm -rf build && meson build
+source ~/dpdk-venv/bin/activate && rm -rf build && meson build
+cd ~/dpdk-inst-21.11.9/build
 ninja
 sudo ninja install
 sudo ldconfig
