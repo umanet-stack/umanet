@@ -22,12 +22,11 @@ const uint16_t vlan_tags[64] = {
     1048, 1049, 1050, 1051, 1052, 1053, 1054, 1055, 1056, 1057, 1058, 1059, 1060, 1061, 1062, 1063,
 };
 
-static __rte_always_inline void vhost_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf **pkts,
-                                         uint16_t count);
+static void vhost_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf **pkts, uint16_t count);
 static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
                                     uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag);
 static void virtio_tx_offload(struct rte_mbuf *m);
-static __rte_always_inline int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count);
+static int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count);
 
 // receive packets from VM's TX queue, route them to the correct destination
 uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_device_num) {
@@ -88,8 +87,9 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
             continue;
         }
         STATS_TS(vdev_end);
-        STATS_TSADD(ctx, cyc_vdev, vdev_end - vdev_start);
+        STATS_TSADD(ctx, cyc_vhost_vdev, vdev_end - vdev_start);
 
+        STATS_TS(vhost_poll_start);
         // TODOZ: Current: Round-robin through all devices, Optimization: Skip idle devices, batch processing
         count = vhost_poll(ctx, MAX_PKT_BURST, vdev->vid, pkts);
         if (unlikely((int16_t)count < 0)) {
@@ -98,8 +98,11 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
             return packets_received;
         }
         packets_received += count;
+        STATS_TS(vhost_poll_end);
+        STATS_TSADD(ctx, cyc_vhost_poll, vhost_poll_end - vhost_poll_start);
 
         /* setup VMDq for the first packet */
+        STATS_TS(vhost_route_init_start);
         if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) { // device in MAC learning
             LOG_INFO("(%d) In MAC learning mode, processing first packet\n", vdev->vid);
             if (vdev->remove || link_vmdq(vdev, pkts[0]) == -1) { // failed to learn MAC from first packet
@@ -109,8 +112,13 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
             }
             LOG_INFO("(%d) MAC learning successful, device now in RX mode\n", vdev->vid);
         }
+        STATS_TS(vhost_route_init_end);
+        STATS_TSADD(ctx, cyc_vhost_route_init, vhost_route_init_end - vhost_route_init_start);
 
+        STATS_TS(vhost_route_start);
         route_vhost_pkts(ctx, vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
+        STATS_TS(vhost_route_end);
+        STATS_TSADD(ctx, cyc_vhost_route, vhost_route_end - vhost_route_start);
     }
 
     // Update round-robin pointer with bounds check
@@ -126,13 +134,17 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
 
 static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
                                     uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag) {
+    STATS_TS(route_vhost_route_init_start);
     struct rte_mbuf *broadcast_pkts[MAX_PKT_BURST];
     struct rte_mbuf *external_pkts[MAX_PKT_BURST];
     struct rte_mbuf *local_pkts[MAX_PKT_BURST];
     uint16_t broadcast_count = 0;
     uint16_t external_count = 0;
     uint16_t local_count = 0;
+    STATS_TS(route_vhost_route_init_end);
+    STATS_TSADD(ctx, cyc_vhost_route_init, route_vhost_route_init_end - route_vhost_route_init_start);
 
+    STATS_TS(route_vhost_sort_start);
     for (int i = 0; i < count; i++) {
         struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
         // Intercept ARP requests for the gateway (vhost-switch acts as gateway)
@@ -175,8 +187,11 @@ static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_
         // PRINT_PKTS(&pkts[i], 1, LOG_INFO);
         external_pkts[external_count++] = pkts[i];
     }
+    STATS_TS(route_vhost_sort_end);
+    STATS_TSADD(ctx, cyc_vhost_sort, route_vhost_sort_end - route_vhost_sort_start);
 
     // broadcast packets
+    STATS_TS(broadcast_start);
     if (unlikely(broadcast_count > 0)) {
         struct vhost_dev *vdev2;
         // TODOZ: Pre-compute broadcast list, use single loop
@@ -200,8 +215,11 @@ static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_
             }
         }
     }
+    STATS_TS(broadcast_end);
+    STATS_TSADD(ctx, cyc_vhost_broadcast, broadcast_end - broadcast_start);
 
     // send to NIC
+    STATS_TS(external_start);
     struct rte_ether_hdr *eth_hdr;
     for (int i = 0; i < external_count; i++) {
         eth_hdr = rte_pktmbuf_mtod(external_pkts[i], struct rte_ether_hdr *);
@@ -224,16 +242,20 @@ static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_
     }
     if (unlikely(tx_q->len == MAX_PKT_BURST))
         flush_eth_tx(ctx, tx_q);
+    STATS_TS(external_end);
+    STATS_TSADD(ctx, cyc_vhost_tx_eth, external_end - external_start);
 
     // send to local VM
+    STATS_TS(local_start);
     if (local_count > 0) {
         route_vhost_local(vdev, local_pkts, local_count);
     }
+    STATS_TS(local_end);
+    STATS_TSADD(ctx, cyc_vhost_tx_vm, local_end - local_start);
 }
 
 // Transmits a packet to vhost device via virtqueue.
-static __rte_always_inline void vhost_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf **pkts,
-                                         uint16_t count) {
+static void vhost_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf **pkts, uint16_t count) {
     uint16_t ret;
     struct dataplane_context *ctx = ctxs[src_vdev->coreid];
 
@@ -277,7 +299,7 @@ static __rte_always_inline void vhost_tx(struct vhost_dev *dst_vdev, struct vhos
     }
 }
 
-static __rte_always_inline int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count) {
+static int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count) {
     struct rte_ether_hdr *pkt_hdr;
     struct vhost_dev *dst_vdev;
 

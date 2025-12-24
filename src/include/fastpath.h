@@ -191,7 +191,6 @@ struct dataplane_context {
     uint64_t stat_cyc_vhost_tx_eth;
     uint64_t stat_cyc_vhost_tx_vm;
     uint64_t stat_cyc_vhost_broadcast;
-    uint64_t stat_cyc_vhost_loop;
 
     uint64_t stat_pkt_eth_rx;
     uint64_t stat_pkt_eth_tx;

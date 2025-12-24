@@ -80,7 +80,6 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     ctx->stat_cyc_vhost_tx_eth = 0;
     ctx->stat_cyc_vhost_tx_vm = 0;
     ctx->stat_cyc_vhost_broadcast = 0;
-    ctx->stat_cyc_vhost_loop = 0;
 
     ctx->stat_pkt_eth_rx = 0;
     ctx->stat_pkt_eth_tx = 0;
@@ -217,7 +216,6 @@ void dataplane_dump_stats(void) {
         uint64_t vhost_tx_eth = read_stat(&ctx->stat_cyc_vhost_tx_eth);
         uint64_t vhost_tx_vm = read_stat(&ctx->stat_cyc_vhost_tx_vm);
         uint64_t vhost_broadcast = read_stat(&ctx->stat_cyc_vhost_broadcast);
-        uint64_t vhost_loop = read_stat(&ctx->stat_cyc_vhost_loop);
         fprintf(stderr, "\nVHOST FP: \t%" PRIu64 " (%.2f%% of whole loop)\n", vhost_fp, (double)vhost_fp / loop * 100);
         fprintf(stderr, "vhost_vdev: \t%" PRIu64 " (%.2f%%)\n", vhost_vdev, (double)vhost_vdev / vhost_fp * 100);
         fprintf(stderr, "vhost_vmdq: \t%" PRIu64 " (%.2f%%)\n", vhost_vmdq, (double)vhost_vmdq / vhost_fp * 100);
@@ -238,9 +236,8 @@ void dataplane_dump_stats(void) {
         fprintf(stderr, "vhost_route_overhead: \t%" PRIu64 " (%.2f%%)\n", vhost_route_overhead,
                 (double)vhost_route_overhead / vhost_fp * 100);
 
-        fprintf(stderr, "vhost_loop: \t%" PRIu64 " (%.2f%%)\n", vhost_loop, (double)vhost_loop / vhost_fp * 100);
         fprintf(stderr, "TOTAL VHOST: \t %.2f%%\n",
-                (double)(vhost_vdev + vhost_vmdq + vhost_poll + vhost_route + vhost_loop) / vhost_fp * 100);
+                (double)(vhost_vdev + vhost_vmdq + vhost_poll + vhost_route) / vhost_fp * 100);
 
         fprintf(stderr, "\npkt_eth_rx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_rx));
         fprintf(stderr, "pkt_eth_tx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_tx));
