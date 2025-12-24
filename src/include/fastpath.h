@@ -120,6 +120,9 @@ struct vhost_dev { // vhost device
     // Rate-limited logging for failed enqueue attempts
     uint64_t last_failed_log_ts; // TSC timestamp of last log
     uint64_t failed_pkts_count;  // Cumulative failed packets since last log
+
+    // Poll skip counter: skip polling for this many iterations when no packets received
+    uint8_t poll_skip_count;
 } __rte_cache_aligned;
 
 #define MAX_PKT_BURST 32              /* Max packets processed per burst (RX/TX) */

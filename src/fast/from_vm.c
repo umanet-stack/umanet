@@ -7,6 +7,7 @@
 #include <rte_malloc.h>
 #include <rte_mbuf_core.h>
 #include <rte_prefetch.h>
+#include <rte_vhost.h>
 #include <stdint.h>
 
 #include "log.h"
@@ -97,12 +98,30 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
 
         // STATS_TS(vhost_poll_start);
         // TODOZ: Current: Round-robin through all devices, Optimization: Skip idle devices, batch processing
+        // Skip polling if skip counter is active
+        if (unlikely(vdev->poll_skip_count > 0)) {
+            vdev->poll_skip_count--;
+            continue; // Skip polling this iteration
+        }
+
         count = vhost_poll(ctx, MAX_PKT_BURST, vdev->vid, pkts);
         if (unlikely((int16_t)count < 0)) {
             LOG_ERROR("Error: vhost_poll failed for vid=%d (device may be disconnected)\n", vdev->vid);
             vdev->remove = 1; // Mark device for removal
             return packets_received;
         }
+
+        // rte_vhost_driver_set_features(const char *path, uint64_t features)
+        // RTE_VHOST_USER_IOMMU_SUPPORT
+        // RTE_VHOST_USER_POSTCOPY_SUPPORT
+        // If no packets received, set skip counter to 4 (will skip next 4 iterations)
+        if (unlikely(count == 0)) {
+            vdev->poll_skip_count = 4;
+        } else {
+            // Packets received, reset skip counter to poll immediately next time
+            vdev->poll_skip_count = 0;
+        }
+
         packets_received += count;
         // STATS_TS(vhost_poll_end);
         // STATS_TSADD(ctx, cyc_vhost_poll, vhost_poll_end - vhost_poll_start);
