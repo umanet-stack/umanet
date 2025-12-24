@@ -42,7 +42,8 @@
 #ifdef DATAPLANE_STATS
 #ifdef DATAPLANE_TSCS
 #define STATS_TS(n) uint64_t n = rte_get_tsc_cycles()
-#define STATS_TSADD(c, f, n) __sync_fetch_and_add(&c->stat_##f, n)
+// Use regular addition instead of atomic - stats are per-core, no contention
+#define STATS_TSADD(c, f, n) (c->stat_##f += (n))
 #else
 #define STATS_TS(n)                                                                                                    \
     do {                                                                                                               \
@@ -186,6 +187,7 @@ struct dataplane_context {
     uint64_t stat_cyc_vhost_vmdq;
     uint64_t stat_cyc_vhost_poll;
     uint64_t stat_cyc_vhost_route;
+    uint64_t stat_cyc_vhost_route_inner;
     uint64_t stat_cyc_vhost_route_init;
     uint64_t stat_cyc_vhost_sort;
     uint64_t stat_cyc_vhost_tx_eth;

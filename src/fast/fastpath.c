@@ -75,6 +75,7 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     ctx->stat_cyc_vhost_vmdq = 0;
     ctx->stat_cyc_vhost_poll = 0;
     ctx->stat_cyc_vhost_route = 0;
+    ctx->stat_cyc_vhost_route_inner = 0;
     ctx->stat_cyc_vhost_route_init = 0;
     ctx->stat_cyc_vhost_sort = 0;
     ctx->stat_cyc_vhost_tx_eth = 0;
@@ -211,6 +212,7 @@ void dataplane_dump_stats(void) {
         uint64_t vhost_vmdq = read_stat(&ctx->stat_cyc_vhost_vmdq);
         uint64_t vhost_poll = read_stat(&ctx->stat_cyc_vhost_poll);
         uint64_t vhost_route = read_stat(&ctx->stat_cyc_vhost_route);
+        uint64_t vhost_route_inner = read_stat(&ctx->stat_cyc_vhost_route_inner);
         uint64_t vhost_route_init = read_stat(&ctx->stat_cyc_vhost_route_init);
         uint64_t vhost_sort = read_stat(&ctx->stat_cyc_vhost_sort);
         uint64_t vhost_tx_eth = read_stat(&ctx->stat_cyc_vhost_tx_eth);
@@ -221,6 +223,8 @@ void dataplane_dump_stats(void) {
         fprintf(stderr, "vhost_vmdq: \t%" PRIu64 " (%.2f%%)\n", vhost_vmdq, (double)vhost_vmdq / vhost_fp * 100);
         fprintf(stderr, "vhost_poll: \t%" PRIu64 " (%.2f%%)\n", vhost_poll, (double)vhost_poll / vhost_fp * 100);
         fprintf(stderr, "vhost_route: \t%" PRIu64 " (%.2f%%)\n", vhost_route, (double)vhost_route / vhost_fp * 100);
+        fprintf(stderr, "vhost_route_inner: \t%" PRIu64 " (%.2f%%)\n", vhost_route_inner,
+                (double)vhost_route_inner / vhost_route * 100);
         fprintf(stderr, "\t vhost_route_init: \t%" PRIu64 " (%.2f%%)\n", vhost_route_init,
                 (double)vhost_route_init / vhost_route * 100);
         fprintf(stderr, "\t vhost_sort: \t%" PRIu64 " (%.2f%%)\n", vhost_sort, (double)vhost_sort / vhost_route * 100);

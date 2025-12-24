@@ -134,6 +134,7 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
 
 static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
                                     uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag) {
+    STATS_TS(route_vhost_route_inner_start);
     STATS_TS(route_vhost_route_init_start);
     struct rte_mbuf *broadcast_pkts[MAX_PKT_BURST];
     struct rte_mbuf *external_pkts[MAX_PKT_BURST];
@@ -252,6 +253,9 @@ static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_
     }
     STATS_TS(local_end);
     STATS_TSADD(ctx, cyc_vhost_tx_vm, local_end - local_start);
+
+    STATS_TS(route_vhost_route_inner_end);
+    STATS_TSADD(ctx, cyc_vhost_route_inner, route_vhost_route_inner_end - route_vhost_route_inner_start);
 }
 
 // Transmits a packet to vhost device via virtqueue.
