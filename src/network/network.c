@@ -56,19 +56,19 @@ uint8_t net_port_id = 0;
 static struct rte_eth_conf port_conf = {
     .rxmode =
         {
-            .mq_mode = ETH_MQ_RX_RSS,
+            .mq_mode = RTE_ETH_MQ_RX_RSS,
             .offloads = 0,
         },
     .txmode =
         {
-            .mq_mode = ETH_MQ_TX_NONE,
+            .mq_mode = RTE_ETH_MQ_TX_NONE,
             .offloads = 0,
         },
     .rx_adv_conf =
         {
             .rss_conf =
                 {
-                    .rss_hf = ETH_RSS_NONFRAG_IPV4_TCP,
+                    .rss_hf = RTE_ETH_FLOW_NONFRAG_IPV4_TCP,
                 },
         },
     .intr_conf =
@@ -144,7 +144,7 @@ int network_init(unsigned n_threads) {
 
     /* enable per port checksum offload if requested */
     if (config.fp_xsumoffload)
-        port_conf.txmode.offloads = DEV_TX_OFFLOAD_IPV4_CKSUM | DEV_TX_OFFLOAD_TCP_CKSUM;
+        port_conf.txmode.offloads = RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
 
     /* disable rx interrupts if requested */
     if (!config.fp_interrupts)
@@ -169,7 +169,7 @@ int network_init(unsigned n_threads) {
     /* enable per-queue checksum offload if requested */
     eth_devinfo.default_txconf.offloads = 0;
     if (config.fp_xsumoffload)
-        eth_devinfo.default_txconf.offloads = DEV_TX_OFFLOAD_IPV4_CKSUM | DEV_TX_OFFLOAD_TCP_CKSUM;
+        eth_devinfo.default_txconf.offloads = RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
 
     // memcpy(&tas_info->mac_address, &eth_addr, 6);
 
@@ -254,7 +254,7 @@ int network_thread_init(struct dataplane_context *ctx) {
         /* enable vlan stripping if configured */
         if (config.fp_vlan_strip) {
             ret = rte_eth_dev_get_vlan_offload(net_port_id);
-            ret |= ETH_VLAN_STRIP_OFFLOAD;
+            ret |= RTE_ETH_VLAN_STRIP_OFFLOAD;
             if (rte_eth_dev_set_vlan_offload(net_port_id, ret)) {
                 fprintf(stderr, "network_thread_init: vlan off set failed\n");
                 goto error_tx_queue;
@@ -397,8 +397,8 @@ static int reta_setup() {
 
     /* allocate RSS redirection table and core-bucket count table */
     rss_reta_size = eth_devinfo.reta_size;
-    rss_reta =
-        rte_calloc("rss reta", ((rss_reta_size + RTE_RETA_GROUP_SIZE - 1) / RTE_RETA_GROUP_SIZE), sizeof(*rss_reta), 0);
+    rss_reta = rte_calloc("rss reta", ((rss_reta_size + RTE_ETH_RETA_GROUP_SIZE - 1) / RTE_ETH_RETA_GROUP_SIZE),
+                          sizeof(*rss_reta), 0);
     rss_core_buckets = rte_calloc("rss core buckets", fp_cores_max, sizeof(*rss_core_buckets), 0);
 
     if (rss_reta == NULL || rss_core_buckets == NULL) {
@@ -417,8 +417,8 @@ static int reta_setup() {
     /* initialize reta */
     for (i = 0, c = 0; i < rss_reta_size; i++) {
         rss_core_buckets[c]++;
-        rss_reta[i / RTE_RETA_GROUP_SIZE].mask = -1ULL;
-        rss_reta[i / RTE_RETA_GROUP_SIZE].reta[i % RTE_RETA_GROUP_SIZE] = c;
+        rss_reta[i / RTE_ETH_RETA_GROUP_SIZE].mask = -1ULL;
+        rss_reta[i / RTE_ETH_RETA_GROUP_SIZE].reta[i % RTE_ETH_RETA_GROUP_SIZE] = c;
         fp_state->flow_group_steering[i] = c;
         c = (c + 1) % fp_cores_cur;
     }

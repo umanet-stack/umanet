@@ -167,7 +167,7 @@ static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vd
             LOG_INFO("(%d) TX: Broadcasting ARP to other VMs\n", vdev->vid);
         }
 
-        if (unlikely(rte_is_broadcast_ether_addr(&eth_hdr->d_addr))) {
+        if (unlikely(rte_is_broadcast_ether_addr(&eth_hdr->dst_addr))) {
             // broadcast is sent first, then external (it will free pkts)
             broadcast_pkts[broadcast_count++] = pkts[i];
             external_pkts[external_count++] = rte_pktmbuf_clone(pkts[i], pkts[i]->pool);
@@ -175,9 +175,9 @@ static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vd
         }
 
         // destination MAC matches local pattern 12:34:56:78:90:xx
-        if (eth_hdr->d_addr.addr_bytes[0] == 0x12 && eth_hdr->d_addr.addr_bytes[1] == 0x34 &&
-            eth_hdr->d_addr.addr_bytes[2] == 0x56 && eth_hdr->d_addr.addr_bytes[3] == 0x78 &&
-            eth_hdr->d_addr.addr_bytes[4] == 0x90) {
+        if (eth_hdr->dst_addr.addr_bytes[0] == 0x12 && eth_hdr->dst_addr.addr_bytes[1] == 0x34 &&
+            eth_hdr->dst_addr.addr_bytes[2] == 0x56 && eth_hdr->dst_addr.addr_bytes[3] == 0x78 &&
+            eth_hdr->dst_addr.addr_bytes[4] == 0x90) {
             local_pkts[local_count++] = pkts[i];
             continue;
         }
@@ -254,12 +254,12 @@ static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vd
 
         eth_hdr = rte_pktmbuf_mtod(external_pkts[i], struct rte_ether_hdr *);
         if (unlikely(eth_hdr->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))) {
-            external_pkts[i]->ol_flags |= PKT_TX_VLAN_PKT; // offload flag indicating NIC should insert VLAN tag
-            external_pkts[i]->vlan_tci = vlan_tag;         // Tag Control Information
+            external_pkts[i]->ol_flags |= RTE_MBUF_F_TX_VLAN; // offload flag indicating NIC should insert VLAN tag
+            external_pkts[i]->vlan_tci = vlan_tag;            // Tag Control Information
         }
 
-        if (external_pkts[i]->ol_flags & PKT_TX_TCP_SEG) // if TCP segmentation offload is enabled
-            virtio_tx_offload(external_pkts[i]);         // prepare checksum offloads
+        if (external_pkts[i]->ol_flags & RTE_MBUF_F_TX_TCP_SEG) // if TCP segmentation offload is enabled
+            virtio_tx_offload(external_pkts[i]);                // prepare checksum offloads
 
         // Add packet to the TX queue's mbuf table
         tx_q->m_table[tx_q->len++] = external_pkts[i];
@@ -335,7 +335,7 @@ static int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uin
     pkt_hdr = rte_pktmbuf_mtod(pkts[0], struct rte_ether_hdr *);
 
     // must search all cores (vms can be on different cores)
-    dst_vdev = find_vhost_dev(&pkt_hdr->d_addr);
+    dst_vdev = find_vhost_dev(&pkt_hdr->dst_addr);
     if (dst_vdev == NULL) {
         LOG_WARN("(%d) TX: Destination MAC address not found. Dropping packet.\n", vdev->vid);
         PRINT_PKTS_WARN(&pkts[0], 1, LOG_WARN);
@@ -353,7 +353,7 @@ static int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uin
 
 // pseudo header checksum
 static uint16_t get_psd_sum(void *l3_hdr, uint64_t ol_flags) {
-    if (ol_flags & PKT_TX_IPV4)
+    if (ol_flags & RTE_MBUF_F_TX_IPV4)
         return rte_ipv4_phdr_cksum(l3_hdr, ol_flags);
     else /* assume ethertype == RTE_ETHER_TYPE_IPV6 */
         return rte_ipv6_phdr_cksum(l3_hdr, ol_flags);
@@ -373,10 +373,10 @@ static void virtio_tx_offload(struct rte_mbuf *m) {
     l3_hdr = (char *)eth_hdr + m->l2_len;
     rte_prefetch0(l3_hdr);
 
-    if (m->ol_flags & PKT_TX_IPV4) {
+    if (m->ol_flags & RTE_MBUF_F_TX_IPV4) {
         ipv4_hdr = l3_hdr;
-        ipv4_hdr->hdr_checksum = 0;     // hw will calculate checksum
-        m->ol_flags |= PKT_TX_IP_CKSUM; // tell NIC hw to compute checksum
+        ipv4_hdr->hdr_checksum = 0;            // hw will calculate checksum
+        m->ol_flags |= RTE_MBUF_F_TX_IP_CKSUM; // tell NIC hw to compute checksum
     }
 
     // l4 header position

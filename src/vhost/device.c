@@ -5,7 +5,9 @@
 #include "../include/tas.h"
 #include <rte_hash.h>
 #include <rte_jhash.h>
+#include <rte_lcore.h>
 #include <rte_malloc.h>
+#include <rte_vhost.h>
 #include <unistd.h>
 
 #include "log.h"
@@ -132,7 +134,7 @@ static void destroy_device(int vid) {
 
     // tells worker cores to acknowledge they've seen the removal at their next safe point
     /* Set the dev_removal_flag on each lcore. */
-    RTE_LCORE_FOREACH_SLAVE(lcore)
+    RTE_LCORE_FOREACH_WORKER(lcore)
     ctx->vhost.dev_removal_flag = REQUEST_DEV_REMOVAL;
 
     /*
@@ -140,7 +142,7 @@ static void destroy_device(int vid) {
      * we can be sure that they can no longer access the device removed
      * from the linked lists and that the devices are no longer in use.
      */
-    RTE_LCORE_FOREACH_SLAVE(lcore) {
+    RTE_LCORE_FOREACH_WORKER(lcore) {
         // busy-wait until it acknowledges removal
         while (ctx->vhost.dev_removal_flag != ACK_DEV_REMOVAL)
             rte_pause();
@@ -258,7 +260,7 @@ static int new_device(int vid) {
  * These callback allow devices to be added to the data core when configuration
  * has been fully complete.
  */
-const struct vhost_device_ops virtio_net_device_ops = {
+const struct rte_vhost_device_ops virtio_net_device_ops = {
     .new_device = new_device,
     .destroy_device = destroy_device,
 };
@@ -315,8 +317,9 @@ int register_vhost_drivers() {
     if (config.client_mode)
         flags |= RTE_VHOST_USER_CLIENT;
 
-    if (config.dequeue_zero_copy)
-        flags |= RTE_VHOST_USER_DEQUEUE_ZERO_COPY;
+    // if (config.dequeue_zero_copy)
+    //     flags |= RTE_VHOST_USER_;
+    // flags |= RTE_VHOST_USER_DEQUEUE_ZERO_COPY;
 
     config.socket_files = malloc(PATH_MAX * config.nb_sockets);
     if (config.socket_files == NULL) {

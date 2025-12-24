@@ -26,15 +26,24 @@ sudo ln -s /usr/lib/x86_64-linux-gnu/libIPSec_MB.so.0 /usr/lib/x86_64-linux-gnu/
 
 # dpdk 19.11.14
 cd ~
-wget https://fast.dpdk.org/rel/dpdk-19.11.14.tar.xz
-tar xf dpdk-19.11.14.tar.xz
-mv dpdk-stable-19.11.14 dpdk-inst
+# wget https://fast.dpdk.org/rel/dpdk-19.11.14.tar.xz
+# tar xf dpdk-19.11.14.tar.xz
+# mv dpdk-stable-19.11.14 dpdk-inst
+wget https://fast.dpdk.org/rel/dpdk-25.11.tar.xz
+tar xf dpdk-25.11.tar.xz
+mv dpdk-25.11 dpdk-inst-25
 
-cd ~/dpdk-inst
+cd ~/dpdk-inst-25
 # Disable kernel modules to avoid KNI build issues on newer kernels
-rm -rf build && meson build -Denable_kmods=false
+# rm -rf build && meson build -Denable_kmods=false
+sudo apt install -y python3-pip python3-venv
+python3 -m venv ~/dpdk-venv
+source ~/dpdk-venv/bin/activate
+pip install --upgrade pip
+pip install pyelftools
 
-cd ~/dpdk-inst/build
+rm -rf build && meson build
+cd ~/dpdk-inst-25/build
 ninja
 sudo ninja install
 sudo ldconfig

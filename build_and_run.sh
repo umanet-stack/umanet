@@ -48,5 +48,5 @@ echo "✅ Running DPDK on cores $FIRST_CORE-$LAST_CORE, num_vms: $NUM_VMS"
 sudo ./build/vhost-switch \
   -l $FIRST_CORE-$LAST_CORE -n 4 \
   --file-prefix=vhost \
-  -w $PCI_ADDR \
+  -a $PCI_ADDR \
   -- --fp-cores-max $FP_CORES_MAX --ip-addr 192.168.100.1/24 --socket-dir /mnt/huge --nb-sockets $NUM_VMS --stats 1
