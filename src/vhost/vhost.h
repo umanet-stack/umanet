@@ -48,10 +48,7 @@ void unlink_vmdq(struct dataplane_context *ctx, struct vhost_dev *vdev);
 // copy pkt from guest vring buffer to DPDK mbuf (vm -> dpdk)
 // This can fail if the vhost connection is broken
 static inline unsigned vhost_poll(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
-    STATS_TS(poll_vhost_start);
     num = rte_vhost_dequeue_burst(vid, VIRTIO_TXQ, ctx->net.pool, pkts, num);
-    STATS_TS(poll_vhost_end);
-    STATS_TSADD(ctx, cyc_poll_vhost, poll_vhost_end - poll_vhost_start);
     if (num == 0)
         return 0;
 
@@ -63,10 +60,7 @@ static inline unsigned vhost_poll(struct dataplane_context *ctx, unsigned num, u
 }
 
 static inline unsigned vhost_send(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
-    STATS_TS(send_vhost_start);
     num = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
-    STATS_TS(send_vhost_end);
-    STATS_TSADD(ctx, cyc_send_vhost, send_vhost_end - send_vhost_start);
     if (num == 0)
         return 0;
 
