@@ -23,8 +23,8 @@ const uint16_t vlan_tags[64] = {
 };
 
 static void vhost_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf **pkts, uint16_t count);
-static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
-                                    uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag);
+static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
+                             uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag);
 static void virtio_tx_offload(struct rte_mbuf *m);
 static int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count);
 
@@ -102,7 +102,7 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
         STATS_TSADD(ctx, cyc_vhost_poll, vhost_poll_end - vhost_poll_start);
 
         /* setup VMDq for the first packet */
-        STATS_TS(vhost_route_init_start);
+        STATS_TS(vhost_vmdq_start);
         if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) { // device in MAC learning
             LOG_INFO("(%d) In MAC learning mode, processing first packet\n", vdev->vid);
             if (vdev->remove || link_vmdq(vdev, pkts[0]) == -1) { // failed to learn MAC from first packet
@@ -112,8 +112,8 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
             }
             LOG_INFO("(%d) MAC learning successful, device now in RX mode\n", vdev->vid);
         }
-        STATS_TS(vhost_route_init_end);
-        STATS_TSADD(ctx, cyc_vhost_route_init, vhost_route_init_end - vhost_route_init_start);
+        STATS_TS(vhost_vmdq_end);
+        STATS_TSADD(ctx, cyc_vhost_vmdq, vhost_vmdq_end - vhost_vmdq_start);
 
         STATS_TS(vhost_route_start);
         route_vhost_pkts(ctx, vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
@@ -132,8 +132,8 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
     return packets_received;
 }
 
-static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
-                                    uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag) {
+static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
+                             uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag) {
     STATS_TS(route_vhost_route_inner_start);
     STATS_TS(route_vhost_route_init_start);
     struct rte_mbuf *broadcast_pkts[MAX_PKT_BURST];
