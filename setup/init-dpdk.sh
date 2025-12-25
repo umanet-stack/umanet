@@ -2,7 +2,8 @@
 
 # meson is new Makefile/CMake
 # ninja is new make
-sudo apt install -y meson-1.5 build-essential libnuma-dev ninja-build nasm libibverbs-dev ibverbs-providers rdma-core
+sudo apt update
+sudo apt install -y meson-1.5 build-essential libnuma-dev ninja-build nasm libibverbs-dev ibverbs-providers rdma-core python3-pip python3-venv
 
 # intel-ipsec-mb downgrade (DPDK 19.11 needs v0.54, not v1.5+)
 # Remove newer incompatible version
@@ -36,14 +37,12 @@ mv dpdk-stable-21.11.9 dpdk-inst-21.11.9
 cd ~/dpdk-inst-21.11.9
 # Disable kernel modules to avoid KNI build issues on newer kernels
 # rm -rf build && meson build -Denable_kmods=false
-sudo apt install -y python3-pip python3-venv
 python3 -m venv ~/dpdk-venv
 source ~/dpdk-venv/bin/activate
 pip install --upgrade pip
-pip install pyelftools
+pip install pyelftools meson
 
-# rm -rf build && meson build
-source ~/dpdk-venv/bin/activate && rm -rf build && meson build
+rm -rf build && meson build
 cd ~/dpdk-inst-21.11.9/build
 ninja
 sudo ninja install
