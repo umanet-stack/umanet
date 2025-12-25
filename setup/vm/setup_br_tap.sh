@@ -33,7 +33,13 @@ sudo ip link set br0 up || true
 sudo ip addr add 192.168.10${NODE_ID}.1/24 dev br0 || true
 echo "✅ br0 created"
 
+if [ "$NIC" = "enp23s0f0np0" ]; then
+  sudo dpdk-devbind.py -b ice 0000:17:00.0
+  echo "✅ $NIC bound back to ice"
+fi
+
 # add nic to br0
+sudo ip link set $NIC up
 sudo ip addr flush dev $NIC || true
 sudo ip link set $NIC master br0 || true
 echo "✅ $NIC: removed IP and added to br0"

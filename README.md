@@ -60,9 +60,8 @@ sudo rm -f /dev/hugepages/tas_memory
 sudo ./build_and_run.sh enp65s0f0np0 0000:41:00.0 debug 2 32
 # test
 sudo ./build_and_run.sh enp65s0f0np0 0000:41:00.0 test 2 32
+
 # c6620 nodes
-sudo ip link set enp23s0f0np0 down
-sudo dpdk-devbind.py -b vfio-pci 0000:17:00.0
 # debug
 sudo ./build_and_run.sh enp23s0f0np0 0000:17:00.0 debug 2 32
 # test
