@@ -92,6 +92,11 @@ sudo ip neigh replace 10.10.1.1 lladdr 02:00:00:00:00:01 dev ens4 nud permanent
 sudo ip neigh del 10.10.1.1 dev ens4
 sudo ip neigh add 10.10.1.1 lladdr 02:00:00:00:00:01 dev ens4 nud permanent
 
+# On node1:
+sudo dpdk-testpmd -l 0-1 -n 4 -a 0000:17:00.0 -- --forward-mode=txonly --tx-first
+   
+# On node2 (in another terminal):
+sudo tcpdump -i enp23s0f0np0 -n
 ```
 - vm will now send TCP/UDP pkts asking for 8.8.8.8
     - pinging pkts will also show

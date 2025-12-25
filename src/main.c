@@ -44,6 +44,7 @@ static int common_thread(void *arg);
 static void sigint_handler(__rte_unused int signum) {
     unregister_vhost_drivers(config.nb_sockets, config.socket_files);
     dataplane_dump_stats();
+    network_dump_stats(); // Dump hardware TX/RX statistics including errors
     exit(0);
 }
 
