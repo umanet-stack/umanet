@@ -261,6 +261,13 @@ int network_thread_init(struct dataplane_context *ctx) {
             goto error_tx_queue;
         }
 
+        /* Enable promiscuous mode to receive all packets (needed for ARP replies and forwarding) */
+        if (rte_eth_promiscuous_enable(net_port_id) != 0) {
+            fprintf(stderr, "WARNING: Failed to enable promiscuous mode\n");
+        } else {
+            fprintf(stderr, "Promiscuous mode enabled for port %d\n", net_port_id);
+        }
+
         /* enable vlan stripping if configured */
         if (config.fp_vlan_strip) {
             ret = rte_eth_dev_get_vlan_offload(net_port_id);
