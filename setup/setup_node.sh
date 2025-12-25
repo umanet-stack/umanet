@@ -37,9 +37,6 @@ sudo cp -f ${SCRIPT_DIR}/netplan-node${NODE_ID}.yaml /etc/netplan/01-netcfg.yaml
 sudo netplan apply
 echo "✅netplan applied"
 
-sudo ip link set $NIC arp on
-sudo ip link set $NIC multicast on
-
 # delete tap0, br0
 for i in {0..31}; do
   sudo ip link delete tap$i 2>/dev/null || true
@@ -53,5 +50,8 @@ sudo iptables -A FORWARD -i br0 -o $(ip route | grep default | awk '{print $5}')
 sudo iptables -A FORWARD -i $(ip route | grep default | awk '{print $5}') -o br0 -m state --state RELATED,ESTABLISHED -j ACCEPT
 
 ${SCRIPT_DIR}/clean-disk-state.sh
+
+sudo ip link set $NIC arp on || true
+sudo ip link set $NIC multicast on || true
 
 echo "✅ Node ${NODE_ID} setup complete"
