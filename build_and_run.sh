@@ -44,14 +44,33 @@ IS_INTEL=false
 # Check if it's an Intel device by name or driver
 if echo "$DEVICE_NAME" | grep -qi "E810\|Ethernet Controller.*1592\|Ethernet Controller.*159b"; then
   IS_INTEL=true
+  
+  # Check for DDP package (required for Intel ice driver, not safe mode)
+  DDP_PKG="/lib/firmware/intel/ice/ddp/ice.pkg"
+  if [ ! -f "$DDP_PKG" ]; then
+    # Try to decompress if .zst exists
+    DDP_ZST="/lib/firmware/intel/ice/ddp/ice.pkg.zst"
+    if [ -f "$DDP_ZST" ] && command -v zstd >/dev/null 2>&1; then
+      echo "🔧 Decompressing DDP package..."
+      sudo zstd -d "$DDP_ZST" -o "$DDP_PKG" 2>/dev/null || true
+    fi
+    
+    if [ ! -f "$DDP_PKG" ]; then
+      echo "⚠️  WARNING: DDP package not found at $DDP_PKG"
+      echo "⚠️  Intel ice driver requires DDP package for full functionality"
+      echo "⚠️  Install it from: https://www.intel.com/content/www/us/en/download/19779/"
+      echo "⚠️  Or decompress: sudo zstd -d /lib/firmware/intel/ice/ddp/ice.pkg.zst -o $DDP_PKG"
+    else
+      echo "✅ DDP package found at $DDP_PKG"
+    fi
+  else
+    echo "✅ DDP package found at $DDP_PKG"
+  fi
 fi
 
 if [ "$CURRENT_DRIVER" = "vfio-pci" ]; then
   USE_VFIO=true
   echo "ℹ️  Device already bound to vfio-pci, skipping kernel interface configuration"
-  if [ "$IS_INTEL" = "true" ]; then
-    echo "ℹ️  Intel NIC detected, will use safe-mode-support=1"
-  fi
 elif [ "$CURRENT_DRIVER" = "ice" ] || [ "$CURRENT_DRIVER" = "i40e" ] || [ "$CURRENT_DRIVER" = "ixgbe" ]; then
   IS_INTEL=true
   echo "🔧 Intel NIC detected, binding to vfio-pci for DPDK..."
@@ -79,23 +98,12 @@ fi
 # 
 # Note: For Mellanox NICs, binding is not required (bifurcated driver model).
 # For Intel NICs, device must be bound to vfio-pci (done above).
-# Intel ice driver needs safe-mode-support=1 if DDP package is missing
+# Intel ice driver requires DDP package - install it to avoid safe mode limitations
 FIRST_CORE=0
 LAST_CORE=$((FIRST_CORE + FP_CORES_MAX))
 echo "✅ Running DPDK on cores $FIRST_CORE-$LAST_CORE, num_vms: $NUM_VMS"
 
-# Use -w (whitelist) if bound to vfio-pci, -a (attach) for bifurcated drivers
-# Add safe-mode-support for Intel ice driver to handle missing DDP package
-if [ "$USE_VFIO" = "true" ]; then
-  if [ "$IS_INTEL" = "true" ]; then
-    DPDK_DEV_ARG="-a $PCI_ADDR,safe-mode-support=1"
-    echo "ℹ️  Using safe-mode-support=1 for Intel ice driver"
-  else
-    DPDK_DEV_ARG="-a $PCI_ADDR"
-  fi
-else
-  DPDK_DEV_ARG="-a $PCI_ADDR"
-fi
+DPDK_DEV_ARG="-a $PCI_ADDR"
 
 sudo ./build/vhost-switch \
   -l $FIRST_CORE-$LAST_CORE -n 4 \
