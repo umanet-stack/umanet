@@ -111,9 +111,6 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
             return packets_received;
         }
 
-        // rte_vhost_driver_set_features(const char *path, uint64_t features)
-        // RTE_VHOST_USER_IOMMU_SUPPORT
-        // RTE_VHOST_USER_POSTCOPY_SUPPORT
         // If no packets received, set skip counter to 4 (will skip next 4 iterations)
         if (unlikely(count == 0)) {
             vdev->poll_skip_count = 4;
