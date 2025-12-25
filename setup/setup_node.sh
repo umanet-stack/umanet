@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ "$#" -ne 2 ]; then
     echo "Usage: $0 <node_id> <nic>"
     echo "  node_id: 0 or 1"
-    echo "  nic: enp65s0f0np0 or ens1f1np1"
+    echo "  nic: enp65s0f0np0 or enp23s0f0np0 or ens1f1np1"
     exit 1
 fi
 

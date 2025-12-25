@@ -55,11 +55,18 @@ sudo rm -f /dev/hugepages/tas_memory
 
 ## Running
 ```bash
-# c6525-25g nodes
+# c6525-25g nodes (Mellanox NICs don't need to be bound to vfio-pci)
 # debug
-sudo ./build_and_run.sh 0000:41:00.0 debug 2 32
+sudo ./build_and_run.sh enp65s0f0np0 0000:41:00.0 debug 2 32
 # test
-sudo ./build_and_run.sh 0000:41:00.0 test 2 32
+sudo ./build_and_run.sh enp65s0f0np0 0000:41:00.0 test 2 32
+# c6620 nodes
+sudo ip link set enp23s0f0np0 down
+sudo dpdk-devbind.py -b vfio-pci 0000:17:00.0
+# debug
+sudo ./build_and_run.sh enp23s0f0np0 0000:17:00.0 debug 2 32
+# test
+sudo ./build_and_run.sh enp23s0f0np0 0000:17:00.0 test 2 32
 
 # kill process
 sudo ps aux | grep vhost-switch | grep -v grep | awk '{print $2}' | xargs kill -9

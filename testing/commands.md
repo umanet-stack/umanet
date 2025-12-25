@@ -6,7 +6,7 @@ sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | t
 # tap
 ```bash
 # need to rerun br/tap setup after dpdk test
-./setup/vm/setup_br_tap.sh 0
+./setup/vm/setup_br_tap.sh 0 enp23s0f0np0
 ./setup/vm/spawn_vms.sh tap 32 /tmp samenode
 python testing/process_results.py tap samenode
 
@@ -19,11 +19,11 @@ python testing/process_results.py tap multinode
 ```bash
 # run TAP once before DPDK to make it download iperf
 # no. of vhost must match no. of VMs!
-sudo ./build_and_run.sh 0000:41:00.0 test 3 32
+sudo ./build_and_run.sh enp23s0f0np0 0000:17:00.0 test 3 32
 ./setup/vm/spawn_vms.sh dpdk 32 /tmp samenode
 python testing/process_results.py dpdk samenode
 
-sudo ./build_and_run.sh 0000:41:00.0 test 3 32
+sudo ./build_and_run.sh enp23s0f0np0 0000:17:00.0 test 3 32
 ./setup/vm/spawn_vms.sh dpdk 32 /tmp multinode
 python testing/process_results.py dpdk multinode
 
@@ -34,9 +34,9 @@ sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' 
 ## multinode setup
 ```bash
 # make sure the set other node nic
-sudo ip addr flush dev enp65s0f0np0
-sudo ip addr add 192.168.100.99/24 dev enp65s0f0np0
-sudo ip link set enp65s0f0np0 up
+sudo ip addr flush dev enp23s0f0np0
+sudo ip addr add 192.168.100.99/24 dev enp23s0f0np0
+sudo ip link set enp23s0f0np0 up
 ```
 
 ## manual
@@ -69,7 +69,7 @@ df -h
 
 systemctl status iperf
 sudo tcpdump -i br0
-sudo tcpdump -i enp65s0f0np0
+sudo tcpdump -i enp23s0f0np0
 echo '{"vm":"vm12","throughput":12345}' | nc 192.168.100.1 9000
 
 lsof -i :9000
@@ -104,5 +104,5 @@ perf top -H
 
 # no. of TX/RX queues in NIC e.g. combined 32 = 32TX + 32RX
 # canonical: 1 core uses 1TX + 1RX
-ethtool -l enp65s0f0np0
+ethtool -l enp23s0f0np0
 ```

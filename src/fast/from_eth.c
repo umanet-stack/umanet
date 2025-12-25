@@ -114,8 +114,8 @@ void flush_eth_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q) {
     // Gateway mode: Change MACs for proper routing
     // VMs send to gateway MAC 02:00:00:00:00:fe, we forward to physical gateway
     struct rte_ether_hdr *eth_hdr;
-    // MAC of enp65s0f0np0 of other node
-    struct rte_ether_addr gateway_mac = {{0x0c, 0x42, 0xa1, 0xdd, 0x57, 0xfc}};
+    // MAC of enp23s0f0np0 of other node
+    struct rte_ether_addr gateway_mac = {{0x40, 0xa6, 0xb7, 0xc3, 0x51, 0xc8}};
     for (int i = 0; i < tx_q->len; i++) {
         eth_hdr = rte_pktmbuf_mtod(tx_q->m_table[i], struct rte_ether_hdr *);
         rte_ether_addr_copy(&eth_addr, &eth_hdr->src_addr);    // Src: NIC's MAC

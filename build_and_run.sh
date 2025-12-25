@@ -1,7 +1,8 @@
 #!/bin/bash
 
-if [ "$#" -ne 4 ]; then
-    echo "Usage: $0 <pci-addr> <build-mode> <fp-cores-max> <num-vms>"
+if [ "$#" -ne 5 ]; then
+    echo "Usage: $0 <nic> <pci-addr> <build-mode> <fp-cores-max> <num-vms>"
+    echo "  nic: enp65s0f0np0 or enp23s0f0np0 or ens1f1np1"
     echo "  pci-addr: PCI address of the NIC"
     echo "  build-mode: debug or test"
     echo "  fp-cores-max: number of cores to use for the fast path"
@@ -9,10 +10,11 @@ if [ "$#" -ne 4 ]; then
     exit 1
 fi
 
-PCI_ADDR="$1"
-BUILD_MODE="$2"
-FP_CORES_MAX="$3"
-NUM_VMS="$4"
+NIC="$1"
+PCI_ADDR="$2"
+BUILD_MODE="$3"
+FP_CORES_MAX="$4"
+NUM_VMS="$5"
 
 # The executable will be at `build/vhost-switch`.
 rm -rf build
@@ -31,11 +33,11 @@ done
 sudo ip link delete br0 2>/dev/null || true
 echo "✅ br0 and taps deleted"
 
-sudo ip addr flush dev enp65s0f0np0 || true
-sudo ip link set enp65s0f0np0 nomaster || true
-sudo ip addr add 192.168.100.1/24 dev enp65s0f0np0 || true
-sudo ip link set enp65s0f0np0 up || true
-echo "✅ set enp65s0f0np0 IP to 192.168.100.1/24 and removed from br0"
+sudo ip addr flush dev $NIC || true
+sudo ip link set $NIC nomaster || true
+sudo ip addr add 192.168.100.1/24 dev $NIC || true
+sudo ip link set $NIC up || true
+echo "✅ set $NIC IP to 192.168.100.1/24 and removed from br0"
 
 # EAL (dpdk) options (before --): -l cores, -n memory channels
 # Application options (after --): --fp-cores-max, --socket-file path, --stats interval
