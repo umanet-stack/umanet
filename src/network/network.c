@@ -261,6 +261,25 @@ int network_thread_init(struct dataplane_context *ctx) {
             goto error_tx_queue;
         }
 
+        /* Check and wait for link to be up */
+        struct rte_eth_link link;
+        int link_check_retries = 10;
+        int link_up = 0;
+        while (link_check_retries-- > 0) {
+            rte_eth_link_get(net_port_id, &link);
+            if (link.link_status == RTE_ETH_LINK_UP) {
+                link_up = 1;
+                fprintf(stderr, "Link is UP: speed=%u Mbps, duplex=%s\n", link.link_speed,
+                        link.link_duplex == RTE_ETH_LINK_FULL_DUPLEX ? "full" : "half");
+                break;
+            }
+            fprintf(stderr, "Waiting for link to come up... (retries left: %d)\n", link_check_retries);
+            rte_delay_ms(500);
+        }
+        if (!link_up) {
+            fprintf(stderr, "WARNING: Link is DOWN after starting device. Packets may not transmit!\n");
+        }
+
         /* Enable promiscuous mode to receive all packets (needed for ARP replies and forwarding) */
         if (rte_eth_promiscuous_enable(net_port_id) != 0) {
             fprintf(stderr, "WARNING: Failed to enable promiscuous mode\n");
