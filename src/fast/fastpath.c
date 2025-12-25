@@ -53,6 +53,7 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     }
 
     ctx->poll_next_ctx = ctx->id;
+    ctx->prev_tsc = 0;
 
     memset(ctx->vhost.vdev_list, 0, sizeof(ctx->vhost.vdev_list));
     ctx->vhost.device_num = 0;
@@ -63,19 +64,16 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     ctx->vhost.tx_q.len = 0;
 
     ctx->stat_cyc_loop = 0;
-    ctx->stat_cyc_loop_sleep = 0;
 
     ctx->stat_cyc_eth_fp = 0;
-    ctx->stat_cyc_poll_eth = 0;
-    ctx->stat_cyc_send_eth = 0;
+    ctx->stat_cyc_eth_poll = 0;
+
+    ctx->stat_cyc_vhost_fp = 0;
+    ctx->stat_cyc_vhost_poll = 0;
+
     ctx->stat_pkt_eth_rx = 0;
     ctx->stat_pkt_eth_tx = 0;
     ctx->stat_pkt_eth_tx_fail = 0;
-
-    ctx->stat_cyc_vhost_fp = 0;
-    ctx->stat_cyc_poll_vhost = 0;
-    ctx->stat_cyc_send_vhost = 0;
-    ctx->stat_cyc_vdev = 0;
     ctx->stat_pkt_vhost_rx = 0;
     ctx->stat_pkt_vhost_tx = 0;
     ctx->stat_pkt_vhost_tx_fail = 0;
@@ -94,31 +92,27 @@ void dataplane_loop(struct dataplane_context *ctx) {
     uint64_t last_active_ts = 0;
     int idle_count = 0;
     const uint64_t poll_cycle_tsc = rte_get_tsc_hz() / 1000000; // 1us in TSC cycles
-    uint64_t cyc;                                               // TSC cycles for adaptive pause
 
     while (!exited) {
-        STATS_TS(loop_start);
-#ifdef DEBUG
-        sleep(1);
-#else
-        // Adaptive pause: only pause when idle to allow vhost-user state sync
-        // Similar to TAS's adaptive blocking, but using rte_pause() instead of epoll
-        // since vhost-user doesn't support eventfd notifications
-        cyc = rte_get_tsc_cycles();
-        if (was_idle) {
-            idle_count++;
-            // After being idle for multiple iterations, pause to allow vhost-user sync
-            // This gives the vhost-user backend time to update shared memory
-            if (idle_count > 2 || (cyc - last_active_ts > poll_cycle_tsc)) {
-                rte_pause();
-            }
-        } else {
-            idle_count = 0;
-            last_active_ts = cyc;
-        }
-#endif
-        STATS_TS(sleep);
-        STATS_TSADD(ctx, cyc_loop_sleep, sleep - loop_start);
+        STATS_TS(start);
+        // #ifdef DEBUG
+        //         sleep(1);
+        // #else
+        //         // Adaptive pause: only pause when idle to allow vhost-user state sync
+        //         // Similar to TAS's adaptive blocking, but using rte_pause() instead of epoll
+        //         // since vhost-user doesn't support eventfd notifications
+        //         if (was_idle) {
+        //             idle_count++;
+        //             // After being idle for multiple iterations, pause to allow vhost-user sync
+        //             // This gives the vhost-user backend time to update shared memory
+        //             if (idle_count > 2 || (start - last_active_ts > poll_cycle_tsc)) {
+        //                 rte_pause();
+        //             }
+        //         } else {
+        //             idle_count = 0;
+        //             last_active_ts = start;
+        //         }
+        // #endif
         unsigned packets_received = 0;
 
         // Drain TX queue if it has packets (check is cheap, only drain on timeout)
@@ -138,37 +132,30 @@ void dataplane_loop(struct dataplane_context *ctx) {
         // If no devices, skip polling
         if (current_device_num == 0) {
             was_idle = 1;
-            STATS_TS(loop_end);
-            STATS_TSADD(ctx, cyc_loop, loop_end - loop_start);
+            rte_pause();
             continue;
         }
 
-        STATS_TS(eth_fp_start);
         fastpath_from_eth(ctx);
-        STATS_TS(eth_fp_end);
-        STATS_TSADD(ctx, cyc_eth_fp, eth_fp_end - eth_fp_start);
+        STATS_TS(eth_fp);
+        STATS_TSADD(ctx, cyc_eth_fp, eth_fp - start);
 
-        STATS_TS(vhost_fp_start);
         packets_received = fastpath_from_vhost(ctx, current_device_num);
-        STATS_TS(vhost_fp_end);
-        STATS_TSADD(ctx, cyc_vhost_fp, vhost_fp_end - vhost_fp_start);
+        STATS_TS(vhost_fp);
+        STATS_TSADD(ctx, cyc_vhost_fp, vhost_fp - eth_fp);
 
         was_idle = (packets_received == 0);
-        STATS_TS(loop_end);
-        STATS_TSADD(ctx, cyc_loop, loop_end - loop_start);
+        STATS_TSADD(ctx, cyc_loop, vhost_fp - start);
     }
 }
 
 // drain into NIC if timeout has elapsed
 static inline void drain_vhost_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q) {
-    // static = function-scope, keeps value between function calls
-    static uint64_t prev_tsc; // previous timestamp
-
     uint64_t cur_tsc = rte_rdtsc();
-    if (unlikely(cur_tsc - prev_tsc > MBUF_TABLE_DRAIN_TSC)) {
-        prev_tsc = cur_tsc;
+    if (unlikely(cur_tsc - ctx->prev_tsc > MBUF_TABLE_DRAIN_TSC)) {
+        ctx->prev_tsc = cur_tsc;
 
-        LOG_INFO("TX queue drained after timeout with burst size %u\n", tx_q->len);
+        // LOG_INFO("TX queue drained after timeout with burst size %u\n", tx_q->len);
         flush_eth_tx(ctx, tx_q);
     }
 }
@@ -182,37 +169,25 @@ void dataplane_dump_stats(void) {
     for (i = 0; i < fp_cores_max; i++) {
         ctx = ctxs[i];
         uint64_t loop = read_stat(&ctx->stat_cyc_loop);
-        uint64_t loop_sleep = read_stat(&ctx->stat_cyc_loop_sleep);
         fprintf(stderr, "\n========== CORE %u ==========\n", i);
         fprintf(stderr, "FASTPATH:\n");
         fprintf(stderr, "whole loop: \t%" PRIu64 "\n", loop);
-        fprintf(stderr, "loop_sleep: \t%" PRIu64 " (%.2f%%)\n", loop_sleep, (double)loop_sleep / loop * 100);
 
         uint64_t eth_fp = read_stat(&ctx->stat_cyc_eth_fp);
-        uint64_t eth_poll = read_stat(&ctx->stat_cyc_poll_eth);
-        uint64_t eth_send = read_stat(&ctx->stat_cyc_send_eth);
-        uint64_t eth_route = eth_fp - eth_poll - eth_send;
+        uint64_t eth_poll = read_stat(&ctx->stat_cyc_eth_poll);
         fprintf(stderr, "\nETH FP: \t%" PRIu64 " (%.2f%% of whole loop)\n", eth_fp, (double)eth_fp / loop * 100);
-        fprintf(stderr, "poll_eth: \t%" PRIu64 " (%.2f%%)\n", eth_poll, (double)eth_poll / eth_fp * 100);
-        fprintf(stderr, "send_eth: \t%" PRIu64 " (%.2f%%)\n", eth_send, (double)eth_send / eth_fp * 100);
-        fprintf(stderr, "route_eth: \t%" PRIu64 " (%.2f%%)\n", eth_route, (double)eth_route / eth_fp * 100);
-        fprintf(stderr, "TOTAL ETH: \t %.2f%%\n", (double)(eth_poll + eth_send + eth_route) / eth_fp * 100);
-        fprintf(stderr, "pkt_eth_rx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_rx));
-        fprintf(stderr, "pkt_eth_tx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_tx));
-        fprintf(stderr, "pkt_eth_tx_fail: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_tx_fail));
+        fprintf(stderr, "eth_poll: \t%" PRIu64 " (%.2f%%)\n", eth_poll, (double)eth_poll / eth_fp * 100);
+        fprintf(stderr, "TOTAL ETH: \t %.2f%%\n", (double)(eth_poll) / eth_fp * 100);
 
         uint64_t vhost_fp = read_stat(&ctx->stat_cyc_vhost_fp);
-        uint64_t vhost_poll = read_stat(&ctx->stat_cyc_poll_vhost);
-        uint64_t vhost_send = read_stat(&ctx->stat_cyc_send_vhost);
-        uint64_t vdev = read_stat(&ctx->stat_cyc_vdev);
-        uint64_t vhost_route = vhost_fp - vhost_poll - vhost_send - vdev;
+        uint64_t vhost_poll = read_stat(&ctx->stat_cyc_vhost_poll);
         fprintf(stderr, "\nVHOST FP: \t%" PRIu64 " (%.2f%% of whole loop)\n", vhost_fp, (double)vhost_fp / loop * 100);
-        fprintf(stderr, "poll_vhost: \t%" PRIu64 " (%.2f%%)\n", vhost_poll, (double)vhost_poll / vhost_fp * 100);
-        fprintf(stderr, "send_vhost: \t%" PRIu64 " (%.2f%%)\n", vhost_send, (double)vhost_send / vhost_fp * 100);
-        fprintf(stderr, "vdev config: \t%" PRIu64 " (%.2f%%)\n", vdev, (double)vdev / vhost_fp * 100);
-        fprintf(stderr, "route_vhost: \t%" PRIu64 " (%.2f%%)\n", vhost_route, (double)vhost_route / vhost_fp * 100);
-        fprintf(stderr, "TOTAL VHOST: \t %.2f%%\n",
-                (double)(vhost_poll + vhost_send + vdev + vhost_route) / vhost_fp * 100);
+        fprintf(stderr, "vhost_poll: \t%" PRIu64 " (%.2f%%)\n", vhost_poll, (double)vhost_poll / vhost_fp * 100);
+        fprintf(stderr, "TOTAL VHOST: \t %.2f%%\n", (double)(vhost_poll) / vhost_fp * 100);
+
+        fprintf(stderr, "\npkt_eth_rx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_rx));
+        fprintf(stderr, "pkt_eth_tx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_tx));
+        fprintf(stderr, "pkt_eth_tx_fail: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_eth_tx_fail));
         fprintf(stderr, "pkt_vhost_rx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_rx));
         fprintf(stderr, "pkt_vhost_tx: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_tx));
         fprintf(stderr, "pkt_vhost_tx_fail: \t%" PRIu64 "\n", read_stat(&ctx->stat_pkt_vhost_tx_fail));

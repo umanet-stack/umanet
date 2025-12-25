@@ -25,8 +25,8 @@ int process_arp(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rt
         return -1; // Not for gateway, forward to VMs
     }
 
-    rte_ether_addr_copy(&eth->s_addr, &eth->d_addr); // dst MAC = src MAC
-    rte_ether_addr_copy(&config.mac, &eth->s_addr);  // src MAC = our MAC
+    rte_ether_addr_copy(&eth->src_addr, &eth->dst_addr); // dst MAC = src MAC
+    rte_ether_addr_copy(&config.mac, &eth->src_addr);    // src MAC = our MAC
 
     arp->arp_opcode = rte_cpu_to_be_16(RTE_ARP_OP_REPLY);
 

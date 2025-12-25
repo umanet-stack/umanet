@@ -5,7 +5,9 @@
 #include "../include/tas.h"
 #include <rte_hash.h>
 #include <rte_jhash.h>
+#include <rte_lcore.h>
 #include <rte_malloc.h>
+#include <rte_vhost.h>
 #include <unistd.h>
 
 #include "log.h"
@@ -132,7 +134,7 @@ static void destroy_device(int vid) {
 
     // tells worker cores to acknowledge they've seen the removal at their next safe point
     /* Set the dev_removal_flag on each lcore. */
-    RTE_LCORE_FOREACH_SLAVE(lcore)
+    RTE_LCORE_FOREACH_WORKER(lcore)
     ctx->vhost.dev_removal_flag = REQUEST_DEV_REMOVAL;
 
     /*
@@ -140,7 +142,7 @@ static void destroy_device(int vid) {
      * we can be sure that they can no longer access the device removed
      * from the linked lists and that the devices are no longer in use.
      */
-    RTE_LCORE_FOREACH_SLAVE(lcore) {
+    RTE_LCORE_FOREACH_WORKER(lcore) {
         // busy-wait until it acknowledges removal
         while (ctx->vhost.dev_removal_flag != ACK_DEV_REMOVAL)
             rte_pause();
@@ -247,6 +249,18 @@ static int new_device(int vid) {
     rte_vhost_enable_guest_notification(vid, VIRTIO_RXQ, 0);
     rte_vhost_enable_guest_notification(vid, VIRTIO_TXQ, 0);
 
+    // Check negotiated protocol features after device connection
+    uint64_t proto_features;
+    if (rte_vhost_get_negotiated_protocol_features(vid, &proto_features) == 0) {
+        LOG_INFO("(%d) Negotiated protocol features: 0x%lx\n", vid, proto_features);
+        if (proto_features & (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD)) {
+            LOG_INFO("(%d) Zero-copy enabled: INFLIGHT_SHMFD protocol feature negotiated\n", vid);
+        } else {
+            LOG_WARN("(%d) Zero-copy NOT possible: missing INFLIGHT_SHMFD (protocol features: 0x%lx)\n", vid,
+                     proto_features);
+        }
+    }
+
     LOG_INFO("(%d) device has been added to data core %d\n", vid, vdev->coreid);
 
     // Note: MAC address will be added to lookup table when learned in link_vmdq()
@@ -258,7 +272,7 @@ static int new_device(int vid) {
  * These callback allow devices to be added to the data core when configuration
  * has been fully complete.
  */
-const struct vhost_device_ops virtio_net_device_ops = {
+const struct rte_vhost_device_ops virtio_net_device_ops = {
     .new_device = new_device,
     .destroy_device = destroy_device,
 };
@@ -315,8 +329,14 @@ int register_vhost_drivers() {
     if (config.client_mode)
         flags |= RTE_VHOST_USER_CLIENT;
 
-    if (config.dequeue_zero_copy)
-        flags |= RTE_VHOST_USER_DEQUEUE_ZERO_COPY;
+    // Zero copy support flags
+    // if (config.dequeue_zero_copy) {
+    // External buffer support enables zero copy (mbufs with external buffers)
+    flags |= RTE_VHOST_USER_EXTBUF_SUPPORT;
+    // Linear buffer support (required for external buffers)
+    flags |= RTE_VHOST_USER_LINEARBUF_SUPPORT;
+    LOG_INFO("Zero copy enabled: EXTBUF_SUPPORT and LINEARBUF_SUPPORT flags set\n");
+    // }
 
     config.socket_files = malloc(PATH_MAX * config.nb_sockets);
     if (config.socket_files == NULL) {
@@ -353,6 +373,26 @@ int register_vhost_drivers() {
             rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO6);
         }
 
+        // - RTE_VHOST_USER_EXTBUF_SUPPORT (enables external buffer mbufs)
+        // - RTE_VHOST_USER_LINEARBUF_SUPPORT (required for external buffers)
+        // - VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD (required for zero copy tracking)
+        uint64_t protocol_features = 0;
+        if (rte_vhost_driver_get_protocol_features(file, &protocol_features) == 0) {
+            protocol_features |= (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD);
+            if (rte_vhost_driver_set_protocol_features(file, protocol_features) != 0) {
+                LOG_WARN("Failed to set INFLIGHT_SHMFD protocol feature for %s (zero copy may not work)\n", file);
+            } else {
+                LOG_INFO("Enabled INFLIGHT_SHMFD protocol feature for zero copy support (features: 0x%lx)\n",
+                         protocol_features);
+            }
+        } else {
+            LOG_WARN("Failed to get protocol features for %s, trying to set INFLIGHT_SHMFD directly\n", file);
+            protocol_features = (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD);
+            if (rte_vhost_driver_set_protocol_features(file, protocol_features) != 0) {
+                LOG_WARN("Failed to set INFLIGHT_SHMFD protocol feature for %s (zero copy may not work)\n", file);
+            }
+        }
+
         if (rte_vhost_driver_callback_register(file, &virtio_net_device_ops) != 0) {
             LOG_ERROR("Failed to register vhost driver callbacks for %s (socket %d/%d)\n", file, i, config.nb_sockets);
             rte_vhost_driver_unregister(file);
@@ -368,6 +408,8 @@ int register_vhost_drivers() {
         registered_count++;
         LOG_INFO("Successfully registered and started vhost driver for %s (%d/%d)\n", file, registered_count,
                  config.nb_sockets);
+        // Note: Protocol features are negotiated when a device connects, not at driver start
+        // Check is done in new_device() callback when each device connects
     }
 
     if (registered_count == 0) {
@@ -384,5 +426,6 @@ int register_vhost_drivers() {
     LOG_INFO("Promiscuous mode enabled for port %d\n", net_port_id);
 
     LOG_INFO("Vhost drivers started, waiting for connections...\n");
+
     return 0;
 }

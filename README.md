@@ -23,8 +23,8 @@ The switch worker loop continuously:
 ./setup/init-dpdk.sh
 
 # reserve hugepages
-# 8192 × 2 MB = 16 GB mem for hugepages
-sudo sysctl -w vm.nr_hugepages=8192
+# 24576 × 2 MB = 48 GB mem for hugepages
+sudo sysctl -w vm.nr_hugepages=24576
 grep Huge /proc/meminfo
 
 # mount hugepage FS

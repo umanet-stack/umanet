@@ -6,6 +6,8 @@
 #include <rte_ip.h>
 #include <rte_malloc.h>
 #include <rte_mbuf_core.h>
+#include <rte_prefetch.h>
+#include <rte_vhost.h>
 #include <stdint.h>
 
 #include "log.h"
@@ -22,12 +24,11 @@ const uint16_t vlan_tags[64] = {
     1048, 1049, 1050, 1051, 1052, 1053, 1054, 1055, 1056, 1057, 1058, 1059, 1060, 1061, 1062, 1063,
 };
 
-static __rte_always_inline void vhost_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf **pkts,
-                                         uint16_t count);
-static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
-                                    uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag);
+static void vhost_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf **pkts, uint16_t count);
+static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
+                             uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag);
 static void virtio_tx_offload(struct rte_mbuf *m);
-static __rte_always_inline int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count);
+static int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count);
 
 // receive packets from VM's TX queue, route them to the correct destination
 uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_device_num) {
@@ -37,11 +38,18 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
     uint16_t packets_received = 0;
 
     for (int i = 0; i < current_device_num; i++) {
-        STATS_TS(vdev_start);
         uint16_t dev_idx = (ctx->vhost.poll_next_device + i) % MAX_VHOST_DEVICES_PER_CORE;
         // Additional safety: ensure dev_idx is within current device count
         if (dev_idx >= current_device_num) {
             dev_idx = i; // Fallback to simple iteration
+        }
+
+        // Prefetch next device (if available)
+        if (likely(i + 1 < current_device_num)) {
+            uint16_t next_dev_idx = (ctx->vhost.poll_next_device + i + 1) % MAX_VHOST_DEVICES_PER_CORE;
+            if (next_dev_idx < current_device_num) {
+                rte_prefetch0(ctx->vhost.vdev_list[next_dev_idx]);
+            }
         }
 
         vdev = ctx->vhost.vdev_list[dev_idx];
@@ -87,17 +95,38 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
             i--;
             continue;
         }
-        STATS_TS(vdev_end);
-        STATS_TSADD(ctx, cyc_vdev, vdev_end - vdev_start);
 
+        // STATS_TS(vhost_poll_start);
         // TODOZ: Current: Round-robin through all devices, Optimization: Skip idle devices, batch processing
+        // Skip polling if skip counter is active
+        if (unlikely(vdev->poll_skip_count > 0)) {
+            vdev->poll_skip_count--;
+            continue; // Skip polling this iteration
+        }
+
         count = vhost_poll(ctx, MAX_PKT_BURST, vdev->vid, pkts);
         if (unlikely((int16_t)count < 0)) {
             LOG_ERROR("Error: vhost_poll failed for vid=%d (device may be disconnected)\n", vdev->vid);
             vdev->remove = 1; // Mark device for removal
             return packets_received;
         }
+
+        // If no packets received, set skip counter to 4 (will skip next 4 iterations)
+        if (unlikely(count == 0)) {
+            vdev->poll_skip_count = 4;
+        } else {
+            // Packets received, reset skip counter to poll immediately next time
+            vdev->poll_skip_count = 0;
+        }
+
         packets_received += count;
+        // STATS_TS(vhost_poll_end);
+        // STATS_TSADD(ctx, cyc_vhost_poll, vhost_poll_end - vhost_poll_start);
+
+        // Prefetch packet data before processing
+        for (int j = 0; j < count && j < 4; j++) {
+            rte_prefetch0(rte_pktmbuf_mtod(pkts[j], void *));
+        }
 
         /* setup VMDq for the first packet */
         if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) { // device in MAC learning
@@ -124,8 +153,8 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
     return packets_received;
 }
 
-static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
-                                    uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag) {
+static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rte_mbuf **pkts,
+                             uint16_t count, struct mbuf_table *tx_q, uint16_t vlan_tag) {
     struct rte_mbuf *broadcast_pkts[MAX_PKT_BURST];
     struct rte_mbuf *external_pkts[MAX_PKT_BURST];
     struct rte_mbuf *local_pkts[MAX_PKT_BURST];
@@ -133,7 +162,17 @@ static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_
     uint16_t external_count = 0;
     uint16_t local_count = 0;
 
+    // Prefetch first few packets
+    for (int j = 0; j < count && j < 4; j++) {
+        rte_prefetch0(rte_pktmbuf_mtod(pkts[j], void *));
+    }
+
     for (int i = 0; i < count; i++) {
+        // Prefetch next packet's data (if available)
+        if (likely(i + 4 < count)) {
+            rte_prefetch0(rte_pktmbuf_mtod(pkts[i + 4], void *));
+        }
+
         struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
         // Intercept ARP requests for the gateway (vhost-switch acts as gateway)
         if (unlikely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP))) {
@@ -144,7 +183,7 @@ static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_
             LOG_INFO("(%d) TX: Broadcasting ARP to other VMs\n", vdev->vid);
         }
 
-        if (unlikely(rte_is_broadcast_ether_addr(&eth_hdr->d_addr))) {
+        if (unlikely(rte_is_broadcast_ether_addr(&eth_hdr->dst_addr))) {
             // broadcast is sent first, then external (it will free pkts)
             broadcast_pkts[broadcast_count++] = pkts[i];
             external_pkts[external_count++] = rte_pktmbuf_clone(pkts[i], pkts[i]->pool);
@@ -152,9 +191,9 @@ static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_
         }
 
         // destination MAC matches local pattern 12:34:56:78:90:xx
-        if (eth_hdr->d_addr.addr_bytes[0] == 0x12 && eth_hdr->d_addr.addr_bytes[1] == 0x34 &&
-            eth_hdr->d_addr.addr_bytes[2] == 0x56 && eth_hdr->d_addr.addr_bytes[3] == 0x78 &&
-            eth_hdr->d_addr.addr_bytes[4] == 0x90) {
+        if (eth_hdr->dst_addr.addr_bytes[0] == 0x12 && eth_hdr->dst_addr.addr_bytes[1] == 0x34 &&
+            eth_hdr->dst_addr.addr_bytes[2] == 0x56 && eth_hdr->dst_addr.addr_bytes[3] == 0x78 &&
+            eth_hdr->dst_addr.addr_bytes[4] == 0x90) {
             local_pkts[local_count++] = pkts[i];
             continue;
         }
@@ -185,9 +224,24 @@ static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_
             for (int k = 0; k < ctx->vhost.device_num; k++) {
                 vdev2 = ctx->vhost.vdev_list[k];
                 if (vdev2 != NULL && vdev2 != vdev) {
+                    // Prefetch next device (if available)
+                    if (likely(k + 1 < ctx->vhost.device_num)) {
+                        rte_prefetch0(ctx->vhost.vdev_list[k + 1]);
+                    }
+
                     struct rte_mbuf *clone_pkts[broadcast_count];
                     uint16_t clone_count = 0;
+                    // Prefetch first few broadcast packets before cloning
+                    for (int l = 0; l < broadcast_count && l < 4; l++) {
+                        rte_prefetch0(rte_pktmbuf_mtod(broadcast_pkts[l], void *));
+                    }
+
                     for (int l = 0; l < broadcast_count; l++) {
+                        // Prefetch next packet (if available)
+                        if (likely(l + 4 < broadcast_count)) {
+                            rte_prefetch0(rte_pktmbuf_mtod(broadcast_pkts[l + 4], void *));
+                        }
+
                         struct rte_mbuf *clone_pkt = rte_pktmbuf_clone(broadcast_pkts[l], broadcast_pkts[l]->pool);
                         if (unlikely(clone_pkt == NULL)) {
                             LOG_WARN("Failed to clone packet for broadcast to vid=%d\n", vdev2->vid);
@@ -203,15 +257,25 @@ static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_
 
     // send to NIC
     struct rte_ether_hdr *eth_hdr;
+    // Prefetch first few external packets
+    for (int j = 0; j < external_count && j < 4; j++) {
+        rte_prefetch0(rte_pktmbuf_mtod(external_pkts[j], void *));
+    }
+
     for (int i = 0; i < external_count; i++) {
-        eth_hdr = rte_pktmbuf_mtod(external_pkts[i], struct rte_ether_hdr *);
-        if (unlikely(eth_hdr->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))) {
-            external_pkts[i]->ol_flags |= PKT_TX_VLAN_PKT; // offload flag indicating NIC should insert VLAN tag
-            external_pkts[i]->vlan_tci = vlan_tag;         // Tag Control Information
+        // Prefetch next packet's data (if available)
+        if (likely(i + 4 < external_count)) {
+            rte_prefetch0(rte_pktmbuf_mtod(external_pkts[i + 4], void *));
         }
 
-        if (external_pkts[i]->ol_flags & PKT_TX_TCP_SEG) // if TCP segmentation offload is enabled
-            virtio_tx_offload(external_pkts[i]);         // prepare checksum offloads
+        eth_hdr = rte_pktmbuf_mtod(external_pkts[i], struct rte_ether_hdr *);
+        if (unlikely(eth_hdr->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))) {
+            external_pkts[i]->ol_flags |= RTE_MBUF_F_TX_VLAN; // offload flag indicating NIC should insert VLAN tag
+            external_pkts[i]->vlan_tci = vlan_tag;            // Tag Control Information
+        }
+
+        if (external_pkts[i]->ol_flags & RTE_MBUF_F_TX_TCP_SEG) // if TCP segmentation offload is enabled
+            virtio_tx_offload(external_pkts[i]);                // prepare checksum offloads
 
         // Add packet to the TX queue's mbuf table
         tx_q->m_table[tx_q->len++] = external_pkts[i];
@@ -232,8 +296,7 @@ static inline void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_
 }
 
 // Transmits a packet to vhost device via virtqueue.
-static __rte_always_inline void vhost_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf **pkts,
-                                         uint16_t count) {
+static void vhost_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, struct rte_mbuf **pkts, uint16_t count) {
     uint16_t ret;
     struct dataplane_context *ctx = ctxs[src_vdev->coreid];
 
@@ -277,15 +340,18 @@ static __rte_always_inline void vhost_tx(struct vhost_dev *dst_vdev, struct vhos
     }
 }
 
-static __rte_always_inline int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count) {
+static int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count) {
     struct rte_ether_hdr *pkt_hdr;
     struct vhost_dev *dst_vdev;
+
+    // Prefetch first packet data
+    rte_prefetch0(rte_pktmbuf_mtod(pkts[0], void *));
 
     // assume in 1 poll from vhost, all local pkts are for same dest vm
     pkt_hdr = rte_pktmbuf_mtod(pkts[0], struct rte_ether_hdr *);
 
     // must search all cores (vms can be on different cores)
-    dst_vdev = find_vhost_dev(&pkt_hdr->d_addr);
+    dst_vdev = find_vhost_dev(&pkt_hdr->dst_addr);
     if (dst_vdev == NULL) {
         LOG_WARN("(%d) TX: Destination MAC address not found. Dropping packet.\n", vdev->vid);
         PRINT_PKTS_WARN(&pkts[0], 1, LOG_WARN);
@@ -303,7 +369,7 @@ static __rte_always_inline int route_vhost_local(struct vhost_dev *vdev, struct 
 
 // pseudo header checksum
 static uint16_t get_psd_sum(void *l3_hdr, uint64_t ol_flags) {
-    if (ol_flags & PKT_TX_IPV4)
+    if (ol_flags & RTE_MBUF_F_TX_IPV4)
         return rte_ipv4_phdr_cksum(l3_hdr, ol_flags);
     else /* assume ethertype == RTE_ETHER_TYPE_IPV6 */
         return rte_ipv6_phdr_cksum(l3_hdr, ol_flags);
@@ -316,13 +382,17 @@ static void virtio_tx_offload(struct rte_mbuf *m) {
     struct rte_tcp_hdr *tcp_hdr = NULL;
     struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
+    // Prefetch packet data
+    rte_prefetch0(eth_hdr);
+
     // l3 header position
     l3_hdr = (char *)eth_hdr + m->l2_len;
+    rte_prefetch0(l3_hdr);
 
-    if (m->ol_flags & PKT_TX_IPV4) {
+    if (m->ol_flags & RTE_MBUF_F_TX_IPV4) {
         ipv4_hdr = l3_hdr;
-        ipv4_hdr->hdr_checksum = 0;     // hw will calculate checksum
-        m->ol_flags |= PKT_TX_IP_CKSUM; // tell NIC hw to compute checksum
+        ipv4_hdr->hdr_checksum = 0;            // hw will calculate checksum
+        m->ol_flags |= RTE_MBUF_F_TX_IP_CKSUM; // tell NIC hw to compute checksum
     }
 
     // l4 header position

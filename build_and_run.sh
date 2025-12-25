@@ -32,8 +32,8 @@ sudo ip link delete br0 2>/dev/null || true
 echo "✅ br0 and taps deleted"
 
 sudo ip addr flush dev enp65s0f0np0 || true
+sudo ip link set enp65s0f0np0 nomaster || true
 sudo ip addr add 192.168.100.1/24 dev enp65s0f0np0 || true
-sudo ip link set enp65s0f0np0 master none || true
 sudo ip link set enp65s0f0np0 up || true
 echo "✅ set enp65s0f0np0 IP to 192.168.100.1/24 and removed from br0"
 
@@ -48,5 +48,10 @@ echo "✅ Running DPDK on cores $FIRST_CORE-$LAST_CORE, num_vms: $NUM_VMS"
 sudo ./build/vhost-switch \
   -l $FIRST_CORE-$LAST_CORE -n 4 \
   --file-prefix=vhost \
-  -w $PCI_ADDR \
-  -- --fp-cores-max $FP_CORES_MAX --ip-addr 192.168.100.1/24 --socket-dir /mnt/huge --nb-sockets $NUM_VMS --stats 1
+  -a $PCI_ADDR \
+  --socket-mem 4096,0 \
+  --huge-dir /mnt/huge \
+  --iova-mode=pa \
+  --no-hpet \
+  --no-telemetry \
+  -- --fp-cores-max $FP_CORES_MAX --ip-addr 192.168.100.1/24 --socket-dir /mnt/huge --nb-sockets $NUM_VMS --stats 0

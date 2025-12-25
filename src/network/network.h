@@ -49,10 +49,7 @@ static inline void free_pkts(struct rte_mbuf **pkts, uint16_t n) {
 }
 
 static inline int network_poll(struct dataplane_context *ctx, unsigned num, struct rte_mbuf **pkts) {
-    STATS_TS(poll_eth_start);
     num = rte_eth_rx_burst(net_port_id, ctx->net.queue_id, pkts, num);
-    STATS_TS(poll_eth_end);
-    STATS_TSADD(ctx, cyc_poll_eth, poll_eth_end - poll_eth_start);
     if (num == 0)
         return 0;
 
@@ -64,10 +61,7 @@ static inline int network_poll(struct dataplane_context *ctx, unsigned num, stru
 }
 
 static inline int network_send(struct dataplane_context *ctx, unsigned num, struct rte_mbuf **pkts) {
-    STATS_TS(send_eth_start);
     num = rte_eth_tx_burst(net_port_id, ctx->net.queue_id, pkts, num);
-    STATS_TS(send_eth_end);
-    STATS_TSADD(ctx, cyc_send_eth, send_eth_end - send_eth_start);
     if (num == 0)
         return 0;
 

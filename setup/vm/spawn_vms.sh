@@ -61,8 +61,8 @@ if [ "$TEST_MODE" = "samenode" ]; then
         fi
     done
 
-    echo "Waiting 20 seconds for servers to come up..."
-    sleep 20
+    echo "Waiting 10 seconds for servers to come up..."
+    sleep 10
 
     echo "Spawning ODD VMs (clients)..."
     for ((i=0; i<NUM_VMS; i++)); do

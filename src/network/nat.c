@@ -169,11 +169,11 @@ int nat_translate_outbound(struct rte_mbuf *m, int vid, uint32_t nic_ip) {
     iph->hdr_checksum = ip_checksum(iph);
 
     // Mark for L4 checksum recalculation (or recalculate in software)
-    m->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
+    m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM;
     if (proto == IPPROTO_TCP)
-        m->ol_flags |= PKT_TX_TCP_CKSUM;
+        m->ol_flags |= RTE_MBUF_F_TX_TCP_CKSUM;
     else if (proto == IPPROTO_UDP)
-        m->ol_flags |= PKT_TX_UDP_CKSUM;
+        m->ol_flags |= RTE_MBUF_F_TX_UDP_CKSUM;
 
     return 0;
 }
@@ -226,11 +226,11 @@ int nat_translate_inbound(struct rte_mbuf *m, int *vid_out) {
     iph->hdr_checksum = 0;
     iph->hdr_checksum = ip_checksum(iph);
 
-    m->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
+    m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM;
     if (proto == IPPROTO_TCP)
-        m->ol_flags |= PKT_TX_TCP_CKSUM;
+        m->ol_flags |= RTE_MBUF_F_TX_TCP_CKSUM;
     else if (proto == IPPROTO_UDP)
-        m->ol_flags |= PKT_TX_UDP_CKSUM;
+        m->ol_flags |= RTE_MBUF_F_TX_UDP_CKSUM;
 
     *vid_out = entry->vid;
 

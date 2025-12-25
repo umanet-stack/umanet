@@ -16,7 +16,10 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
     struct rte_mbuf *pkts[MAX_PKT_BURST];
     struct rte_flow *flow;
 
+    // STATS_TS(eth_poll_start);
     rx_count = network_poll(ctx, MAX_PKT_BURST, pkts);
+    // STATS_TS(eth_poll_end);
+    // STATS_TSADD(ctx, cyc_eth_poll, eth_poll_end - eth_poll_start);
     if (rx_count == 0)
         return;
 
@@ -39,15 +42,15 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
         // flow steering by mac address
         // pkts that are not for vm will also get installed to a flow table
         flow = NULL;
-        rte_hash_lookup_data(mac_flow_table, &eth_hdr->d_addr, (void **)&flow);
+        rte_hash_lookup_data(mac_flow_table, &eth_hdr->dst_addr, (void **)&flow);
         if (unlikely(flow == NULL)) {
             // vm MAC: 12:34:56:78:90:xx
-            uint8_t vm_id = eth_hdr->d_addr.addr_bytes[5] - '0';
-            install_mac_flow(net_port_id, &eth_hdr->d_addr, vm_id % fp_cores_max);
+            uint8_t vm_id = eth_hdr->dst_addr.addr_bytes[5] - '0';
+            install_mac_flow(net_port_id, &eth_hdr->dst_addr, vm_id % fp_cores_max);
         }
 
         // TODOZ: Use a hash table keyed by MAC address
-        target_vdev = find_vhost_dev_core(ctx, &eth_hdr->d_addr);
+        target_vdev = find_vhost_dev_core(ctx, &eth_hdr->dst_addr);
 
         if (target_vdev != NULL) {
             target_vid = target_vdev->vid;
@@ -115,8 +118,8 @@ void flush_eth_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q) {
     struct rte_ether_addr gateway_mac = {{0x0c, 0x42, 0xa1, 0xdd, 0x57, 0xfc}};
     for (int i = 0; i < tx_q->len; i++) {
         eth_hdr = rte_pktmbuf_mtod(tx_q->m_table[i], struct rte_ether_hdr *);
-        rte_ether_addr_copy(&eth_addr, &eth_hdr->s_addr);    // Src: NIC's MAC
-        rte_ether_addr_copy(&gateway_mac, &eth_hdr->d_addr); // Dst: Gateway's MAC
+        rte_ether_addr_copy(&eth_addr, &eth_hdr->src_addr);    // Src: NIC's MAC
+        rte_ether_addr_copy(&gateway_mac, &eth_hdr->dst_addr); // Dst: Gateway's MAC
     }
 
     // Packets are given to NIC hardware, NIC takes ownership and frees after DMA completes (don't free yourself)

@@ -35,7 +35,7 @@
  * @ingroup tas
  * @{ */
 
-#define FLEXNIC_HUGE_PREFIX "/dev/hugepages"
+#define FLEXNIC_HUGE_PREFIX "/mnt/huge"
 
 /** Name for the info shared memory region. */
 #define FLEXNIC_NAME_INFO "tas_info"
@@ -54,22 +54,22 @@
 
 /** Info struct: layout of info shared memory region */
 struct flexnic_info {
-  /** Flags: see FLEXNIC_FLAG_* */
-  uint64_t flags;
-  /** Size of flexnic dma memory in bytes. */
-  uint64_t dma_mem_size;
-  /** Size of internal flexnic memory in bytes. */
-  uint64_t internal_mem_size;
-  /** export mac address */
-  uint64_t mac_address;
-  /** Cycles to poll before blocking for application */
-  uint64_t poll_cycle_app;
-  /** Cycles to poll before blocking for TAS */
-  uint64_t poll_cycle_tas;
-  /** Number of queues in queue manager */
-  uint32_t qmq_num;
-  /** Number of cores in flexnic emulator */
-  uint32_t cores_num;
+    /** Flags: see FLEXNIC_FLAG_* */
+    uint64_t flags;
+    /** Size of flexnic dma memory in bytes. */
+    uint64_t dma_mem_size;
+    /** Size of internal flexnic memory in bytes. */
+    uint64_t internal_mem_size;
+    /** export mac address */
+    uint64_t mac_address;
+    /** Cycles to poll before blocking for application */
+    uint64_t poll_cycle_app;
+    /** Cycles to poll before blocking for TAS */
+    uint64_t poll_cycle_tas;
+    /** Number of queues in queue manager */
+    uint32_t qmq_num;
+    /** Number of cores in flexnic emulator */
+    uint32_t cores_num;
 } __attribute__((packed));
 
 /******************************************************************************/
@@ -80,16 +80,16 @@ struct flexnic_info {
 
 /** Kernel RX queue entry */
 struct flextcp_pl_krx {
-  uint64_t addr;
-  union {
-    struct {
-      uint16_t len;
-      uint16_t fn_core;
-      uint16_t flow_group;
-    } packet;
-    uint8_t raw[55];
-  } __attribute__((packed)) msg;
-  volatile uint8_t type;
+    uint64_t addr;
+    union {
+        struct {
+            uint16_t len;
+            uint16_t fn_core;
+            uint16_t flow_group;
+        } packet;
+        uint8_t raw[55];
+    } __attribute__((packed)) msg;
+    volatile uint8_t type;
 } __attribute__((packed));
 
 STATIC_ASSERT(sizeof(struct flextcp_pl_krx) == 64, krx_size);
@@ -104,17 +104,17 @@ STATIC_ASSERT(sizeof(struct flextcp_pl_krx) == 64, krx_size);
 
 /** Kernel TX queue entry */
 struct flextcp_pl_ktx {
-  union {
-    struct {
-      uint64_t addr;
-      uint16_t len;
-    } packet;
-    struct {
-      uint32_t flow_id;
-    } connretran;
-    uint8_t raw[63];
-  } __attribute__((packed)) msg;
-  volatile uint8_t type;
+    union {
+        struct {
+            uint64_t addr;
+            uint16_t len;
+        } packet;
+        struct {
+            uint32_t flow_id;
+        } connretran;
+        uint8_t raw[63];
+    } __attribute__((packed)) msg;
+    volatile uint8_t type;
 } __attribute__((packed));
 
 STATIC_ASSERT(sizeof(struct flextcp_pl_ktx) == 64, ktx_size);
@@ -129,20 +129,20 @@ STATIC_ASSERT(sizeof(struct flextcp_pl_ktx) == 64, ktx_size);
 
 /** Update receive and transmit buffer of flow */
 struct flextcp_pl_arx_connupdate {
-  uint64_t opaque;
-  uint32_t rx_bump;
-  uint32_t rx_pos;
-  uint32_t tx_bump;
-  uint8_t flags;
+    uint64_t opaque;
+    uint32_t rx_bump;
+    uint32_t rx_pos;
+    uint32_t tx_bump;
+    uint8_t flags;
 } __attribute__((packed));
 
 /** Application RX queue entry */
 struct flextcp_pl_arx {
-  union {
-    struct flextcp_pl_arx_connupdate connupdate;
-    uint8_t raw[31];
-  } __attribute__((packed)) msg;
-  volatile uint8_t type;
+    union {
+        struct flextcp_pl_arx_connupdate connupdate;
+        uint8_t raw[31];
+    } __attribute__((packed)) msg;
+    volatile uint8_t type;
 } __attribute__((packed));
 
 STATIC_ASSERT(sizeof(struct flextcp_pl_arx) == 32, arx_size);
@@ -156,17 +156,17 @@ STATIC_ASSERT(sizeof(struct flextcp_pl_arx) == 32, arx_size);
 
 /** Application TX queue entry */
 struct flextcp_pl_atx {
-  union {
-    struct {
-      uint32_t rx_bump;
-      uint32_t tx_bump;
-      uint32_t flow_id;
-      uint16_t bump_seq;
-      uint8_t flags;
-    } __attribute__((packed)) connupdate;
-    uint8_t raw[15];
-  } __attribute__((packed)) msg;
-  volatile uint8_t type;
+    union {
+        struct {
+            uint32_t rx_bump;
+            uint32_t tx_bump;
+            uint32_t flow_id;
+            uint16_t bump_seq;
+            uint8_t flags;
+        } __attribute__((packed)) connupdate;
+        uint8_t raw[15];
+    } __attribute__((packed)) msg;
+    volatile uint8_t type;
 } __attribute__((packed));
 
 STATIC_ASSERT(sizeof(struct flextcp_pl_atx) == 16, atx_size);
@@ -184,33 +184,33 @@ STATIC_ASSERT(sizeof(struct flextcp_pl_atx) == 16, atx_size);
 
 /** Application state */
 struct flextcp_pl_appst {
-  /********************************************************/
-  /* read-only fields */
+    /********************************************************/
+    /* read-only fields */
 
-  /** Number of contexts */
-  uint16_t ctx_num;
+    /** Number of contexts */
+    uint16_t ctx_num;
 
-  /** IDs of contexts */
-  uint16_t ctx_ids[FLEXNIC_PL_APPST_CTX_NUM];
+    /** IDs of contexts */
+    uint16_t ctx_ids[FLEXNIC_PL_APPST_CTX_NUM];
 } __attribute__((packed));
 
 /** Application context registers */
 struct flextcp_pl_appctx {
-  /********************************************************/
-  /* read-only fields */
-  uint64_t rx_base; // tas->app
-  uint64_t tx_base; // app -> tas
-  uint32_t rx_len;
-  uint32_t tx_len;
-  uint32_t appst_id;
-  int evfd; // doorbell: wake up app
+    /********************************************************/
+    /* read-only fields */
+    uint64_t rx_base; // tas->app
+    uint64_t tx_base; // app -> tas
+    uint32_t rx_len;
+    uint32_t tx_len;
+    uint32_t appst_id;
+    int evfd; // doorbell: wake up app
 
-  /********************************************************/
-  /* read-write fields */
-  uint64_t last_ts;
-  uint32_t rx_head;
-  uint32_t tx_head;
-  uint32_t rx_avail;
+    /********************************************************/
+    /* read-write fields */
+    uint64_t last_ts;
+    uint32_t rx_head;
+    uint32_t tx_head;
+    uint32_t rx_avail;
 } __attribute__((packed));
 
 /** Enable out of order receive processing members */
@@ -224,92 +224,92 @@ struct flextcp_pl_appctx {
 
 /** Flow state registers */
 struct flextcp_pl_flowst {
-  /********************************************************/
-  /* read-only fields */
+    /********************************************************/
+    /* read-only fields */
 
-  /** Opaque flow identifier from application */
-  uint64_t opaque;
+    /** Opaque flow identifier from application */
+    uint64_t opaque;
 
-  /** Base address of receive buffer */
-  uint64_t rx_base_sp;
-  /** Base address of transmit buffer */
-  uint64_t tx_base;
+    /** Base address of receive buffer */
+    uint64_t rx_base_sp;
+    /** Base address of transmit buffer */
+    uint64_t tx_base;
 
-  /** Length of receive buffer */
-  uint32_t rx_len;
-  /** Length of transmit buffer */
-  uint32_t tx_len;
+    /** Length of receive buffer */
+    uint32_t rx_len;
+    /** Length of transmit buffer */
+    uint32_t tx_len;
 
-  beui32_t local_ip;
-  beui32_t remote_ip;
+    beui32_t local_ip;
+    beui32_t remote_ip;
 
-  beui16_t local_port;
-  beui16_t remote_port;
+    beui16_t local_port;
+    beui16_t remote_port;
 
-  /** Remote MAC address */
-  struct eth_addr remote_mac;
+    /** Remote MAC address */
+    struct eth_addr remote_mac;
 
-  /** Doorbell ID (identifying the app ctx to use) */
-  uint16_t db_id;
+    /** Doorbell ID (identifying the app ctx to use) */
+    uint16_t db_id;
 
-  /** Flow group for this connection (rss bucket) */
-  uint16_t flow_group;
-  /** Sequence number of queue pointer bumps */
-  uint16_t bump_seq;
+    /** Flow group for this connection (rss bucket) */
+    uint16_t flow_group;
+    /** Sequence number of queue pointer bumps */
+    uint16_t bump_seq;
 
-  // 56
+    // 56
 
-  /********************************************************/
-  /* read-write fields */
+    /********************************************************/
+    /* read-write fields */
 
-  /** spin lock */
-  volatile uint32_t lock;
+    /** spin lock */
+    volatile uint32_t lock;
 
-  /** Bytes available for received segments at next position */
-  uint32_t rx_avail;
-  // 64
-  /** Offset in buffer to place next segment */
-  uint32_t rx_next_pos;
-  /** Next sequence number expected */
-  uint32_t rx_next_seq;
-  /** Bytes available in remote end for received segments */
-  uint32_t rx_remote_avail;
-  /** Duplicate ack count */
-  uint32_t rx_dupack_cnt;
+    /** Bytes available for received segments at next position */
+    uint32_t rx_avail;
+    // 64
+    /** Offset in buffer to place next segment */
+    uint32_t rx_next_pos;
+    /** Next sequence number expected */
+    uint32_t rx_next_seq;
+    /** Bytes available in remote end for received segments */
+    uint32_t rx_remote_avail;
+    /** Duplicate ack count */
+    uint32_t rx_dupack_cnt;
 
 #ifdef FLEXNIC_PL_OOO_RECV
-  /* Start of interval of out-of-order received data */
-  uint32_t rx_ooo_start;
-  /* Length of interval of out-of-order received data */
-  uint32_t rx_ooo_len;
+    /* Start of interval of out-of-order received data */
+    uint32_t rx_ooo_start;
+    /* Length of interval of out-of-order received data */
+    uint32_t rx_ooo_len;
 #endif
 
-  /** Number of bytes available to be sent */
-  uint32_t tx_avail;
-  /** Number of bytes up to next pos in the buffer that were sent but not
-   * acknowledged yet. */
-  uint32_t tx_sent;
-  /** Offset in buffer for next segment to be sent */
-  uint32_t tx_next_pos;
-  /** Sequence number of next segment to be sent */
-  uint32_t tx_next_seq;
-  /** Timestamp to echo in next packet */
-  uint32_t tx_next_ts;
+    /** Number of bytes available to be sent */
+    uint32_t tx_avail;
+    /** Number of bytes up to next pos in the buffer that were sent but not
+     * acknowledged yet. */
+    uint32_t tx_sent;
+    /** Offset in buffer for next segment to be sent */
+    uint32_t tx_next_pos;
+    /** Sequence number of next segment to be sent */
+    uint32_t tx_next_seq;
+    /** Timestamp to echo in next packet */
+    uint32_t tx_next_ts;
 
-  /** Congestion control rate [kbps] */
-  uint32_t tx_rate;
-  /** Counter drops */
-  uint16_t cnt_tx_drops;
-  /** Counter acks */
-  uint16_t cnt_rx_acks;
-  /** Counter bytes sent */
-  uint32_t cnt_rx_ack_bytes;
-  /** Counter acks marked */
-  uint32_t cnt_rx_ecn_bytes;
-  /** RTT estimate */
-  uint32_t rtt_est;
+    /** Congestion control rate [kbps] */
+    uint32_t tx_rate;
+    /** Counter drops */
+    uint16_t cnt_tx_drops;
+    /** Counter acks */
+    uint16_t cnt_rx_acks;
+    /** Counter bytes sent */
+    uint32_t cnt_rx_ack_bytes;
+    /** Counter acks marked */
+    uint32_t cnt_rx_ecn_bytes;
+    /** RTT estimate */
+    uint32_t rtt_est;
 
-  // 128
+    // 128
 } __attribute__((packed, aligned(64)));
 
 #define FLEXNIC_PL_FLOWHTE_VALID (1 << 31)
@@ -317,31 +317,30 @@ struct flextcp_pl_flowst {
 
 /** Flow lookup table entry */
 struct flextcp_pl_flowhte {
-  uint32_t flow_id;
-  uint32_t flow_hash;
+    uint32_t flow_id;
+    uint32_t flow_hash;
 } __attribute__((packed));
 
 #define FLEXNIC_PL_MAX_FLOWGROUPS 4096
 
 /** Layout of internal pipeline memory */
 struct flextcp_pl_mem {
-  /* registers for application context queues */
-  struct flextcp_pl_appctx appctx[FLEXNIC_PL_APPST_CTX_MCS]
-                                 [FLEXNIC_PL_APPCTX_NUM];
+    /* registers for application context queues */
+    struct flextcp_pl_appctx appctx[FLEXNIC_PL_APPST_CTX_MCS][FLEXNIC_PL_APPCTX_NUM];
 
-  /* registers for flow state */
-  struct flextcp_pl_flowst flowst[FLEXNIC_PL_FLOWST_NUM];
+    /* registers for flow state */
+    struct flextcp_pl_flowst flowst[FLEXNIC_PL_FLOWST_NUM];
 
-  /* flow lookup table */
-  struct flextcp_pl_flowhte flowht[FLEXNIC_PL_FLOWHT_ENTRIES];
+    /* flow lookup table */
+    struct flextcp_pl_flowhte flowht[FLEXNIC_PL_FLOWHT_ENTRIES];
 
-  /* registers for kernel queues */
-  struct flextcp_pl_appctx kctx[FLEXNIC_PL_APPST_CTX_MCS];
+    /* registers for kernel queues */
+    struct flextcp_pl_appctx kctx[FLEXNIC_PL_APPST_CTX_MCS];
 
-  /* registers for application state */
-  struct flextcp_pl_appst appst[FLEXNIC_PL_APPST_NUM];
+    /* registers for application state */
+    struct flextcp_pl_appst appst[FLEXNIC_PL_APPST_NUM];
 
-  uint8_t flow_group_steering[FLEXNIC_PL_MAX_FLOWGROUPS];
+    uint8_t flow_group_steering[FLEXNIC_PL_MAX_FLOWGROUPS];
 } __attribute__((packed));
 
 /** @} */

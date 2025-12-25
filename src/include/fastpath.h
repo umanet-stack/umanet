@@ -41,8 +41,12 @@
 
 #ifdef DATAPLANE_STATS
 #ifdef DATAPLANE_TSCS
+// USE SPARINGLY, it is partially serializing, forces the CPU to drain speculation
+// The CPU cannot overlap work before and after rdtsc.
+// In a large function, this kills instruction-level parallelism.
 #define STATS_TS(n) uint64_t n = rte_get_tsc_cycles()
-#define STATS_TSADD(c, f, n) __sync_fetch_and_add(&c->stat_##f, n)
+// Use regular addition instead of atomic (stats are per-core, no contention)
+#define STATS_TSADD(c, f, n) (c->stat_##f += (n))
 #else
 #define STATS_TS(n)                                                                                                    \
     do {                                                                                                               \
@@ -116,6 +120,9 @@ struct vhost_dev { // vhost device
     // Rate-limited logging for failed enqueue attempts
     uint64_t last_failed_log_ts; // TSC timestamp of last log
     uint64_t failed_pkts_count;  // Cumulative failed packets since last log
+
+    // Poll skip counter: skip polling for this many iterations when no packets received
+    uint8_t poll_skip_count;
 } __rte_cache_aligned;
 
 #define MAX_PKT_BURST 32              /* Max packets processed per burst (RX/TX) */
@@ -161,6 +168,7 @@ struct dataplane_context {
     /********************************************************/
     /* polling queues */
     uint32_t poll_next_ctx;
+    uint64_t prev_tsc;
 
     /********************************************************/
     /* pre-allocated buffers for polling doorbells and queue manager */
@@ -174,19 +182,16 @@ struct dataplane_context {
     /********************************************************/
     /* Stats */
     uint64_t stat_cyc_loop;
-    uint64_t stat_cyc_loop_sleep;
 
     uint64_t stat_cyc_eth_fp;
-    uint64_t stat_cyc_poll_eth;
-    uint64_t stat_cyc_send_eth;
+    uint64_t stat_cyc_eth_poll;
+
+    uint64_t stat_cyc_vhost_fp;
+    uint64_t stat_cyc_vhost_poll;
+
     uint64_t stat_pkt_eth_rx;
     uint64_t stat_pkt_eth_tx;
     uint64_t stat_pkt_eth_tx_fail;
-
-    uint64_t stat_cyc_vhost_fp;
-    uint64_t stat_cyc_poll_vhost;
-    uint64_t stat_cyc_send_vhost;
-    uint64_t stat_cyc_vdev;
     uint64_t stat_pkt_vhost_rx;
     uint64_t stat_pkt_vhost_tx;
     uint64_t stat_pkt_vhost_tx_fail;

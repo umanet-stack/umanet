@@ -3,6 +3,7 @@
  */
 
 #include <linux/virtio_net.h>
+#include <pthread.h>
 #include <rte_malloc.h>
 #include <signal.h>
 #include <stdint.h>
@@ -179,7 +180,7 @@ int main(int argc, char *argv[]) {
 
     // Wait for lcores to finish (keeps main alive)
     unsigned lcore_id;
-    RTE_LCORE_FOREACH_SLAVE(lcore_id) { rte_eal_wait_lcore(lcore_id); }
+    RTE_LCORE_FOREACH_WORKER(lcore_id) { rte_eal_wait_lcore(lcore_id); }
 
     // LOG_INFO("Cleaning up TAP interface...\n");
     // tap_cleanup();
@@ -268,7 +269,7 @@ static int start_threads(void) {
     }
 
     /* start common threads */
-    RTE_LCORE_FOREACH_SLAVE(core) {
+    RTE_LCORE_FOREACH_WORKER(core) {
         if (threads_launched < fp_cores_max) {
             arg = (void *)(uintptr_t)threads_launched;
             if (rte_eal_remote_launch(common_thread, arg, core) != 0) {

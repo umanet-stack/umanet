@@ -69,7 +69,7 @@ sudo cloud-hypervisor \
 # vm1 DPDK
 sudo cloud-hypervisor \
 	--cpus boot=1 \
-	--memory size=512M,hugepages=on,shared=true \
+	--memory size=512M,hugepages=on,shared=on \
 	--kernel /tmp/vmlinux.bin \
 	--initramfs /tmp/initramfs-overlay.img \
 	--disk path=/tmp/vm-img.raw,readonly=on path=/tmp/disks/state-1.img path=/tmp/cloudinit/cloudinit-vm1.img \

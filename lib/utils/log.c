@@ -202,9 +202,9 @@ void print_pkts(struct rte_mbuf **pkts, uint16_t count, enum log_level level) {
 
         // Print MAC addresses
         printf(" src=");
-        print_mac(&eth->s_addr);
+        print_mac(&eth->src_addr);
         printf(" dst=");
-        print_mac(&eth->d_addr);
+        print_mac(&eth->dst_addr);
 
         // Reset color and add newline once at the end
         printf(RESET_COLOR "\n");
