@@ -10,7 +10,7 @@ sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | t
 ./setup/vm/spawn_vms.sh tap 32 /tmp samenode
 python testing/process_results.py tap samenode
 
-./setup/vm/spawn_vms.sh tap 10 /tmp multinode
+./setup/vm/spawn_vms.sh tap 32 /tmp multinode
 python testing/process_results.py tap multinode
 
 ```
