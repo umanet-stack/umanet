@@ -410,14 +410,29 @@ def main():
     # Set up directories relative to script
     base_dir = SCRIPT_DIR / args.folder
     logs_dir = base_dir / "logs"
-    reports_base_dir = base_dir
+    reports_base_dir = base_dir / args.mode
     
     # Create base directory if it doesn't exist
     base_dir.mkdir(exist_ok=True, parents=True)
     
-    # Find next report number
-    report_num = get_next_report_number(reports_base_dir)
-    reports_dir = reports_base_dir / f"report-{report_num}"
+    # Check if logs directory exists
+    if not logs_dir.exists():
+        print(f"❌ Logs directory not found: {logs_dir}")
+        print(f"   Please ensure log files are in: {logs_dir}/")
+        return
+    
+    # Count VMs to determine report directory name
+    num_vms = 0
+    for log_file in sorted(logs_dir.glob("vm*.log")):
+        vm_name = log_file.stem  # e.g., "vm1"
+        vm_num = int(vm_name[2:])  # Extract number: "vm1" -> 1
+        
+        # Count based on mode
+        if process_all_vms or vm_num % 2 == 1:  # All VMs for multinode, odd VMs for samenode
+            num_vms += 1
+    
+    # Create report directory: {mode}/report-{n}vm
+    reports_dir = reports_base_dir / f"report-{num_vms}vm"
     reports_dir.mkdir(exist_ok=True, parents=True)
     
     print("🔥 Processing iperf3 results...")
@@ -425,12 +440,6 @@ def main():
     print(f"📁 Logs folder: {logs_dir}")
     print(f"📁 Reports folder: {reports_dir}")
     print()
-    
-    # Check if logs directory exists
-    if not logs_dir.exists():
-        print(f"❌ Logs directory not found: {logs_dir}")
-        print(f"   Please ensure log files are in: {logs_dir}/")
-        return
     
     # Load results
     print("📂 Loading results...")

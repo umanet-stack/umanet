@@ -33,8 +33,17 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
     } batches[MAX_VID];
     memset(batches, 0, sizeof(batches));
 
+    // Prefetch first few packets (like l2fwd example)
+    for (uint16_t j = 0; j < rx_count && j < 4; j++) {
+        rte_prefetch0(rte_pktmbuf_mtod(pkts[j], void *));
+    }
+
     // Sort packets by destination VM (batching phase)
     for (uint16_t i = 0; i < rx_count; i++) {
+        // Prefetch next packet's data (4 packets ahead, like l2fwd)
+        if (likely(i + 4 < rx_count))
+            rte_prefetch0(rte_pktmbuf_mtod(pkts[i + 4], void *));
+
         int target_vid = -1;
         struct vhost_dev *target_vdev = NULL;
         struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
