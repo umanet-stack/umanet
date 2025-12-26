@@ -4,13 +4,15 @@ set -e
 # Usage: ./setup_br_tap.sh <node_id>
 # node_id: 0 or 1
 
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 <node_id>"
+if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 <node_id> <nic>"
     echo "  node_id: 0 or 1"
+    echo "  nic: enp65s0f0np0 or enp23s0f0np0 or ens1f1np1"
     exit 1
 fi
 
 NODE_ID=$1
+NIC=$2
 
 if [ "$NODE_ID" != "0" ] && [ "$NODE_ID" != "1" ]; then
     echo "Error: node_id must be 0 or 1"
@@ -31,10 +33,16 @@ sudo ip link set br0 up || true
 sudo ip addr add 192.168.10${NODE_ID}.1/24 dev br0 || true
 echo "✅ br0 created"
 
-# add enp65s0f0np0 to br0
-sudo ip addr flush dev enp65s0f0np0 || true
-sudo ip link set enp65s0f0np0 master br0 || true
-echo "✅ enp65s0f0np0: removed IP and added to br0"
+if [ "$NIC" = "enp23s0f0np0" ]; then
+  sudo dpdk-devbind.py -b ice 0000:17:00.0
+  echo "✅ $NIC bound back to ice"
+fi
+
+# add nic to br0
+sudo ip link set $NIC up
+sudo ip addr flush dev $NIC || true
+sudo ip link set $NIC master br0 || true
+echo "✅ $NIC: removed IP and added to br0"
 
 # create taps
 for i in {0..31}; do

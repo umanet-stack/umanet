@@ -137,14 +137,21 @@ int network_init(unsigned n_threads) {
     /* mask unsupported RSS hash functions */
     if ((port_conf.rx_adv_conf.rss_conf.rss_hf & eth_devinfo.flow_type_rss_offloads) !=
         port_conf.rx_adv_conf.rss_conf.rss_hf) {
-        LOG_WARN("Warning: NIC does not support all requested RSS "
-                 "hash functions.\n");
+        LOG_WARN("Warning: NIC does not support all requested RSS hash functions.\n");
         port_conf.rx_adv_conf.rss_conf.rss_hf &= eth_devinfo.flow_type_rss_offloads;
     }
 
     /* enable per port checksum offload if requested */
-    if (config.fp_xsumoffload)
-        port_conf.txmode.offloads = RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
+    if (config.fp_xsumoffload) {
+        uint64_t requested_offloads = RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
+        /* mask unsupported TX offloads */
+        port_conf.txmode.offloads = requested_offloads & eth_devinfo.tx_offload_capa;
+        if (port_conf.txmode.offloads != requested_offloads) {
+            LOG_WARN("Warning: NIC does not support all requested TX offloads (requested: 0x%lx, supported: 0x%lx, "
+                     "using: 0x%lx).\n",
+                     requested_offloads, eth_devinfo.tx_offload_capa, port_conf.txmode.offloads);
+        }
+    }
 
     /* disable rx interrupts if requested */
     if (!config.fp_interrupts)
@@ -168,8 +175,11 @@ int network_init(unsigned n_threads) {
 
     /* enable per-queue checksum offload if requested */
     eth_devinfo.default_txconf.offloads = 0;
-    if (config.fp_xsumoffload)
-        eth_devinfo.default_txconf.offloads = RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
+    if (config.fp_xsumoffload) {
+        uint64_t requested_offloads = RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
+        /* mask unsupported TX offloads (use same mask as port-level) */
+        eth_devinfo.default_txconf.offloads = requested_offloads & eth_devinfo.tx_offload_capa;
+    }
 
     // memcpy(&tas_info->mac_address, &eth_addr, 6);
 
@@ -251,6 +261,32 @@ int network_thread_init(struct dataplane_context *ctx) {
             goto error_tx_queue;
         }
 
+        /* Check and wait for link to be up */
+        struct rte_eth_link link;
+        int link_check_retries = 10;
+        int link_up = 0;
+        while (link_check_retries-- > 0) {
+            rte_eth_link_get(net_port_id, &link);
+            if (link.link_status == RTE_ETH_LINK_UP) {
+                link_up = 1;
+                fprintf(stderr, "Link is UP: speed=%u Mbps, duplex=%s\n", link.link_speed,
+                        link.link_duplex == RTE_ETH_LINK_FULL_DUPLEX ? "full" : "half");
+                break;
+            }
+            fprintf(stderr, "Waiting for link to come up... (retries left: %d)\n", link_check_retries);
+            rte_delay_ms(500);
+        }
+        if (!link_up) {
+            fprintf(stderr, "WARNING: Link is DOWN after starting device. Packets may not transmit!\n");
+        }
+
+        /* Enable promiscuous mode to receive all packets (needed for ARP replies and forwarding) */
+        if (rte_eth_promiscuous_enable(net_port_id) != 0) {
+            fprintf(stderr, "WARNING: Failed to enable promiscuous mode\n");
+        } else {
+            fprintf(stderr, "Promiscuous mode enabled for port %d\n", net_port_id);
+        }
+
         /* enable vlan stripping if configured */
         if (config.fp_vlan_strip) {
             ret = rte_eth_dev_get_vlan_offload(net_port_id);
@@ -261,11 +297,11 @@ int network_thread_init(struct dataplane_context *ctx) {
             }
         }
 
-        /* setting up RETA failed */
+        /* setting up RETA - non-fatal if not supported (e.g., safe mode) */
         if (config.fp_autoscale) {
             if (reta_setup() != 0) {
-                fprintf(stderr, "RETA setup failed\n");
-                goto error_tx_queue;
+                fprintf(stderr, "RETA setup failed - continuing without autoscaling support\n");
+                /* Don't treat as fatal error - device may not support RSS/RETA */
             }
         }
         start_done = 1;
@@ -395,6 +431,14 @@ static struct rte_mempool *mempool_alloc(void) {
 static int reta_setup() {
     uint16_t i, c;
 
+    /* Check if RSS/RETA is supported */
+    if (eth_devinfo.reta_size == 0) {
+        fprintf(stderr, "reta_setup: RSS/RETA not supported by this device (e.g., Intel ice in safe mode)\n");
+        fprintf(stderr, "reta_setup: Continuing without RETA setup - autoscaling will be limited\n");
+        rss_reta_size = 0;
+        return 0; /* Not an error, just not supported */
+    }
+
     /* allocate RSS redirection table and core-bucket count table */
     rss_reta_size = eth_devinfo.reta_size;
     rss_reta = rte_calloc("rss reta", ((rss_reta_size + RTE_ETH_RETA_GROUP_SIZE - 1) / RTE_ETH_RETA_GROUP_SIZE),
@@ -424,8 +468,15 @@ static int reta_setup() {
     }
 
     if (rte_eth_dev_rss_reta_update(net_port_id, rss_reta, rss_reta_size) != 0) {
-        fprintf(stderr, "reta_setup: rte_eth_dev_rss_reta_update failed\n");
-        return -1;
+        fprintf(stderr, "reta_setup: rte_eth_dev_rss_reta_update failed (RSS/RETA may not be supported)\n");
+        fprintf(stderr, "reta_setup: Continuing without RETA setup - autoscaling will be limited\n");
+        /* Clean up allocated memory */
+        rte_free(rss_core_buckets);
+        rte_free(rss_reta);
+        rss_reta = NULL;
+        rss_core_buckets = NULL;
+        rss_reta_size = 0;
+        return 0; /* Not fatal - continue without RETA */
     }
 
     return 0;
@@ -433,6 +484,9 @@ static int reta_setup() {
 error_exit:
     rte_free(rss_core_buckets);
     rte_free(rss_reta);
+    rss_reta = NULL;
+    rss_core_buckets = NULL;
+    rss_reta_size = 0;
     return -1;
 }
 

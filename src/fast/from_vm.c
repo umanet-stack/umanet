@@ -269,10 +269,9 @@ static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vd
         }
 
         eth_hdr = rte_pktmbuf_mtod(external_pkts[i], struct rte_ether_hdr *);
-        if (unlikely(eth_hdr->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_VLAN))) {
-            external_pkts[i]->ol_flags |= RTE_MBUF_F_TX_VLAN; // offload flag indicating NIC should insert VLAN tag
-            external_pkts[i]->vlan_tci = vlan_tag;            // Tag Control Information
-        }
+        // Don't set VLAN offload for external packets going to physical NIC
+        // VLAN tags are only for internal VM-to-VM communication
+        // External packets should be sent without VLAN tags so other nodes can receive them
 
         if (external_pkts[i]->ol_flags & RTE_MBUF_F_TX_TCP_SEG) // if TCP segmentation offload is enabled
             virtio_tx_offload(external_pkts[i]);                // prepare checksum offloads

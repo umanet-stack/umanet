@@ -21,6 +21,8 @@ The switch worker loop continuously:
 - for vm setup, see `setup/setup_vm.md`
 ```bash
 ./setup/init-dpdk.sh
+# Decompress the DDP package, required for Intel ice driver in not safe mode (to create flow rules)
+sudo zstd -d /lib/firmware/intel/ice/ddp/ice-1.3.36.0.pkg.zst -o /lib/firmware/intel/ice/ddp/ice.pkg
 
 # reserve hugepages
 # 24576 × 2 MB = 48 GB mem for hugepages
@@ -55,11 +57,17 @@ sudo rm -f /dev/hugepages/tas_memory
 
 ## Running
 ```bash
-# c6525-25g nodes
+# c6525-25g nodes (Mellanox NICs don't need to be bound to vfio-pci)
 # debug
-sudo ./build_and_run.sh 0000:41:00.0 debug 2 32
+sudo ./build_and_run.sh enp65s0f0np0 0000:41:00.0 debug 2 32
 # test
-sudo ./build_and_run.sh 0000:41:00.0 test 2 32
+sudo ./build_and_run.sh enp65s0f0np0 0000:41:00.0 test 2 32
+
+# c6620 nodes
+# debug
+sudo ./build_and_run.sh enp23s0f0np0 0000:17:00.0 debug 2 32
+# test
+sudo ./build_and_run.sh enp23s0f0np0 0000:17:00.0 test 2 32
 
 # kill process
 sudo ps aux | grep vhost-switch | grep -v grep | awk '{print $2}' | xargs kill -9
@@ -84,6 +92,11 @@ sudo ip neigh replace 10.10.1.1 lladdr 02:00:00:00:00:01 dev ens4 nud permanent
 sudo ip neigh del 10.10.1.1 dev ens4
 sudo ip neigh add 10.10.1.1 lladdr 02:00:00:00:00:01 dev ens4 nud permanent
 
+# On node1:
+sudo dpdk-testpmd -l 0-1 -n 4 -a 0000:17:00.0 -- --forward-mode=txonly --tx-first
+   
+# On node2 (in another terminal):
+sudo tcpdump -i enp23s0f0np0 -n
 ```
 - vm will now send TCP/UDP pkts asking for 8.8.8.8
     - pinging pkts will also show

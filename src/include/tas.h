@@ -50,6 +50,7 @@ void shm_set_ready(void);
 
 int network_init(unsigned num_threads);
 void network_cleanup(void);
+void network_dump_stats(void);
 
 /* used by trace and shm */
 void *util_create_shmsiszed(const char *name, size_t size, void *addr);

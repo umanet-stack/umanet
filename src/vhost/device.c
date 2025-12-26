@@ -11,7 +11,6 @@
 #include <unistd.h>
 
 #include "log.h"
-#include "src/network/network.h"
 #include "src/vhost/vhost.h"
 
 // Global hash table for MAC address to vhost_dev lookup
@@ -420,10 +419,6 @@ int register_vhost_drivers() {
     if (registered_count < config.nb_sockets) {
         LOG_WARN("WARNING: Only registered %d out of %d vhost drivers\n", registered_count, config.nb_sockets);
     }
-
-    // testing only - only need to enable promiscuous mode once
-    rte_eth_promiscuous_enable(net_port_id);
-    LOG_INFO("Promiscuous mode enabled for port %d\n", net_port_id);
 
     LOG_INFO("Vhost drivers started, waiting for connections...\n");
 

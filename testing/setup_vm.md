@@ -14,6 +14,8 @@ sudo cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm-img.raw
 ./setup/cloudinit/gen-cloud-init.sh
 
 # setup node (allow internet NAT)
+# c6620
+./setup/setup_node.sh 0 enp23s0f0np0
 # c6525-25g
 ./setup/setup_node.sh 0 enp65s0f0np0
 # xl170
@@ -23,7 +25,7 @@ sudo cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm-img.raw
 echo off | sudo tee /sys/devices/system/cpu/smt/control
 
 # first run: let it install packages + setup services (use tap to access internet)
-./setup/vm/setup_br_tap.sh 0
+./setup/vm/setup_br_tap.sh 0 enp23s0f0np0
 ./setup/vm/spawn_vms.sh tap 32 /tmp samenode
 
 # kill all vms when done
