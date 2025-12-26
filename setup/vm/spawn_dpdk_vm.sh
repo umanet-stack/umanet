@@ -26,8 +26,8 @@ IPERF_COMMAND_B64=$(echo -n "$COMMAND" | base64 -w 0)
 # dpdk vms starts from core 5 (tap starts from core 4) since 1 core for dpdk master
 # prefault=on when doing zero-copy 
 sudo systemd-run --scope \
-    -p AllowedCPUs=5-15 \
-    -p CPUQuota=80% \
+    -p AllowedCPUs=12-27 \
+    -p CPUQuota=100% \
 cloud-hypervisor \
     --cpus boot=1 \
     --memory size=512M,hugepages=on,shared=on,prefault=on \

@@ -24,8 +24,8 @@ logfile="$LOG_DIR/vm$i.log"
 IPERF_COMMAND_B64=$(echo -n "$COMMAND" | base64 -w 0)
 
 sudo systemd-run --scope \
-    -p AllowedCPUs=4-15 \
-    -p CPUQuota=80% \
+    -p AllowedCPUs=12-27 \
+    -p CPUQuota=100% \
 cloud-hypervisor \
     --cpus boot=1 \
     --memory size=512M \
