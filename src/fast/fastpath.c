@@ -69,6 +69,7 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     ctx->stat_cyc_eth_poll = 0;
 
     ctx->stat_cyc_vhost_fp = 0;
+    ctx->stat_cou_vhost_poll_max = 0;
     ctx->stat_cyc_vhost_poll = 0;
     ctx->stat_cou_vhost_external = 0;
     ctx->stat_cou_vhost_arp = 0;
@@ -239,6 +240,7 @@ void dataplane_dump_stats(void) {
         uint64_t call_vhost_rx = read_stat(&ctx->stat_call_vhost_rx);
         uint64_t call_vhost_tx = read_stat(&ctx->stat_call_vhost_tx);
         uint64_t pkt_vhost_tx_fail = read_stat(&ctx->stat_pkt_vhost_tx_fail);
+        uint64_t cou_vhost_poll_max = read_stat(&ctx->stat_cou_vhost_poll_max);
         fprintf(stderr, "\npkt_eth_rx: \t%" PRIu64 " (avg %.2f pkt/call).\n", pkt_eth_rx,
                 (double)pkt_eth_rx / call_eth_rx);
         fprintf(stderr, "pkt_eth_tx: \t%" PRIu64 " (avg %.2f pkt/call).\n", pkt_eth_tx,
@@ -246,6 +248,8 @@ void dataplane_dump_stats(void) {
         fprintf(stderr, "pkt_eth_tx_fail: \t%" PRIu64 "\n", pkt_eth_tx_fail);
         fprintf(stderr, "pkt_vhost_rx: \t%" PRIu64 " (avg %.2f pkt/call).\n", pkt_vhost_rx,
                 (double)pkt_vhost_rx / call_vhost_rx);
+        fprintf(stderr, "cou_vhost_poll_max: \t%" PRIu64 " (%.2f%% of call_vhost_rx)\n", cou_vhost_poll_max,
+                (double)cou_vhost_poll_max / call_vhost_rx * 100);
         fprintf(stderr, "pkt_vhost_tx: \t%" PRIu64 " (avg %.2f pkt/call).\n", pkt_vhost_tx,
                 (double)pkt_vhost_tx / call_vhost_tx);
         fprintf(stderr, "pkt_vhost_tx_fail: \t%" PRIu64 "\n", pkt_vhost_tx_fail);

@@ -187,6 +187,7 @@ struct dataplane_context {
     uint64_t stat_cyc_eth_poll;
 
     uint64_t stat_cyc_vhost_fp;
+    uint64_t stat_cou_vhost_poll_max;
     uint64_t stat_cyc_vhost_poll;
     uint64_t stat_cou_vhost_external;
     uint64_t stat_cou_vhost_arp;
