@@ -178,6 +178,7 @@ static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vd
         if (unlikely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP))) {
             LOG_INFO("(%d) TX: ARP packet received. Processing...\n", vdev->vid);
             if (process_arp(ctx, vdev, pkts[i], ARP_SRC_VM) == 0) {
+                STATS_ADD(ctx, cou_vhost_arp, 1);
                 continue;
             }
             LOG_INFO("(%d) TX: Broadcasting ARP to other VMs\n", vdev->vid);
@@ -214,6 +215,9 @@ static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vd
         // PRINT_PKTS(&pkts[i], 1, LOG_INFO);
         external_pkts[external_count++] = pkts[i];
     }
+    STATS_ADD(ctx, cou_vhost_external, external_count);
+    STATS_ADD(ctx, cou_vhost_broadcast, broadcast_count);
+    STATS_ADD(ctx, cou_vhost_local, local_count);
 
     // broadcast packets
     if (unlikely(broadcast_count > 0)) {
@@ -278,10 +282,6 @@ static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vd
 
         // Add packet to the TX queue's mbuf table
         tx_q->m_table[tx_q->len++] = external_pkts[i];
-        if (config.enable_stats) {
-            vdev->stats.tx_total++;
-            vdev->stats.tx++;
-        }
         if (unlikely(tx_q->len == MAX_PKT_BURST)) // if the queue is full
             flush_eth_tx(ctx, tx_q);              // drain the queue (send packets to NIC)
     }
@@ -326,16 +326,6 @@ static void vhost_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, str
             dst_vdev->failed_pkts_count = 0;
         }
         return;
-    }
-    STATS_ADD(ctx, pkt_vhost_tx, count);
-
-    // dest stats use atomic operations (multiple cores may write)
-    // source stats don't (single core writes)
-    if (config.enable_stats) {
-        rte_atomic64_inc(&dst_vdev->stats.rx_total_atomic);
-        rte_atomic64_add(&dst_vdev->stats.rx_atomic, ret);
-        src_vdev->stats.tx_total++;
-        src_vdev->stats.tx += ret;
     }
 }
 

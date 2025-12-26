@@ -70,12 +70,21 @@ int dataplane_context_init(struct dataplane_context *ctx) {
 
     ctx->stat_cyc_vhost_fp = 0;
     ctx->stat_cyc_vhost_poll = 0;
+    ctx->stat_cou_vhost_external = 0;
+    ctx->stat_cou_vhost_arp = 0;
+    ctx->stat_cou_vhost_local = 0;
+    ctx->stat_cou_vhost_broadcast = 0;
 
     ctx->stat_pkt_eth_rx = 0;
+    ctx->stat_call_eth_rx = 0;
     ctx->stat_pkt_eth_tx = 0;
+    ctx->stat_call_eth_tx = 0;
     ctx->stat_pkt_eth_tx_fail = 0;
+
     ctx->stat_pkt_vhost_rx = 0;
+    ctx->stat_call_vhost_rx = 0;
     ctx->stat_pkt_vhost_tx = 0;
+    ctx->stat_call_vhost_tx = 0;
     ctx->stat_pkt_vhost_tx_fail = 0;
 
     ctx->stat_tx_drain_calls = 0;
@@ -200,16 +209,25 @@ void dataplane_dump_stats(void) {
         fprintf(stderr, "whole loop: \t%" PRIu64 "\n", loop);
 
         uint64_t eth_fp = read_stat(&ctx->stat_cyc_eth_fp);
-        uint64_t eth_poll = read_stat(&ctx->stat_cyc_eth_poll);
+        // uint64_t eth_poll = read_stat(&ctx->stat_cyc_eth_poll);
         fprintf(stderr, "\nETH FP: \t%" PRIu64 " (%.2f%% of whole loop)\n", eth_fp, (double)eth_fp / loop * 100);
-        fprintf(stderr, "eth_poll: \t%" PRIu64 " (%.2f%%)\n", eth_poll, (double)eth_poll / eth_fp * 100);
-        fprintf(stderr, "TOTAL ETH: \t %.2f%%\n", (double)(eth_poll) / eth_fp * 100);
+        // fprintf(stderr, "eth_poll: \t%" PRIu64 " (%.2f%%)\n", eth_poll, (double)eth_poll / eth_fp * 100);
+        // fprintf(stderr, "TOTAL ETH: \t %.2f%%\n", (double)(eth_poll) / eth_fp * 100);
 
         uint64_t vhost_fp = read_stat(&ctx->stat_cyc_vhost_fp);
-        uint64_t vhost_poll = read_stat(&ctx->stat_cyc_vhost_poll);
+        // uint64_t vhost_poll = read_stat(&ctx->stat_cyc_vhost_poll);
         fprintf(stderr, "\nVHOST FP: \t%" PRIu64 " (%.2f%% of whole loop)\n", vhost_fp, (double)vhost_fp / loop * 100);
-        fprintf(stderr, "vhost_poll: \t%" PRIu64 " (%.2f%%)\n", vhost_poll, (double)vhost_poll / vhost_fp * 100);
-        fprintf(stderr, "TOTAL VHOST: \t %.2f%%\n", (double)(vhost_poll) / vhost_fp * 100);
+        // fprintf(stderr, "vhost_poll: \t%" PRIu64 " (%.2f%%)\n", vhost_poll, (double)vhost_poll / vhost_fp * 100);
+        // fprintf(stderr, "TOTAL VHOST: \t %.2f%%\n", (double)(vhost_poll) / vhost_fp * 100);
+
+        uint64_t vhost_external = read_stat(&ctx->stat_cou_vhost_external);
+        uint64_t vhost_arp = read_stat(&ctx->stat_cou_vhost_arp);
+        uint64_t vhost_local = read_stat(&ctx->stat_cou_vhost_local);
+        uint64_t vhost_broadcast = read_stat(&ctx->stat_cou_vhost_broadcast);
+        fprintf(stderr, "vhost_external: \t%" PRIu64 "\n", vhost_external);
+        fprintf(stderr, "vhost_arp: \t%" PRIu64 "\n", vhost_arp);
+        fprintf(stderr, "vhost_local: \t%" PRIu64 "\n", vhost_local);
+        fprintf(stderr, "vhost_broadcast: \t%" PRIu64 "\n", vhost_broadcast);
 
         uint64_t pkt_eth_rx = read_stat(&ctx->stat_pkt_eth_rx);
         uint64_t pkt_eth_tx = read_stat(&ctx->stat_pkt_eth_tx);
@@ -221,11 +239,15 @@ void dataplane_dump_stats(void) {
         uint64_t call_vhost_rx = read_stat(&ctx->stat_call_vhost_rx);
         uint64_t call_vhost_tx = read_stat(&ctx->stat_call_vhost_tx);
         uint64_t pkt_vhost_tx_fail = read_stat(&ctx->stat_pkt_vhost_tx_fail);
-        fprintf(stderr, "\npkt_eth_rx: \t%" PRIu64 " (avg %.2f pkt/call).\n", pkt_eth_rx, (double)pkt_eth_rx / call_eth_rx);
-        fprintf(stderr, "pkt_eth_tx: \t%" PRIu64 " (avg %.2f pkt/call).\n", pkt_eth_tx, (double)pkt_eth_tx / call_eth_tx);
+        fprintf(stderr, "\npkt_eth_rx: \t%" PRIu64 " (avg %.2f pkt/call).\n", pkt_eth_rx,
+                (double)pkt_eth_rx / call_eth_rx);
+        fprintf(stderr, "pkt_eth_tx: \t%" PRIu64 " (avg %.2f pkt/call).\n", pkt_eth_tx,
+                (double)pkt_eth_tx / call_eth_tx);
         fprintf(stderr, "pkt_eth_tx_fail: \t%" PRIu64 "\n", pkt_eth_tx_fail);
-        fprintf(stderr, "pkt_vhost_rx: \t%" PRIu64 " (avg %.2f pkt/call).\n", pkt_vhost_rx, (double)pkt_vhost_rx / call_vhost_rx);
-        fprintf(stderr, "pkt_vhost_tx: \t%" PRIu64 " (avg %.2f pkt/call).\n", pkt_vhost_tx, (double)pkt_vhost_tx / call_vhost_tx);
+        fprintf(stderr, "pkt_vhost_rx: \t%" PRIu64 " (avg %.2f pkt/call).\n", pkt_vhost_rx,
+                (double)pkt_vhost_rx / call_vhost_rx);
+        fprintf(stderr, "pkt_vhost_tx: \t%" PRIu64 " (avg %.2f pkt/call).\n", pkt_vhost_tx,
+                (double)pkt_vhost_tx / call_vhost_tx);
         fprintf(stderr, "pkt_vhost_tx_fail: \t%" PRIu64 "\n", pkt_vhost_tx_fail);
 
         fprintf(stderr, "\nBOTTLENECK DETECTION (lightweight counters):\n");

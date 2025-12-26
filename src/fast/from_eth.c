@@ -101,11 +101,6 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
                 sent += vhost_send(ctx, batches[vid].count - sent, vid, &batches[vid].pkts[sent]);
             }
         }
-
-        if (config.enable_stats) {
-            rte_atomic64_add(&batches[vid].vdev->stats.rx_total_atomic, batches[vid].count);
-            rte_atomic64_add(&batches[vid].vdev->stats.rx_atomic, sent);
-        }
     }
 }
 

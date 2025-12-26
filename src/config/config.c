@@ -23,7 +23,6 @@ void init_config(config_t *c) {
     c->client_mode = 0;
     c->dequeue_zero_copy = 0;
     c->mergeable = 0;
-    c->enable_stats = 0;
     c->enable_retry = 1;
     c->enable_tx_csum = 0;
     c->enable_tso = 0;
@@ -53,7 +52,6 @@ enum cfg_params {
     CP_RX_RETRY_DELAY,
     CP_RX_RETRY_NUM,
     CP_MERGEABLE,
-    CP_STATS,
     CP_SOCKET_DIR,
     CP_NB_SOCKETS,
     CP_TX_CSUM,
@@ -89,11 +87,6 @@ static struct option options[] = {
         "mergeable",
         required_argument,
         .val = CP_MERGEABLE,
-    },
-    {
-        "stats",
-        required_argument,
-        .val = CP_STATS,
     },
     {
         "socket-dir",
@@ -195,12 +188,6 @@ int parse_config(config_t *c, int argc, char **argv) {
         case CP_MERGEABLE:
             if (parse_int32(optarg, &c->mergeable) != 0) {
                 fprintf(stderr, "Invalid argument for mergeable [0|1]\n");
-                goto failed;
-            }
-            break;
-        case CP_STATS:
-            if (parse_int32(optarg, &c->enable_stats) != 0) {
-                fprintf(stderr, "Invalid argument for stats [0-N]\n");
                 goto failed;
             }
             break;

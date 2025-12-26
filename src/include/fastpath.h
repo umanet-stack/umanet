@@ -33,9 +33,9 @@
 
 #include "../../include/utils_rng.h"
 
-#define BATCH_SIZE 16
+// #define BATCH_SIZE 16
 #define BUFCACHE_SIZE 128
-#define TXBUF_SIZE (2 * BATCH_SIZE)
+// #define TXBUF_SIZE (2 * BATCH_SIZE)
 
 #define DATAPLANE_TSCS
 
@@ -162,8 +162,8 @@ struct dataplane_context {
 
     /********************************************************/
     /* send buffer */
-    struct network_buf_handle *tx_handles[TXBUF_SIZE];
-    uint16_t tx_num;
+    // struct network_buf_handle *tx_handles[TXBUF_SIZE];
+    // uint16_t tx_num;
 
     /********************************************************/
     /* polling queues */
@@ -188,12 +188,17 @@ struct dataplane_context {
 
     uint64_t stat_cyc_vhost_fp;
     uint64_t stat_cyc_vhost_poll;
+    uint64_t stat_cou_vhost_external;
+    uint64_t stat_cou_vhost_arp;
+    uint64_t stat_cou_vhost_local;
+    uint64_t stat_cou_vhost_broadcast;
 
     uint64_t stat_pkt_eth_rx;
     uint64_t stat_call_eth_rx;
     uint64_t stat_pkt_eth_tx;
     uint64_t stat_call_eth_tx;
     uint64_t stat_pkt_eth_tx_fail;
+
     uint64_t stat_pkt_vhost_rx;
     uint64_t stat_call_vhost_rx;
     uint64_t stat_pkt_vhost_tx;

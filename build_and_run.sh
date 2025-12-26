@@ -114,4 +114,4 @@ sudo ./build/vhost-switch \
   --iova-mode=pa \
   --no-hpet \
   --no-telemetry \
-  -- --fp-cores-max $FP_CORES_MAX --ip-addr 192.168.100.1/24 --socket-dir /mnt/huge --nb-sockets $NUM_VMS --stats 0
+  -- --fp-cores-max $FP_CORES_MAX --ip-addr 192.168.100.1/24 --socket-dir /mnt/huge --nb-sockets $NUM_VMS
