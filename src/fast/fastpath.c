@@ -60,6 +60,11 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     ctx->vhost.dev_removal_flag = 0;
     ctx->vhost.poll_next_device = 0;
 
+    // Initialize active device tracking
+    memset(ctx->vhost.active_devices, 0, sizeof(ctx->vhost.active_devices));
+    ctx->vhost.active_count = 0;
+    ctx->vhost.inactive_check_counter = 0;
+
     memset(&ctx->vhost.tx_q, 0, sizeof(ctx->vhost.tx_q));
     ctx->vhost.tx_q.len = 0;
 

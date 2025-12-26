@@ -238,8 +238,15 @@ static int new_device(int vid) {
         return -1;
     }
 
-    ctx->vhost.vdev_list[ctx->vhost.device_num] = vdev;
+    uint16_t dev_idx = ctx->vhost.device_num;
+    ctx->vhost.vdev_list[dev_idx] = vdev;
     ctx->vhost.device_num++;
+
+    // Add new device to active list so it gets polled immediately
+    // This ensures new devices are checked right away
+    if (ctx->vhost.active_count < MAX_VHOST_DEVICES_PER_CORE) {
+        ctx->vhost.active_devices[ctx->vhost.active_count++] = dev_idx;
+    }
 
     /* Disable notifications. */
     // Normally, guest would send interrupt when it adds packets to TX queue or consumes packets from RX queue
