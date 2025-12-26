@@ -190,11 +190,23 @@ struct dataplane_context {
     uint64_t stat_cyc_vhost_poll;
 
     uint64_t stat_pkt_eth_rx;
+    uint64_t stat_call_eth_rx;
     uint64_t stat_pkt_eth_tx;
+    uint64_t stat_call_eth_tx;
     uint64_t stat_pkt_eth_tx_fail;
     uint64_t stat_pkt_vhost_rx;
+    uint64_t stat_call_vhost_rx;
     uint64_t stat_pkt_vhost_tx;
+    uint64_t stat_call_vhost_tx;
     uint64_t stat_pkt_vhost_tx_fail;
+
+    /* Lightweight bottleneck detection (no TSC overhead) */
+    uint64_t stat_tx_drain_calls;   // Times drain_vhost_tx() was called
+    uint64_t stat_tx_drain_timeout; // Times drain happened due to timeout
+    uint64_t stat_tx_drain_full;    // Times drain happened when queue was full
+    uint64_t stat_tx_q_max_depth;   // Maximum queue depth observed
+    uint64_t stat_eth_tx_partial;   // Times network_send() returned < requested
+    uint64_t stat_loop_iterations;  // Total loop iterations
 };
 
 extern struct dataplane_context **ctxs;

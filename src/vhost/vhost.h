@@ -53,6 +53,7 @@ static inline unsigned vhost_poll(struct dataplane_context *ctx, unsigned num, u
         return 0;
 
     STATS_ADD(ctx, pkt_vhost_rx, num);
+    STATS_ADD(ctx, call_vhost_rx, 1);
     LOG_VM_IN("[%d](%d) Received %d packets from VM\n", ctx->id, vid, num);
     PRINT_PKTS(pkts, num, LOG_VM_IN);
 
@@ -65,6 +66,7 @@ static inline unsigned vhost_send(struct dataplane_context *ctx, unsigned num, u
         return 0;
 
     STATS_ADD(ctx, pkt_vhost_tx, num);
+    STATS_ADD(ctx, call_vhost_tx, 1);
     LOG_VM_OUT("[%d](%d) Sent %d packets to VM\n", ctx->id, vid, num);
     PRINT_PKTS(pkts, num, LOG_VM_OUT);
 

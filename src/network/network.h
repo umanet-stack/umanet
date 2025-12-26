@@ -54,6 +54,7 @@ static inline int network_poll(struct dataplane_context *ctx, unsigned num, stru
         return 0;
 
     STATS_ADD(ctx, pkt_eth_rx, num);
+    STATS_ADD(ctx, call_eth_rx, 1);
     LOG_ETH_IN("[%d] Received %d packets from physical NIC\n", ctx->id, num);
     PRINT_PKTS(pkts, num, LOG_ETH_IN);
 
@@ -70,9 +71,11 @@ static inline int network_send(struct dataplane_context *ctx, unsigned num, stru
 
     if (queued < num) {
         LOG_WARN("[%d] TX queue partial: %u/%u packets queued\n", ctx->id, queued, num);
+        STATS_ADD(ctx, eth_tx_partial, 1); // Track partial sends
     }
 
     STATS_ADD(ctx, pkt_eth_tx, queued);
+    STATS_ADD(ctx, call_eth_tx, 1);
     LOG_ETH_OUT("[%d] Sent %d packets to physical NIC\n", ctx->id, queued);
     PRINT_PKTS(pkts, queued, LOG_ETH_OUT);
 
