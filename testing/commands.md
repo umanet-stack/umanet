@@ -7,7 +7,7 @@ sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | t
 For `samenode`, if you run 8 vms = 4 servers + 4 clients = `report-4vm`
 ```bash
 # need to rerun br/tap setup after dpdk test
-./setup/vm/setup_br_tap.sh 0 enp23s0f0np0
+./setup/vm/setup_br_tap.sh 0 enp23s0f0np0 32
 ./setup/vm/spawn_vms.sh tap 32 /tmp samenode
 python testing/process_results.py tap samenode
 
