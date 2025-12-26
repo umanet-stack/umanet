@@ -16,6 +16,7 @@ rm -f "$SCRIPT_DIR/netplans/network-vm"*
 mkdir -p "$SCRIPT_DIR/netplans"
 for ((i=0; i<NUM_VMS; i++)); do
   MAC_ADDRESS="12:34:56:78:90:$(printf "%02X" $i)"
+  MAC_ADDRESS_2="12:34:56:78:91:$(printf "%02X" $i)"
   cat > "$SCRIPT_DIR/netplans/network-vm$i" <<EOF
 version: 2
 ethernets:
@@ -28,6 +29,18 @@ ethernets:
     routes:
       - to: default
         via: 192.168.100.1
+    nameservers:
+      addresses: [8.8.8.8, 8.8.4.4]
+    optional: true
+  
+  ens5:
+    match:
+      macaddress: $MAC_ADDRESS_2
+    dhcp4: no
+    addresses: [10.10.1.$((i+2))/24]
+    routes:
+      - to: default
+        via: 10.10.1.1
     nameservers:
       addresses: [8.8.8.8, 8.8.4.4]
     optional: true
