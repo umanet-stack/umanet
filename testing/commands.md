@@ -15,9 +15,11 @@ python testing/process_results.py tap vm-vm-internal
 ## multinode
 ```bash
 # node 1
-./setup/vm/spawn_vms.sh tap 32 /tmp vm-server
+./setup/vm/setup_br_tap.sh 1 enp23s0f0np0 32
+./setup/vm/spawn_vms.sh 1 tap 32 /tmp vm-server
 # node 0
-./setup/vm/spawn_vms.sh tap 32 /tmp vm-client
+./setup/vm/setup_br_tap.sh 0 enp23s0f0np0 32
+./setup/vm/spawn_vms.sh 0 tap 32 /tmp vm-client
 python testing/process_results.py tap vm-client
 ```
 
@@ -27,17 +29,17 @@ python testing/process_results.py tap vm-client
 # run TAP once before DPDK to make it download iperf
 # no. of vhost must match no. of VMs!
 sudo ./build_and_run.sh 0 enp23s0f0np0 0000:17:00.0 test 5 32
-./setup/vm/spawn_vms.sh dpdk 32 /tmp vm-vm-internal
+./setup/vm/spawn_vms.sh 0 dpdk 32 /tmp vm-vm-internal
 python testing/process_results.py dpdk vm-vm-internal
 ```
 ## multinode
 ```bash
 # node 1
-sudo ./build_and_run.sh 0 enp23s0f0np0 0000:17:00.0 test 5 32
-./setup/vm/spawn_vms.sh dpdk 32 /tmp vm-server
+sudo ./build_and_run.sh 1 enp23s0f0np0 0000:17:00.0 test 5 32
+./setup/vm/spawn_vms.sh 1 dpdk 32 /tmp vm-server
 # node 0
 sudo ./build_and_run.sh 0 enp23s0f0np0 0000:17:00.0 test 5 32
-./setup/vm/spawn_vms.sh dpdk 32 /tmp vm-client
+./setup/vm/spawn_vms.sh 0 dpdk 32 /tmp vm-client
 python testing/process_results.py dpdk vm-client
 ```
 

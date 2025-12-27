@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
 set -ex
 
-if [ "$#" -ne 1 ]; then
-  echo "Usage: $0 <num_vms>"
+if [ "$#" -ne 2 ]; then
+  echo "Usage: $0 <node_id> <num_vms>"
+  echo "  node_id: 0 or 1"
   echo "  num_vms: number of VMs"
-  echo "Example: $0 64"
+  echo "Example: $0 0 64"
   exit 1
 fi
 
-NUM_VMS=$1
+NODE_ID=$1
+NUM_VMS=$2
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 rm -f "$SCRIPT_DIR/netplans/network-vm"*
 mkdir -p "$SCRIPT_DIR/netplans"
 for ((i=0; i<NUM_VMS; i++)); do
-  MAC_ADDRESS="12:34:56:78:90:$(printf "%02X" $i)"
-  MAC_ADDRESS_2="12:34:56:78:91:$(printf "%02X" $i)"
+  MAC_ADDRESS="${NODE_ID}2:34:56:78:90:$(printf "%02X" $i)"
+  MAC_ADDRESS_2="${NODE_ID}2:34:56:78:91:$(printf "%02X" $i)"
   cat > "$SCRIPT_DIR/netplans/network-vm$i" <<EOF
 version: 2
 ethernets:
@@ -25,10 +27,10 @@ ethernets:
     match:
       macaddress: $MAC_ADDRESS
     dhcp4: no
-    addresses: [192.168.100.$((i+2))/24]
+    addresses: [192.168.10${NODE_ID}.$((i+2))/24]
     routes:
       - to: default
-        via: 192.168.100.1
+        via: 192.168.10${NODE_ID}.1
     nameservers:
       addresses: [8.8.8.8, 8.8.4.4]
     optional: true
@@ -37,10 +39,10 @@ ethernets:
     match:
       macaddress: $MAC_ADDRESS_2
     dhcp4: no
-    addresses: [10.10.1.$((i+2))/24]
+    addresses: [10.10.$((NODE_ID+1)).$((i+2))/24]
     routes:
       - to: default
-        via: 10.10.1.1
+        via: 10.10.$((NODE_ID+1)).1
     nameservers:
       addresses: [8.8.8.8, 8.8.4.4]
     optional: true

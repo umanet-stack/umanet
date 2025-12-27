@@ -11,22 +11,29 @@ sudo cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm-img.raw
 
 # Cloud-init will NOT run again on these rw disks, it only runs on first boot.
 # if you modify anything in cloud-init, you need to regen the rw disks and run cloud-init on it again.
-./setup/cloudinit/gen-cloud-init.sh 32
+# node 0
+./setup/cloudinit/gen-cloud-init.sh 0 32
+# node 1
+./setup/cloudinit/gen-cloud-init.sh 1 32
 
 # setup node (allow internet NAT)
 # c6620
+# node 0
 ./setup/setup_node.sh 0 enp23s0f0np0
+# node 1
+./setup/setup_node.sh 1 enp23s0f0np0
+
 # c6525-25g
-./setup/setup_node.sh 0 enp65s0f0np0
+# ./setup/setup_node.sh 0 enp65s0f0np0
 # xl170
-./setup/setup_node.sh 0 ens1f1np1
+# ./setup/setup_node.sh 0 ens1f1np1
 
 # disable SMT (2 threads/core => 1 thread/core)
 echo off | sudo tee /sys/devices/system/cpu/smt/control
 
 # first run: let it install packages + setup services (use tap to access internet)
 ./setup/vm/setup_br_tap.sh 0 enp23s0f0np0 32
-./setup/vm/spawn_vms.sh tap 32 /tmp vm-vm-internal
+./setup/vm/spawn_vms.sh 0 tap 32 /tmp vm-vm-internal
 
 # kill all vms when done
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
