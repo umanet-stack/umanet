@@ -56,19 +56,12 @@ sudo rm -f /dev/hugepages/tas_memory
 ```
 
 ## Running
+- copy `.env.template` to `.env` and fill in the values
 ```bash
-# copy .env.template to .env and fill in the values
-source env.sh
 # debug
-sudo ./build_and_run.sh 0 enp65s0f0np0 0000:41:00.0 debug 2 32
+sudo ./build_and_run.sh debug 5 32
 # test
-sudo ./build_and_run.sh 0 enp65s0f0np0 0000:41:00.0 test 2 32
-
-# c6620 nodes
-# debug
-sudo ./build_and_run.sh 0 enp23s0f0np0 0000:17:00.0 debug 2 32
-# test
-sudo ./build_and_run.sh 0 enp23s0f0np0 0000:17:00.0 test 2 32
+sudo ./build_and_run.sh test 5 32
 
 # kill process
 sudo ps aux | grep vhost-switch | grep -v grep | awk '{print $2}' | xargs kill -9

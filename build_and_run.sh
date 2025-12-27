@@ -1,22 +1,18 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -eu
+source env.sh
 
-if [ "$#" -ne 6 ]; then
-    echo "Usage: $0 <node_id> <nic> <pci-addr> <build-mode> <fp-cores-max> <num-vms>"
-    echo "  node_id: 0 or 1"
-    echo "  nic: enp65s0f0np0 or enp23s0f0np0 or ens1f1np1"
-    echo "  pci-addr: PCI address of the NIC"
+if [ "$#" -ne 3 ]; then
+    echo "Usage: $0 <build-mode> <fp-cores-max> <num-vms>"
     echo "  build-mode: debug or test"
     echo "  fp-cores-max: number of cores to use for the fast path"
     echo "  num-vms: number of VMs to use"
     exit 1
 fi
 
-NODE_ID="$1"
-NIC="$2"
-PCI_ADDR="$3"
-BUILD_MODE="$4"
-FP_CORES_MAX="$5"
-NUM_VMS="$6"
+BUILD_MODE="$1"
+FP_CORES_MAX="$2"
+NUM_VMS="$3"
 
 # The executable will be at `build/vhost-switch`.
 rm -rf build
@@ -28,8 +24,8 @@ fi
 
 ninja -C build
 
-# delete tap0, br0
-for ((i=0; i<NUM_VMS; i++)); do
+# delete all taps, br0
+for ((i=0; i<MAX_VM_COUNT; i++)); do
   sudo ip link delete tap$i 2>/dev/null || true
 done
 sudo ip link delete br0 2>/dev/null || true
@@ -50,7 +46,7 @@ done
 echo "✅ taps created"
 
 # Check if device is bound to vfio-pci (Intel NICs need this)
-DEVICE_INFO=$(dpdk-devbind.py --status 2>/dev/null | grep "$PCI_ADDR" || echo "")
+DEVICE_INFO=$(dpdk-devbind.py --status 2>/dev/null | grep "$NIC_PCI" || echo "")
 CURRENT_DRIVER=$(echo "$DEVICE_INFO" | grep -o "drv=[^ ]*" | cut -d= -f2 || echo "")
 DEVICE_NAME=$(echo "$DEVICE_INFO" | grep -o "'[^']*'" | head -1 | tr -d "'" || echo "")
 
@@ -92,7 +88,7 @@ elif [ "$CURRENT_DRIVER" = "ice" ] || [ "$CURRENT_DRIVER" = "i40e" ] || [ "$CURR
   echo "🔧 Intel NIC detected, binding to vfio-pci for DPDK..."
   sudo modprobe vfio-pci || true
   sudo ip link set $NIC down 2>/dev/null || true
-  if sudo dpdk-devbind.py -b vfio-pci $PCI_ADDR 2>/dev/null; then
+  if sudo dpdk-devbind.py -b vfio-pci $NIC_PCI 2>/dev/null; then
     USE_VFIO=true
     echo "✅ NIC bound to vfio-pci (kernel networking disabled for this NIC)"
   else
@@ -104,9 +100,9 @@ fi
 if [ "$USE_VFIO" = "false" ]; then
   sudo ip addr flush dev $NIC 2>/dev/null || true
   sudo ip link set $NIC nomaster 2>/dev/null || true
-  sudo ip addr add 192.168.100.1/24 dev $NIC 2>/dev/null || true
+  sudo ip addr add 192.168.10${NODE_ID}.1/24 dev $NIC 2>/dev/null || true
   sudo ip link set $NIC up 2>/dev/null || true
-  echo "✅ set $NIC IP to 192.168.100.1/24 and removed from br0"
+  echo "✅ set $NIC IP to 192.168.10${NODE_ID}.1/24 and removed from br0"
 fi
 
 # EAL (dpdk) options (before --): -l cores, -n memory channels
@@ -119,7 +115,7 @@ FIRST_CORE=0
 LAST_CORE=$((FIRST_CORE + FP_CORES_MAX))
 echo "✅ Running DPDK on cores $FIRST_CORE-$LAST_CORE, num_vms: $NUM_VMS"
 
-DPDK_DEV_ARG="-a $PCI_ADDR"
+DPDK_DEV_ARG="-a $NIC_PCI"
 
 sudo ./build/vhost-switch \
   -l $FIRST_CORE-$LAST_CORE -n 4 \
@@ -130,4 +126,4 @@ sudo ./build/vhost-switch \
   --iova-mode=pa \
   --no-hpet \
   --no-telemetry \
-  -- --fp-cores-max $FP_CORES_MAX --ip-addr 192.168.100.1/24 --socket-dir /mnt/huge --nb-sockets $NUM_VMS
+  -- --fp-cores-max $FP_CORES_MAX --ip-addr 192.168.10${NODE_ID}.1/24 --socket-dir /mnt/huge --nb-sockets $NUM_VMS
