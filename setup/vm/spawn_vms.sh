@@ -38,7 +38,7 @@ spawn_vm() {
 }
 
 if [ "$TEST_MODE" = "vm-vm-internal" ]; then
-    echo "Spawning VM-VM-INTERNAL VMs... (node 0 only)"
+    echo "Spawning VM-VM-INTERNAL VMs..."
     echo "Spawning EVEN VMs (servers)..."
     for ((i=0; i<NUM_VMS; i++)); do
         if (( i % 2 == 0 )); then
@@ -53,9 +53,9 @@ if [ "$TEST_MODE" = "vm-vm-internal" ]; then
     for ((i=0; i<NUM_VMS; i++)); do
         if (( i % 2 == 1 )); then
             if [ "$NETWORK" = "tap" ]; then
-                spawn_vm "$i" "client" "iperf3 -c 192.168.100.$((i+1)) -P 4 -t 30 -J"
+                spawn_vm "$i" "client" "iperf3 -c 192.168.10${NODE_ID}.$((i+1)) -P 4 -t 30 -J"
             else
-                spawn_vm "$i" "client" "iperf3 -c 10.10.1.$((i+1)) -P 4 -t 30 -J"
+                spawn_vm "$i" "client" "iperf3 -c 10.10.${NODE_ID+1}.$((i+1)) -P 4 -t 30 -J"
             fi
         fi
     done
