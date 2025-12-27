@@ -40,6 +40,24 @@ sudo ip addr add 192.168.100.99/24 dev enp23s0f0np0
 sudo ip link set enp23s0f0np0 up
 ```
 
+# OVS DPDK
+
+Note that OVS DPDK requires DPDK version 24.11.3 so probably incompatible with other test.
+
+```
+[ -f /tmp/noble-server-cloudimg-amd64.raw -a -f /tmp/vmlinux.bin ] || ./setup/img/download_img.sh
+./setup/ovs/install.sh
+./setup/ovs/setup.sh
+./setup/img/build_ovs_image.sh /tmp/noble-server-cloudimg-amd64.raw
+./setup/img/build_rw_disk.sh
+
+./setup/vm/spawn_vms.sh ovs_dpdk 32 /tmp samenode
+python testing/process_results.py ovs_dpdk samenode
+
+./setup/vm/spawn_vms.sh ovs_dpdk 32 /tmp multinode
+python testing/process_results.py ovs_dpdk multinode
+```
+
 ## manual
 ```bash
 # testing
