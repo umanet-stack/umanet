@@ -33,6 +33,7 @@ sudo ./build_and_run.sh test 5 32
 python testing/process_results.py dpdk vm-vm-internal
 ```
 ## multinode
+- vm user-data has ping service that will ping 3 times to make dpdk app learn IP of vm
 ```bash
 # node 1
 sudo ./build_and_run.sh test 5 32
