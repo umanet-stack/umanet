@@ -35,7 +35,11 @@ spawn_vm() {
             IPERF_COMMAND="iperf3 -s"
         else
             VM_ROLE="client"
-            IPERF_COMMAND="iperf3 -c 192.168.100.$((i+1)) -P 4 -t 30 -J"
+            if [ "$NETWORK" = "tap" ]; then
+                IPERF_COMMAND="iperf3 -c 192.168.100.$((i+1)) -P 4 -t 30 -J"
+            else
+                IPERF_COMMAND="iperf3 -c 10.10.1.$((i+1)) -P 4 -t 30 -J"
+            fi
         fi
     elif [ "$TEST_MODE" = "multinode" ]; then
         VM_ROLE="client"

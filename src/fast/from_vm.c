@@ -30,35 +30,178 @@ static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vd
 static void virtio_tx_offload(struct rte_mbuf *m);
 static int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count);
 
+// Helper functions for active device tracking
+static inline void mark_device_active(struct dataplane_context *ctx, uint16_t dev_idx) {
+    // Check if already in active list
+    for (uint16_t i = 0; i < ctx->vhost.active_count; i++) {
+        if (ctx->vhost.active_devices[i] == dev_idx) {
+            return; // Already active
+        }
+    }
+    // Add to active list if not full
+    if (ctx->vhost.active_count < MAX_VHOST_DEVICES_PER_CORE) {
+        ctx->vhost.active_devices[ctx->vhost.active_count++] = dev_idx;
+    }
+}
+
+static inline void mark_device_inactive(struct dataplane_context *ctx, uint16_t dev_idx) {
+    // Remove from active list
+    for (uint16_t i = 0; i < ctx->vhost.active_count; i++) {
+        if (ctx->vhost.active_devices[i] == dev_idx) {
+            // Shift remaining devices left
+            for (uint16_t j = i; j < ctx->vhost.active_count - 1; j++) {
+                ctx->vhost.active_devices[j] = ctx->vhost.active_devices[j + 1];
+            }
+            ctx->vhost.active_count--;
+            return;
+        }
+    }
+}
+
+static inline uint16_t poll_single_device(struct dataplane_context *ctx, struct vhost_dev *vdev, uint16_t dev_idx,
+                                          struct rte_mbuf **pkts) {
+    if (unlikely(vdev == NULL || vdev->remove)) {
+        return 0;
+    }
+
+    uint16_t count = vhost_poll(ctx, MAX_PKT_BURST, vdev->vid, pkts);
+    if (unlikely((int16_t)count < 0)) {
+        LOG_ERROR("Error: vhost_poll failed for vid=%d (device may be disconnected)\n", vdev->vid);
+        vdev->remove = 1;
+        return 0;
+    }
+
+    // Update active/inactive status based on poll result
+    if (count == 0) {
+        // No packets: mark inactive (will be checked periodically)
+        mark_device_inactive(ctx, dev_idx);
+    } else {
+        // Packets received: mark active (will be polled every iteration)
+        mark_device_active(ctx, dev_idx);
+    }
+
+    return count;
+}
+
 // receive packets from VM's TX queue, route them to the correct destination
+// Optimized: Poll active devices first, check inactive devices less frequently
 uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_device_num) {
     struct rte_mbuf *pkts[MAX_PKT_BURST];
     struct vhost_dev *vdev;
     uint16_t count;
     uint16_t packets_received = 0;
+    uint16_t dev_idx;
 
-    for (int i = 0; i < current_device_num; i++) {
-        uint16_t dev_idx = (ctx->vhost.poll_next_device + i) % MAX_VHOST_DEVICES_PER_CORE;
-        // Additional safety: ensure dev_idx is within current device count
-        if (dev_idx >= current_device_num) {
-            dev_idx = i; // Fallback to simple iteration
+    // Phase 1: Poll active devices (devices that recently had packets)
+    for (uint16_t i = 0; i < ctx->vhost.active_count; i++) {
+        dev_idx = ctx->vhost.active_devices[i];
+
+        // Bounds check
+        if (unlikely(dev_idx >= current_device_num)) {
+            continue;
         }
 
-        // Prefetch next device (if available)
-        if (likely(i + 1 < current_device_num)) {
-            uint16_t next_dev_idx = (ctx->vhost.poll_next_device + i + 1) % MAX_VHOST_DEVICES_PER_CORE;
-            if (next_dev_idx < current_device_num) {
+        vdev = ctx->vhost.vdev_list[dev_idx];
+        if (unlikely(vdev == NULL || vdev->remove)) {
+            // Remove from active list if device is gone
+            if (vdev != NULL && vdev->remove) {
+                mark_device_inactive(ctx, dev_idx);
+            }
+            continue;
+        }
+
+        // Prefetch next active device
+        if (likely(i + 1 < ctx->vhost.active_count)) {
+            uint16_t next_dev_idx = ctx->vhost.active_devices[i + 1];
+            if (next_dev_idx < current_device_num && ctx->vhost.vdev_list[next_dev_idx] != NULL) {
                 rte_prefetch0(ctx->vhost.vdev_list[next_dev_idx]);
             }
         }
 
-        vdev = ctx->vhost.vdev_list[dev_idx];
-        if (unlikely(vdev == NULL)) {
-            LOG_WARN("Warning: NULL vdev at index %d (device_num=%d)\n", dev_idx, current_device_num);
-            continue;
+        count = poll_single_device(ctx, vdev, dev_idx, pkts);
+        if (count == 0) {
+            continue; // Already handled in poll_single_device
         }
-        if (unlikely(vdev->remove)) {
-            // device is marked for removal
+
+        packets_received += count;
+
+        // Prefetch packet data before processing
+        for (int j = 0; j < count && j < 4; j++) {
+            rte_prefetch0(rte_pktmbuf_mtod(pkts[j], void *));
+        }
+
+        /* setup VMDq for the first packet */
+        if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) {
+            LOG_INFO("(%d) In MAC learning mode, processing first packet\n", vdev->vid);
+            if (vdev->remove || link_vmdq(vdev, pkts[0]) == -1) {
+                LOG_ERROR("(%d) MAC learning failed, dropping %d packets\n", vdev->vid, count);
+                free_pkts(pkts, count);
+                mark_device_inactive(ctx, dev_idx);
+                continue;
+            }
+            LOG_INFO("(%d) MAC learning successful, device now in RX mode\n", vdev->vid);
+        }
+
+        route_vhost_pkts(ctx, vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
+    }
+
+    // Phase 2: Periodically check inactive devices (every 2 iterations)
+    // This allows inactive devices to become active if they start producing packets
+    // Reduced from 8 to 2 to prevent queue overflow and TX timeouts
+    ctx->vhost.inactive_check_counter++;
+    if (unlikely(ctx->vhost.inactive_check_counter >= 5)) {
+        ctx->vhost.inactive_check_counter = 0;
+
+        // Check all devices not in active list
+        for (uint16_t i = 0; i < current_device_num; i++) {
+            // Skip if already in active list
+            int is_active = 0;
+            for (uint16_t j = 0; j < ctx->vhost.active_count; j++) {
+                if (ctx->vhost.active_devices[j] == i) {
+                    is_active = 1;
+                    break;
+                }
+            }
+            if (is_active) {
+                continue;
+            }
+
+            vdev = ctx->vhost.vdev_list[i];
+            if (unlikely(vdev == NULL || vdev->remove)) {
+                continue;
+            }
+
+            count = poll_single_device(ctx, vdev, i, pkts);
+            if (count == 0) {
+                continue;
+            }
+
+            packets_received += count;
+
+            // Prefetch packet data
+            for (int j = 0; j < count && j < 4; j++) {
+                rte_prefetch0(rte_pktmbuf_mtod(pkts[j], void *));
+            }
+
+            /* setup VMDq for the first packet */
+            if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) {
+                LOG_INFO("(%d) In MAC learning mode, processing first packet\n", vdev->vid);
+                if (vdev->remove || link_vmdq(vdev, pkts[0]) == -1) {
+                    LOG_ERROR("(%d) MAC learning failed, dropping %d packets\n", vdev->vid, count);
+                    free_pkts(pkts, count);
+                    continue;
+                }
+                LOG_INFO("(%d) MAC learning successful, device now in RX mode\n", vdev->vid);
+            }
+
+            route_vhost_pkts(ctx, vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
+        }
+    }
+
+    // Handle device removal (check all devices)
+    for (uint16_t i = 0; i < current_device_num; i++) {
+        vdev = ctx->vhost.vdev_list[i];
+        if (unlikely(vdev != NULL && vdev->remove && vdev->ready != DEVICE_SAFE_REMOVE)) {
             LOG_INFO("(%d) Removing device from dataplane (device_num=%d)\n", vdev->vid, ctx->vhost.device_num);
 
             struct mbuf_table *tx_q = &ctx->vhost.tx_q;
@@ -69,85 +212,34 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
 
             unlink_vmdq(ctx, vdev);
             vdev->ready = DEVICE_SAFE_REMOVE;
+            mark_device_inactive(ctx, i);
 
             // Remove from array by shifting remaining elements
-            for (int j = dev_idx; j < ctx->vhost.device_num - 1; j++) {
+            for (int j = i; j < ctx->vhost.device_num - 1; j++) {
                 ctx->vhost.vdev_list[j] = ctx->vhost.vdev_list[j + 1];
             }
             ctx->vhost.vdev_list[ctx->vhost.device_num - 1] = NULL;
             ctx->vhost.device_num--;
-
-            // Adjust poll_next_device if needed
-            if (ctx->vhost.poll_next_device >= ctx->vhost.device_num && ctx->vhost.device_num > 0) {
-                ctx->vhost.poll_next_device = 0;
-            }
-
-            LOG_INFO("Device removed, new device_num=%d\n", ctx->vhost.device_num);
-            // Update cached value to prevent accessing removed device
             current_device_num = ctx->vhost.device_num;
 
-            // If we removed the last device, break out of loop
+            // Update active_devices indices: decrement all indices > removed index
+            for (uint16_t k = 0; k < ctx->vhost.active_count; k++) {
+                if (ctx->vhost.active_devices[k] > i) {
+                    ctx->vhost.active_devices[k]--;
+                } else if (ctx->vhost.active_devices[k] == i) {
+                    // Remove this entry (shouldn't happen since we called mark_device_inactive, but be safe)
+                    for (uint16_t m = k; m < ctx->vhost.active_count - 1; m++) {
+                        ctx->vhost.active_devices[m] = ctx->vhost.active_devices[m + 1];
+                    }
+                    ctx->vhost.active_count--;
+                    k--; // Re-check this index
+                }
+            }
+
             if (current_device_num == 0) {
                 break;
             }
-
-            // Don't increment i since we just shifted elements down
-            i--;
-            continue;
         }
-
-        // STATS_TS(vhost_poll_start);
-        // TODOZ: Current: Round-robin through all devices, Optimization: Skip idle devices, batch processing
-        // Skip polling if skip counter is active
-        if (unlikely(vdev->poll_skip_count > 0)) {
-            vdev->poll_skip_count--;
-            continue; // Skip polling this iteration
-        }
-
-        count = vhost_poll(ctx, MAX_PKT_BURST, vdev->vid, pkts);
-        if (unlikely((int16_t)count < 0)) {
-            LOG_ERROR("Error: vhost_poll failed for vid=%d (device may be disconnected)\n", vdev->vid);
-            vdev->remove = 1; // Mark device for removal
-            return packets_received;
-        }
-
-        // If no packets received, set skip counter to 4 (will skip next 4 iterations)
-        if (unlikely(count == 0)) {
-            vdev->poll_skip_count = 4;
-        } else {
-            // Packets received, reset skip counter to poll immediately next time
-            vdev->poll_skip_count = 0;
-        }
-
-        packets_received += count;
-        // STATS_TS(vhost_poll_end);
-        // STATS_TSADD(ctx, cyc_vhost_poll, vhost_poll_end - vhost_poll_start);
-
-        // Prefetch packet data before processing
-        for (int j = 0; j < count && j < 4; j++) {
-            rte_prefetch0(rte_pktmbuf_mtod(pkts[j], void *));
-        }
-
-        /* setup VMDq for the first packet */
-        if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) { // device in MAC learning
-            LOG_INFO("(%d) In MAC learning mode, processing first packet\n", vdev->vid);
-            if (vdev->remove || link_vmdq(vdev, pkts[0]) == -1) { // failed to learn MAC from first packet
-                LOG_ERROR("(%d) MAC learning failed, dropping %d packets\n", vdev->vid, count);
-                free_pkts(pkts, count);
-                return packets_received;
-            }
-            LOG_INFO("(%d) MAC learning successful, device now in RX mode\n", vdev->vid);
-        }
-
-        route_vhost_pkts(ctx, vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
-    }
-
-    // Update round-robin pointer with bounds check
-    if (ctx->vhost.device_num > 0) {
-        ctx->vhost.poll_next_device = (ctx->vhost.poll_next_device + 1) % ctx->vhost.device_num;
-    } else {
-        // Reset to 0 when no devices remain
-        ctx->vhost.poll_next_device = 0;
     }
 
     return packets_received;
@@ -178,6 +270,7 @@ static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vd
         if (unlikely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP))) {
             LOG_INFO("(%d) TX: ARP packet received. Processing...\n", vdev->vid);
             if (process_arp(ctx, vdev, pkts[i], ARP_SRC_VM) == 0) {
+                STATS_ADD(ctx, cou_vhost_arp, 1);
                 continue;
             }
             LOG_INFO("(%d) TX: Broadcasting ARP to other VMs\n", vdev->vid);
@@ -214,6 +307,9 @@ static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vd
         // PRINT_PKTS(&pkts[i], 1, LOG_INFO);
         external_pkts[external_count++] = pkts[i];
     }
+    STATS_ADD(ctx, cou_vhost_external, external_count);
+    STATS_ADD(ctx, cou_vhost_broadcast, broadcast_count);
+    STATS_ADD(ctx, cou_vhost_local, local_count);
 
     // broadcast packets
     if (unlikely(broadcast_count > 0)) {
@@ -256,7 +352,6 @@ static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vd
     }
 
     // send to NIC
-    struct rte_ether_hdr *eth_hdr;
     // Prefetch first few external packets
     for (int j = 0; j < external_count && j < 4; j++) {
         rte_prefetch0(rte_pktmbuf_mtod(external_pkts[j], void *));
@@ -268,7 +363,6 @@ static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vd
             rte_prefetch0(rte_pktmbuf_mtod(external_pkts[i + 4], void *));
         }
 
-        eth_hdr = rte_pktmbuf_mtod(external_pkts[i], struct rte_ether_hdr *);
         // Don't set VLAN offload for external packets going to physical NIC
         // VLAN tags are only for internal VM-to-VM communication
         // External packets should be sent without VLAN tags so other nodes can receive them
@@ -278,10 +372,6 @@ static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vd
 
         // Add packet to the TX queue's mbuf table
         tx_q->m_table[tx_q->len++] = external_pkts[i];
-        if (config.enable_stats) {
-            vdev->stats.tx_total++;
-            vdev->stats.tx++;
-        }
         if (unlikely(tx_q->len == MAX_PKT_BURST)) // if the queue is full
             flush_eth_tx(ctx, tx_q);              // drain the queue (send packets to NIC)
     }
@@ -326,16 +416,6 @@ static void vhost_tx(struct vhost_dev *dst_vdev, struct vhost_dev *src_vdev, str
             dst_vdev->failed_pkts_count = 0;
         }
         return;
-    }
-    STATS_ADD(ctx, pkt_vhost_tx, count);
-
-    // dest stats use atomic operations (multiple cores may write)
-    // source stats don't (single core writes)
-    if (config.enable_stats) {
-        rte_atomic64_inc(&dst_vdev->stats.rx_total_atomic);
-        rte_atomic64_add(&dst_vdev->stats.rx_atomic, ret);
-        src_vdev->stats.tx_total++;
-        src_vdev->stats.tx += ret;
     }
 }
 

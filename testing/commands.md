@@ -4,9 +4,10 @@ sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | t
 ```
 
 # tap
+For `samenode`, if you run 8 vms = 4 servers + 4 clients = `report-4vm`
 ```bash
 # need to rerun br/tap setup after dpdk test
-./setup/vm/setup_br_tap.sh 0 enp23s0f0np0
+./setup/vm/setup_br_tap.sh 0 enp23s0f0np0 32
 ./setup/vm/spawn_vms.sh tap 32 /tmp samenode
 python testing/process_results.py tap samenode
 
@@ -19,11 +20,11 @@ python testing/process_results.py tap multinode
 ```bash
 # run TAP once before DPDK to make it download iperf
 # no. of vhost must match no. of VMs!
-sudo ./build_and_run.sh enp23s0f0np0 0000:17:00.0 test 3 32
+sudo ./build_and_run.sh 0 enp23s0f0np0 0000:17:00.0 test 5 32
 ./setup/vm/spawn_vms.sh dpdk 32 /tmp samenode
 python testing/process_results.py dpdk samenode
 
-sudo ./build_and_run.sh enp23s0f0np0 0000:17:00.0 test 3 32
+sudo ./build_and_run.sh 0 enp23s0f0np0 0000:17:00.0 test 5 32
 ./setup/vm/spawn_vms.sh dpdk 32 /tmp multinode
 python testing/process_results.py dpdk multinode
 

@@ -1,7 +1,8 @@
 #!/bin/bash
 
-if [ "$#" -ne 5 ]; then
-    echo "Usage: $0 <nic> <pci-addr> <build-mode> <fp-cores-max> <num-vms>"
+if [ "$#" -ne 6 ]; then
+    echo "Usage: $0 <node_id> <nic> <pci-addr> <build-mode> <fp-cores-max> <num-vms>"
+    echo "  node_id: 0 or 1"
     echo "  nic: enp65s0f0np0 or enp23s0f0np0 or ens1f1np1"
     echo "  pci-addr: PCI address of the NIC"
     echo "  build-mode: debug or test"
@@ -10,11 +11,12 @@ if [ "$#" -ne 5 ]; then
     exit 1
 fi
 
-NIC="$1"
-PCI_ADDR="$2"
-BUILD_MODE="$3"
-FP_CORES_MAX="$4"
-NUM_VMS="$5"
+NODE_ID="$1"
+NIC="$2"
+PCI_ADDR="$3"
+BUILD_MODE="$4"
+FP_CORES_MAX="$5"
+NUM_VMS="$6"
 
 # The executable will be at `build/vhost-switch`.
 rm -rf build
@@ -27,11 +29,25 @@ fi
 ninja -C build
 
 # delete tap0, br0
-for i in {0..31}; do
+for ((i=0; i<NUM_VMS; i++)); do
   sudo ip link delete tap$i 2>/dev/null || true
 done
 sudo ip link delete br0 2>/dev/null || true
 echo "✅ br0 and taps deleted"
+
+# create br0
+sudo ip link add name br0 type bridge || true
+sudo ip link set br0 up || true
+sudo ip addr add 10.10.${NODE_ID+1}.1/24 dev br0 || true
+echo "✅ br0 created"
+
+# create taps
+for ((i=0; i<NUM_VMS; i++)); do
+  sudo ip tuntap add dev tap$i mode tap user $USER || true
+  sudo ip link set tap$i master br0 || true
+  sudo ip link set tap$i up || true
+done
+echo "✅ taps created"
 
 # Check if device is bound to vfio-pci (Intel NICs need this)
 DEVICE_INFO=$(dpdk-devbind.py --status 2>/dev/null | grep "$PCI_ADDR" || echo "")
@@ -114,4 +130,4 @@ sudo ./build/vhost-switch \
   --iova-mode=pa \
   --no-hpet \
   --no-telemetry \
-  -- --fp-cores-max $FP_CORES_MAX --ip-addr 192.168.100.1/24 --socket-dir /mnt/huge --nb-sockets $NUM_VMS --stats 0
+  -- --fp-cores-max $FP_CORES_MAX --ip-addr 192.168.100.1/24 --socket-dir /mnt/huge --nb-sockets $NUM_VMS

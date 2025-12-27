@@ -33,9 +33,9 @@
 
 #include "../../include/utils_rng.h"
 
-#define BATCH_SIZE 16
+// #define BATCH_SIZE 16
 #define BUFCACHE_SIZE 128
-#define TXBUF_SIZE (2 * BATCH_SIZE)
+// #define TXBUF_SIZE (2 * BATCH_SIZE)
 
 #define DATAPLANE_TSCS
 
@@ -120,9 +120,6 @@ struct vhost_dev { // vhost device
     // Rate-limited logging for failed enqueue attempts
     uint64_t last_failed_log_ts; // TSC timestamp of last log
     uint64_t failed_pkts_count;  // Cumulative failed packets since last log
-
-    // Poll skip counter: skip polling for this many iterations when no packets received
-    uint8_t poll_skip_count;
 } __rte_cache_aligned;
 
 #define MAX_PKT_BURST 32              /* Max packets processed per burst (RX/TX) */
@@ -146,6 +143,11 @@ struct vhost_info {
     // Round-robin index for polling devices
     uint32_t poll_next_device;
 
+    // Active device tracking for optimized polling
+    uint16_t active_devices[MAX_VHOST_DEVICES_PER_CORE]; // Indices of active devices
+    uint16_t active_count;                               // Number of active devices
+    uint16_t inactive_check_counter;                     // Counter for checking inactive devices
+
     struct mbuf_table tx_q;
 };
 
@@ -162,8 +164,8 @@ struct dataplane_context {
 
     /********************************************************/
     /* send buffer */
-    struct network_buf_handle *tx_handles[TXBUF_SIZE];
-    uint16_t tx_num;
+    // struct network_buf_handle *tx_handles[TXBUF_SIZE];
+    // uint16_t tx_num;
 
     /********************************************************/
     /* polling queues */
@@ -187,14 +189,32 @@ struct dataplane_context {
     uint64_t stat_cyc_eth_poll;
 
     uint64_t stat_cyc_vhost_fp;
+    uint64_t stat_cou_vhost_poll_max;
     uint64_t stat_cyc_vhost_poll;
+    uint64_t stat_cou_vhost_external;
+    uint64_t stat_cou_vhost_arp;
+    uint64_t stat_cou_vhost_local;
+    uint64_t stat_cou_vhost_broadcast;
 
     uint64_t stat_pkt_eth_rx;
+    uint64_t stat_call_eth_rx;
     uint64_t stat_pkt_eth_tx;
+    uint64_t stat_call_eth_tx;
     uint64_t stat_pkt_eth_tx_fail;
+
     uint64_t stat_pkt_vhost_rx;
+    uint64_t stat_call_vhost_rx;
     uint64_t stat_pkt_vhost_tx;
+    uint64_t stat_call_vhost_tx;
     uint64_t stat_pkt_vhost_tx_fail;
+
+    /* Lightweight bottleneck detection (no TSC overhead) */
+    uint64_t stat_tx_drain_calls;   // Times drain_vhost_tx() was called
+    uint64_t stat_tx_drain_timeout; // Times drain happened due to timeout
+    uint64_t stat_tx_drain_full;    // Times drain happened when queue was full
+    uint64_t stat_tx_q_max_depth;   // Maximum queue depth observed
+    uint64_t stat_eth_tx_partial;   // Times network_send() returned < requested
+    uint64_t stat_loop_iterations;  // Total loop iterations
 };
 
 extern struct dataplane_context **ctxs;

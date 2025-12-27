@@ -26,8 +26,8 @@ IPERF_COMMAND_B64=$(echo -n "$COMMAND" | base64 -w 0)
 # dpdk vms starts from core 5 (tap starts from core 4) since 1 core for dpdk master
 # prefault=on when doing zero-copy 
 sudo systemd-run --scope \
-    -p AllowedCPUs=5-15 \
-    -p CPUQuota=80% \
+    -p AllowedCPUs=12-27 \
+    -p CPUQuota=100% \
 cloud-hypervisor \
     --cpus boot=1 \
     --memory size=512M,hugepages=on,shared=on,prefault=on \
@@ -35,7 +35,7 @@ cloud-hypervisor \
     --initramfs /tmp/initramfs-overlay.img \
     --cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket ROLE=$ROLE IPERF_COMMAND_B64=$IPERF_COMMAND_B64" \
     --disk path="$RES_DIR/vm-img.raw",readonly=on path="$RES_DIR/disks/state-$i.img" path="$RES_DIR/cloudinit/cloudinit-vm$i.img" \
-    --net "mac=12:34:56:78:90:$(printf '%02X' $i),vhost_user=true,socket=/mnt/huge/sock$i,num_queues=2,vhost_mode=client,queue_size=4096" \
+    --net tap=tap$i,mac=12:34:56:78:91:$(printf '%02X' $i) mac=12:34:56:78:90:$(printf '%02X' $i),vhost_user=true,socket=/mnt/huge/sock$i,num_queues=2,vhost_mode=client,queue_size=4096 \
     > "$logfile" 2>&1 &
 
 echo "  VM$i -> $COMMAND"
