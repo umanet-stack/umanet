@@ -4,38 +4,54 @@ sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | t
 ```
 
 # tap
-For `samenode`, if you run 8 vms = 4 servers + 4 clients = `report-4vm`
+## vm-vm-internal
+For `vm-vm-internal`, if you run 8 vms = 4 servers + 4 clients = `report-4vm`
 ```bash
 # need to rerun br/tap setup after dpdk test
 ./setup/vm/setup_br_tap.sh 0 enp23s0f0np0 32
-./setup/vm/spawn_vms.sh tap 32 /tmp samenode
-python testing/process_results.py tap samenode
-
-./setup/vm/spawn_vms.sh tap 32 /tmp multinode
-python testing/process_results.py tap multinode
-
+./setup/vm/spawn_vms.sh tap 32 /tmp vm-vm-internal
+python testing/process_results.py tap vm-vm-internal
+```
+## multinode
+```bash
+# node 1
+./setup/vm/spawn_vms.sh tap 32 /tmp vm-server
+# node 0
+./setup/vm/spawn_vms.sh tap 32 /tmp vm-client
+python testing/process_results.py tap vm-client
 ```
 
 # dpdk
+## vm-vm-internal
 ```bash
 # run TAP once before DPDK to make it download iperf
 # no. of vhost must match no. of VMs!
 sudo ./build_and_run.sh 0 enp23s0f0np0 0000:17:00.0 test 5 32
-./setup/vm/spawn_vms.sh dpdk 32 /tmp samenode
-python testing/process_results.py dpdk samenode
-
+./setup/vm/spawn_vms.sh dpdk 32 /tmp vm-vm-internal
+python testing/process_results.py dpdk vm-vm-internal
+```
+## multinode
+```bash
+# node 1
 sudo ./build_and_run.sh 0 enp23s0f0np0 0000:17:00.0 test 5 32
-./setup/vm/spawn_vms.sh dpdk 32 /tmp multinode
-python testing/process_results.py dpdk multinode
+./setup/vm/spawn_vms.sh dpdk 32 /tmp vm-server
+# node 0
+sudo ./build_and_run.sh 0 enp23s0f0np0 0000:17:00.0 test 5 32
+./setup/vm/spawn_vms.sh dpdk 32 /tmp vm-client
+python testing/process_results.py dpdk vm-client
+```
 
+```bash
 # kill all vms to end/reset experiment
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
 ```
 
 ## multinode setup
 ```bash
+sudo ip route add 192.168.101.0/24 via 192.168.101.1 dev enp23s0f0np0 onlink
 # make sure the set other node nic
 ./setup/setup_node.sh 1 enp23s0f0np0
+sudo ip route add 192.168.100.0/24 via 192.168.100.1 dev enp23s0f0np0 onlink
 # sudo ip addr flush dev enp23s0f0np0
 # sudo ip addr add 192.168.100.99/24 dev enp23s0f0np0
 # sudo ip link set enp23s0f0np0 up
