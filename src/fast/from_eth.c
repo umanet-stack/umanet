@@ -139,8 +139,6 @@ void flush_eth_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q) {
     // Gateway mode: Change MACs for proper routing
     // VMs send to gateway MAC 02:00:00:00:00:fe, we forward to physical gateway
     struct rte_ether_hdr *eth_hdr;
-    // MAC of enp23s0f0np0 of other node
-    struct rte_ether_addr gateway_mac = {{0x40, 0xa6, 0xb7, 0xc3, 0x51, 0xc8}};
 
     for (int i = 0; i < tx_q->len; i++) {
         eth_hdr = rte_pktmbuf_mtod(tx_q->m_table[i], struct rte_ether_hdr *);
@@ -150,8 +148,8 @@ void flush_eth_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q) {
         if (rte_is_broadcast_ether_addr(&eth_hdr->dst_addr) || rte_is_multicast_ether_addr(&eth_hdr->dst_addr)) {
             // Keep broadcast/multicast - don't change
         } else if (rte_is_same_ether_addr(&eth_hdr->dst_addr, &config.mac)) {
-            // VM sent to gateway MAC - forward to other node's MAC
-            rte_ether_addr_copy(&gateway_mac, &eth_hdr->dst_addr);
+            // VM sent to other node NIC's MAC
+            rte_ether_addr_copy(&config.other_node_mac, &eth_hdr->dst_addr);
         }
         // Otherwise, keep the original destination MAC (for direct communication)
     }
