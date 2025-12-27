@@ -49,6 +49,6 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
 void flush_eth_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q);
 void fastpath_from_eth(struct dataplane_context *ctx);
 
-struct rte_flow *install_mac_flow(uint16_t port_id, const struct rte_ether_addr *mac, uint16_t queue_id);
+struct rte_ether_addr *install_mac_flow(uint16_t port_id, uint32_t dst_ip, uint16_t queue_id);
 
 #endif /* ndef INTERNAL_H_ */

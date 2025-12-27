@@ -1,4 +1,7 @@
 #include "log.h"
+#include "src/include/fastpath.h"
+#include "src/include/tas.h"
+#include "src/vhost/vhost.h"
 #include <rte_byteorder.h>
 #include <rte_ether.h>
 #include <rte_flow.h>
@@ -6,7 +9,7 @@
 #include <rte_jhash.h>
 #include <string.h>
 
-// Global hash table for MAC address to vhost_dev lookup
+// Global hash table for IP address to flow lookup
 struct rte_hash *mac_flow_table = NULL;
 #define MAC_FLOW_TABLE_SIZE 256 // Support up to 256 devices
 
@@ -16,7 +19,7 @@ int init_mac_flow_table(void) {
     struct rte_hash_parameters hash_params = {
         .name = "mac_flow_table",
         .entries = MAC_FLOW_TABLE_SIZE,
-        .key_len = sizeof(struct rte_ether_addr),
+        .key_len = sizeof(uint32_t), // IP address as key
         .hash_func = rte_jhash,
         .hash_func_init_val = 0,
         .socket_id = rte_socket_id(),
@@ -27,11 +30,50 @@ int init_mac_flow_table(void) {
         return -1;
     }
 
-    LOG_INFO("MAC flow table initialized (size=%d)\n", MAC_FLOW_TABLE_SIZE);
+    LOG_INFO("MAC flow table initialized (size=%d, key=IP address)\n", MAC_FLOW_TABLE_SIZE);
     return 0;
 }
 
-struct rte_flow *install_mac_flow(uint16_t port_id, const struct rte_ether_addr *mac, uint16_t queue_id) {
+struct rte_ether_addr *install_mac_flow(uint16_t port_id, uint32_t dst_ip, uint16_t queue_id) {
+    // Find VM by IP to get its MAC address
+    // VM IPs are 192.168.101.x where x starts at 2 (VM 0), 3 (VM 1), etc.
+    uint32_t subnet_base = (dst_ip & 0xFFFFFF00); // Get /24 subnet
+    uint32_t vm_base = (config.ip & 0xFFFFFF00);  // Gateway IP subnet
+
+    // Only process if IP is in VM subnet
+    if (subnet_base != vm_base || (dst_ip & 0xFF) < 2) {
+        LOG_ERROR("IP %u.%u.%u.%u is not in VM subnet\n", (dst_ip >> 24) & 0xff, (dst_ip >> 16) & 0xff,
+                  (dst_ip >> 8) & 0xff, dst_ip & 0xff);
+        return NULL;
+    }
+
+    uint8_t vm_id = (dst_ip & 0xFF) - 2; // Calculate VM ID from IP
+
+    struct rte_ether_addr *mac = NULL;
+    extern struct dataplane_context **ctxs;
+    extern unsigned fp_cores_max;
+
+    // Search all cores for the VM with matching VID
+    for (int core = 0; core < fp_cores_max; core++) {
+        if (ctxs[core] == NULL)
+            continue;
+        for (int j = 0; j < ctxs[core]->vhost.device_num; j++) {
+            struct vhost_dev *vdev = ctxs[core]->vhost.vdev_list[j];
+            if (vdev != NULL && vdev->ready == DEVICE_RX && vdev->vid == vm_id) {
+                mac = &vdev->mac_address;
+                break;
+            }
+        }
+        if (mac != NULL)
+            break;
+    }
+
+    if (mac == NULL) {
+        LOG_ERROR("Failed to find VM for IP %u.%u.%u.%u (VM ID %d)\n", (dst_ip >> 24) & 0xff, (dst_ip >> 16) & 0xff,
+                  (dst_ip >> 8) & 0xff, dst_ip & 0xff, vm_id);
+        return NULL;
+    }
+
     struct rte_flow_attr attr;
     memset(&attr, 0, sizeof(attr));
     attr.ingress = 1;
@@ -74,19 +116,23 @@ struct rte_flow *install_mac_flow(uint16_t port_id, const struct rte_ether_addr 
         return NULL;
     }
 
-    LOG_INFO("Flow created for mac=%02x:%02x:%02x:%02x:%02x:%02x, queue=%u\n", mac->addr_bytes[0], mac->addr_bytes[1],
-             mac->addr_bytes[2], mac->addr_bytes[3], mac->addr_bytes[4], mac->addr_bytes[5], queue_id);
+    LOG_INFO("Flow created for IP %u.%u.%u.%u (VM %d) mac=%02x:%02x:%02x:%02x:%02x:%02x, queue=%u\n",
+             (dst_ip >> 24) & 0xff, (dst_ip >> 16) & 0xff, (dst_ip >> 8) & 0xff, dst_ip & 0xff, vm_id,
+             mac->addr_bytes[0], mac->addr_bytes[1], mac->addr_bytes[2], mac->addr_bytes[3], mac->addr_bytes[4],
+             mac->addr_bytes[5], queue_id);
 
-    int ret = rte_hash_add_key_data(mac_flow_table, mac, (void *)flow);
+    // Store flow using IP as key
+    int ret = rte_hash_add_key_data(mac_flow_table, &dst_ip, (void *)flow);
     if (ret != 0) {
-        LOG_ERROR("Failed to add flow to mac flow table\n");
+        LOG_ERROR("Failed to add flow to mac flow table for IP %u.%u.%u.%u\n", (dst_ip >> 24) & 0xff,
+                  (dst_ip >> 16) & 0xff, (dst_ip >> 8) & 0xff, dst_ip & 0xff);
         return NULL;
     }
 
-    LOG_INFO("Flow added to mac flow table for mac=%02x:%02x:%02x:%02x:%02x:%02x, queue=%u\n", mac->addr_bytes[0], mac->addr_bytes[1],
-             mac->addr_bytes[2], mac->addr_bytes[3], mac->addr_bytes[4], mac->addr_bytes[5], queue_id);
+    LOG_INFO("Flow added to mac flow table for IP %u.%u.%u.%u (VM %d), queue=%u\n", (dst_ip >> 24) & 0xff,
+             (dst_ip >> 16) & 0xff, (dst_ip >> 8) & 0xff, dst_ip & 0xff, vm_id, queue_id);
 
-    return flow;
+    return mac;
 }
 
 // struct rte_flow_filter filter = {
