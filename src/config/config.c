@@ -8,6 +8,7 @@
 #include <rte_ethdev.h>
 #include <rte_log.h>
 #include <rte_memory.h>
+#include <stdio.h>
 #include <unistd.h>
 
 #define BURST_RX_WAIT_US 15 /* Defines how long we wait between retries on RX */
@@ -17,6 +18,7 @@ static inline int parse_int8(const char *s, uint8_t *pi);
 static inline int parse_int32(const char *s, uint32_t *pi);
 static int parse_socket_dir(config_t *c, const char *q_arg);
 static inline int parse_cidr(char *s, uint32_t *ip, uint8_t *prefix);
+static int parse_ether_addr(const char *s, struct rte_ether_addr *addr);
 
 void init_config(config_t *c) {
     /* ===== vhost-user ===== */
@@ -34,6 +36,7 @@ void init_config(config_t *c) {
     c->ip = 0;
     c->ip_prefix = 0;
     c->mac = (struct rte_ether_addr){{0x02, 0x00, 0x00, 0x00, 0x00, 0xFE}};
+    c->other_node_mac = (struct rte_ether_addr){{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}};
     /* ===== TAS ===== */
     c->shm_len = 1024 * 1024 * 1024;
     c->fp_cores_max = 1;
@@ -60,6 +63,7 @@ enum cfg_params {
     CP_DEQUEUE_ZERO_COPY,
     CP_FP_CORES_MAX,
     CP_IP_ADDR,
+    CP_OTHER_NODE_MAC,
 };
 
 static struct option options[] = {
@@ -116,6 +120,7 @@ static struct option options[] = {
     {"client", no_argument, .val = CP_CLIENT},
     {"dequeue-zero-copy", no_argument, .val = CP_DEQUEUE_ZERO_COPY},
     {"ip-addr", required_argument, .val = CP_IP_ADDR},
+    {"other-node-mac", required_argument, .val = CP_OTHER_NODE_MAC},
 };
 
 /*
@@ -224,6 +229,13 @@ int parse_config(config_t *c, int argc, char **argv) {
             }
             break;
 
+        case CP_OTHER_NODE_MAC:
+            if (parse_ether_addr(optarg, &c->other_node_mac) != 0) {
+                fprintf(stderr, "Invalid argument for other-node-mac\n");
+                goto failed;
+            }
+            break;
+
         default:
             fprintf(stderr, "Invalid option\n");
             goto failed;
@@ -235,6 +247,36 @@ int parse_config(config_t *c, int argc, char **argv) {
 failed:
     us_vhost_usage(prgname);
     return -1;
+}
+
+static int parse_ether_addr(const char *s, struct rte_ether_addr *addr) {
+    unsigned int bytes[6];
+    int ret;
+
+    // Parse MAC address in format "XX:XX:XX:XX:XX:XX" or "XX-XX-XX-XX-XX-XX"
+    ret = sscanf(s, "%02x:%02x:%02x:%02x:%02x:%02x", &bytes[0], &bytes[1], &bytes[2], &bytes[3], &bytes[4], &bytes[5]);
+
+    if (ret != 6) {
+        // Try with dashes
+        ret = sscanf(s, "%02x-%02x-%02x-%02x-%02x-%02x", &bytes[0], &bytes[1], &bytes[2], &bytes[3], &bytes[4],
+                     &bytes[5]);
+    }
+
+    if (ret != 6) {
+        fprintf(stderr, "Invalid argument for other-node-mac: %s (expected format: XX:XX:XX:XX:XX:XX)\n", s);
+        return -1;
+    }
+
+    // Copy parsed bytes to rte_ether_addr structure
+    for (int i = 0; i < 6; i++) {
+        if (bytes[i] > 0xFF) {
+            fprintf(stderr, "Invalid byte value in MAC address: %s\n", s);
+            return -1;
+        }
+        addr->addr_bytes[i] = (uint8_t)bytes[i];
+    }
+
+    return 0;
 }
 
 static inline int parse_int32(const char *s, uint32_t *pi) {

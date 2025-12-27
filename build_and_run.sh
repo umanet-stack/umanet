@@ -126,4 +126,4 @@ sudo ./build/vhost-switch \
   --iova-mode=pa \
   --no-hpet \
   --no-telemetry \
-  -- --fp-cores-max $FP_CORES_MAX --ip-addr 192.168.10${NODE_ID}.1/24 --socket-dir /mnt/huge --nb-sockets $NUM_VMS
+  -- --fp-cores-max $FP_CORES_MAX --ip-addr 192.168.10${NODE_ID}.1/24 --socket-dir /mnt/huge --nb-sockets $NUM_VMS --other-node-mac $OTHER_NODE_MAC
