@@ -1,29 +1,10 @@
 #!/usr/bin/env bash
-set -e
+set -eu
+source env.sh
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Usage: ./setup-node.sh <node_id>
-# node_id: 0 or 1
-
-if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <node_id> <nic>"
-    echo "  node_id: 0 or 1"
-    echo "  nic: enp65s0f0np0 or enp23s0f0np0 or ens1f1np1"
-    exit 1
-fi
-
-NODE_ID=$1
-NIC=$2
-
-if [ "$NODE_ID" != "0" ] && [ "$NODE_ID" != "1" ]; then
-    echo "Error: node_id must be 0 or 1"
-    exit 1
-fi
-
-
 echo "Setting up node ${NODE_ID}"
-
-sudo rm -f /tmp/vhost-user*
 
 sudo mkdir -p /etc/qemu
 sudo bash -c 'echo "allow br0" > /etc/qemu/bridge.conf'
@@ -38,7 +19,7 @@ sudo netplan apply
 echo "✅netplan applied"
 
 # delete tap0, br0
-for i in {0..31}; do
+for i in $(seq 0 $((MAX_VM_COUNT-1))); do
   sudo ip link delete tap$i 2>/dev/null || true
 done
 sudo ip link delete br0 2>/dev/null || true

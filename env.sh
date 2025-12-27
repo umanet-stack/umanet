@@ -9,12 +9,21 @@ set +a
 : "${NIC_PCI:?missing NIC_PCI}"
 : "${TMPDIR:?missing TMPDIR}"
 
-VM_COUNT=32
-NETWORK=tap
-TEST_MODE=vm-vm-internal
+MAX_VM_COUNT=64
 
-echo "⭐️ env loaded:"
-echo "  NODE_ID=$NODE_ID"
-echo "  NIC=$NIC"
-echo "  NIC_PCI=$NIC_PCI"
-echo "  TMPDIR=$TMPDIR"
+if [ "$NODE_ID" != "0" ] && [ "$NODE_ID" != "1" ]; then
+    echo "Error: node_id must be 0 or 1"
+    exit 1
+fi
+
+if [ "$NIC" != "enp65s0f0np0" ] && [ "$NIC" != "enp23s0f0np0" ] && [ "$NIC" != "ens1f1np1" ]; then
+    echo "Error: nic must be enp65s0f0np0 or enp23s0f0np0 or ens1f1np1"
+    exit 1
+fi
+
+# echo "⭐️ env loaded:"
+# echo "  NODE_ID=$NODE_ID"
+# echo "  NIC=$NIC"
+# echo "  NIC_PCI=$NIC_PCI"
+# echo "  TMPDIR=$TMPDIR"
+# echo "  MAX_VM_COUNT=$MAX_VM_COUNT"

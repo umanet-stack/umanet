@@ -1,25 +1,21 @@
 #!/usr/bin/env bash
-set -e
+set -eu
+source env.sh
 
 
-if [ "$#" -ne 5 ]; then
-    echo "Usage: $0 <node_id> <network> <num_vms> <res_dir> <test_mode>"
-    echo "  node_id: 0 or 1"
+if [ "$#" -ne 3 ]; then
+    echo "Usage: $0 <network> <num_vms> <test_mode>"
     echo "  network: network type (tap, dpdk)"
     echo "  num_vms: number of VMs to spawn"
-    echo "  res_dir: directory containing resources"
     echo "  test_mode: test mode (vm-vm-internal, vm-client, vm-server)"
     exit 1
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-NODE_ID=$1
-NETWORK=$2
-NUM_VMS=$3
-# e.g. /tmp
-RES_DIR=$4
-TEST_MODE=$5
+NETWORK=$1
+NUM_VMS=$2
+TEST_MODE=$3
 LOG_DIR="$(dirname "$0")/../../testing/$NETWORK/logs"
 
 # Create log directory
@@ -32,9 +28,9 @@ spawn_vm() {
     local IPERF_COMMAND=$3
 
     if [ "$NETWORK" = "tap" ]; then
-        $SCRIPT_DIR/spawn_tap_vm.sh "$NODE_ID" "$i" "$RES_DIR" "$VM_ROLE" "$IPERF_COMMAND"
+        $SCRIPT_DIR/spawn_tap_vm.sh "$i" "$VM_ROLE" "$IPERF_COMMAND"
     elif [ "$NETWORK" = "dpdk" ]; then
-        $SCRIPT_DIR/spawn_dpdk_vm.sh "$NODE_ID" "$i" "$RES_DIR" "$VM_ROLE" "$IPERF_COMMAND"
+        $SCRIPT_DIR/spawn_dpdk_vm.sh "$i" "$VM_ROLE" "$IPERF_COMMAND"
     else
         echo "Invalid network type: $NETWORK"
         exit 1
@@ -57,9 +53,9 @@ if [ "$TEST_MODE" = "vm-vm-internal" ]; then
     for ((i=0; i<NUM_VMS; i++)); do
         if (( i % 2 == 1 )); then
             if [ "$NETWORK" = "tap" ]; then
-                spawn_vm "$NODE_ID" "$i" "client" "iperf3 -c 192.168.100.$((i+1)) -P 4 -t 30 -J"
+                spawn_vm "$i" "client" "iperf3 -c 192.168.100.$((i+1)) -P 4 -t 30 -J"
             else
-                spawn_vm "$NODE_ID" "$i" "client" "iperf3 -c 10.10.1.$((i+1)) -P 4 -t 30 -J"
+                spawn_vm "$i" "client" "iperf3 -c 10.10.1.$((i+1)) -P 4 -t 30 -J"
             fi
         fi
     done
@@ -67,13 +63,13 @@ if [ "$TEST_MODE" = "vm-vm-internal" ]; then
 elif [ "$TEST_MODE" = "vm-client" ]; then
     echo "Spawning CLIENT VMs... (node 0 only, must run vm-server on node 1 first)"
     for ((i=0; i<NUM_VMS; i++)); do
-        spawn_vm "$NODE_ID" "$i" "client" "iperf3 -c 192.168.101.$((i+1)) -P 4 -t 30 -J"
+        spawn_vm "$i" "client" "iperf3 -c 192.168.101.$((i+1)) -P 4 -t 30 -J"
     done
 
 elif [ "$TEST_MODE" = "vm-server" ]; then
     echo "Spawning SERVER VMs... (node 1 only)"
     for ((i=0; i<NUM_VMS; i++)); do
-        spawn_vm "$NODE_ID" "$i" "server" "iperf3 -s"
+        spawn_vm "$i" "server" "iperf3 -s"
     done
 fi
 # elif [ "$TEST_MODE" = "bm-client" ]; then

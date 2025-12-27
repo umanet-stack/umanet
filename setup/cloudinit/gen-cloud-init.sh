@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
-set -ex
+set -eu
+source env.sh
 
-if [ "$#" -ne 2 ]; then
-  echo "Usage: $0 <node_id> <num_vms>"
-  echo "  node_id: 0 or 1"
+if [ "$#" -ne 1 ]; then
+  echo "Usage: $0 <num_vms>"
   echo "  num_vms: number of VMs"
-  echo "Example: $0 0 64"
+  echo "Example: $0 64"
   exit 1
 fi
 
-NODE_ID=$1
-NUM_VMS=$2
+NUM_VMS=$1
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-$SCRIPT_DIR/gen-network-config.sh $NODE_ID $NUM_VMS
+$SCRIPT_DIR/gen-network-config.sh $NUM_VMS
 $SCRIPT_DIR/gen-user-data.sh
 
 # Function to create a cloud-init disk
