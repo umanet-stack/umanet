@@ -63,7 +63,7 @@ if [ "$TEST_MODE" = "vm-vm-internal" ]; then
 elif [ "$TEST_MODE" = "vm-client" ]; then
     echo "Spawning CLIENT VMs... (node 0 only, must run vm-server on node 1 first)"
     for ((i=0; i<NUM_VMS; i++)); do
-        spawn_vm "$i" "client" "iperf3 -c 192.168.101.$((i+1)) -P 4 -t 30 -J"
+        spawn_vm "$i" "client" "iperf3 -c 192.168.101.$((i+2)) -P 4 -t 30 -J"
     done
 
 elif [ "$TEST_MODE" = "vm-server" ]; then
