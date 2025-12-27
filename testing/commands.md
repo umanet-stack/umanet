@@ -48,17 +48,6 @@ python testing/process_results.py dpdk vm-client
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
 ```
 
-## multinode setup
-```bash
-sudo ip route add 192.168.101.0/24 via 192.168.101.1 dev enp23s0f0np0 onlink
-# make sure the set other node nic
-./setup/setup_node.sh 1 enp23s0f0np0
-sudo ip route add 192.168.100.0/24 via 192.168.100.1 dev enp23s0f0np0 onlink
-# sudo ip addr flush dev enp23s0f0np0
-# sudo ip addr add 192.168.100.99/24 dev enp23s0f0np0
-# sudo ip link set enp23s0f0np0 up
-```
-
 ## manual
 ```bash
 # testing
