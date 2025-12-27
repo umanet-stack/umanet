@@ -57,7 +57,8 @@ sudo rm -f /dev/hugepages/tas_memory
 
 ## Running
 ```bash
-# c6525-25g nodes (Mellanox NICs don't need to be bound to vfio-pci)
+# copy .env.template to .env and fill in the values
+source env.sh
 # debug
 sudo ./build_and_run.sh 0 enp65s0f0np0 0000:41:00.0 debug 2 32
 # test
