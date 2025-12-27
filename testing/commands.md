@@ -45,16 +45,19 @@ sudo ip link set enp23s0f0np0 up
 Note that OVS DPDK requires DPDK version 24.11.3 so probably incompatible with other test.
 
 ```
+command -v cloud-hypervisor || (curl -L https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v50.0/cloud-hypervisor-static -o ch && sudo install ch -m 0755 /usr/bin/cloud-hypervisor)
 [ -f /tmp/noble-server-cloudimg-amd64.raw -a -f /tmp/vmlinux.bin ] || ./setup/img/download_img.sh
-./setup/ovs/install.sh
-./setup/ovs/setup.sh
-./setup/img/build_ovs_image.sh /tmp/noble-server-cloudimg-amd64.raw
-./setup/img/build_rw_disk.sh
+sudo sysctl -w vm.nr_hugepages=24576
+sudo ./setup/ovs/install.sh
+sudo ./setup/ovs/setup.sh 32
+sudo ./setup/img/build_ovs_image.sh /tmp/noble-server-cloudimg-amd64.raw
+sudo ./setup/img/build_initramfs.sh
+sudo ./setup/img/build_rw_disk.sh 32 512
 
-./setup/vm/spawn_vms.sh ovs_dpdk 32 /tmp samenode
+sudo ./setup/vm/spawn_vms.sh ovs_dpdk 32 /tmp samenode
 python testing/process_results.py ovs_dpdk samenode
 
-./setup/vm/spawn_vms.sh ovs_dpdk 32 /tmp multinode
+sudo ./setup/vm/spawn_vms.sh ovs_dpdk 32 /tmp multinode
 python testing/process_results.py ovs_dpdk multinode
 ```
 
