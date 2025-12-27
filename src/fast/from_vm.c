@@ -302,17 +302,14 @@ static void route_vhost_pkts(struct dataplane_context *ctx, struct vhost_dev *vd
             continue;
         }
 
-        // Check if destination IP is gateway IP (for collector on host)
-        // if (likely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))) {
-        //     struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
-        //     uint32_t dst_ip = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
-        //     if (unlikely(dst_ip == config.ip)) {
-        //         // Packet destined for gateway IP - forward to TAP (host network stack via br0)
-        //         LOG_INFO("(%d) TX: Packet destined for gateway IP %u.%u.%u.%u -> do nothing\n", vdev->vid,
-        //                  (dst_ip >> 24) & 0xff, (dst_ip >> 16) & 0xff, (dst_ip >> 8) & 0xff, dst_ip & 0xff);
-        //         continue;
-        //     }
-        // }
+        if (likely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))) {
+            struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
+            uint32_t dst_ip = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
+            // drop packets destined for 8.8.8.8 or 8.8.4.4
+            if (unlikely(dst_ip == 0x08080808 || dst_ip == 0x08080404)) {
+                continue;
+            }
+        }
 
         // LOG_INFO("(%d) TX: external packet\n", vdev->vid);
         // PRINT_PKTS(&pkts[i], 1, LOG_INFO);
