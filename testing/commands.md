@@ -35,9 +35,10 @@ sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' 
 ## multinode setup
 ```bash
 # make sure the set other node nic
-sudo ip addr flush dev enp23s0f0np0
-sudo ip addr add 192.168.100.99/24 dev enp23s0f0np0
-sudo ip link set enp23s0f0np0 up
+./setup/setup_node.sh 1 enp23s0f0np0
+# sudo ip addr flush dev enp23s0f0np0
+# sudo ip addr add 192.168.100.99/24 dev enp23s0f0np0
+# sudo ip link set enp23s0f0np0 up
 ```
 
 ## manual
