@@ -2,6 +2,7 @@
  * Copyright(c) 2010-2017 Intel Corporation
  */
 
+#include <rte_branch_prediction.h>
 #include <rte_ethdev.h>
 #include <rte_ip.h>
 #include <rte_malloc.h>
@@ -192,6 +193,16 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
                     continue;
                 }
                 LOG_INFO("(%d) MAC learning successful, device now in RX mode\n", vdev->vid);
+            }
+            if (unlikely(vdev->vm_ip_address == 0)) {
+                struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[0], struct rte_ether_hdr *);
+                if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
+                    struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
+                    vdev->vm_ip_address = rte_be_to_cpu_32(ipv4_hdr->src_addr);
+                    LOG_INFO("(%d) IP address %u.%u.%u.%u registered\n", vdev->vid, (vdev->vm_ip_address >> 24) & 0xff,
+                             (vdev->vm_ip_address >> 16) & 0xff, (vdev->vm_ip_address >> 8) & 0xff,
+                             vdev->vm_ip_address & 0xff);
+                }
             }
 
             route_vhost_pkts(ctx, vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);

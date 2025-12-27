@@ -64,7 +64,17 @@ struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
     return NULL;
 }
 
-struct vhost_dev *find_vhost_dev_core(struct dataplane_context *ctx, struct rte_ether_addr *mac) {
+struct vhost_dev *find_vhost_dev_core_ip(struct dataplane_context *ctx, uint32_t vm_ip_address) {
+    struct vhost_dev *vdev;
+    for (int j = 0; j < ctx->vhost.device_num; j++) {
+        vdev = ctx->vhost.vdev_list[j];
+        if (vdev != NULL && vdev->ready == DEVICE_RX && vdev->vm_ip_address == vm_ip_address)
+            return vdev;
+    }
+    return NULL;
+}
+
+struct vhost_dev *find_vhost_dev_core_mac(struct dataplane_context *ctx, struct rte_ether_addr *mac) {
     struct vhost_dev *vdev;
     for (int j = 0; j < ctx->vhost.device_num; j++) {
         vdev = ctx->vhost.vdev_list[j];

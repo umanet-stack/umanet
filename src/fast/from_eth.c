@@ -71,10 +71,11 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
                     }
                 }
             }
+            target_vdev = find_vhost_dev_core_ip(ctx, dst_ip);
+        } else {
+            // TODOZ: Use a hash table keyed by MAC address
+            target_vdev = find_vhost_dev_core_mac(ctx, &eth_hdr->dst_addr);
         }
-
-        // TODOZ: Use a hash table keyed by MAC address
-        target_vdev = find_vhost_dev_core(ctx, &eth_hdr->dst_addr);
 
         if (target_vdev != NULL) {
             target_vid = target_vdev->vid;
@@ -97,9 +98,14 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
         if (batches[vid].count == 0)
             continue;
 
-        LOG_VM_OUT("Forwarding %d packets to vid=%d\n", batches[vid].count, vid);
-        PRINT_PKTS(batches[vid].pkts, batches[vid].count, LOG_VM_OUT);
         // vhost enqueue: pkts are COPIED to guest shared memory, must free
+        for (int i = 0; i < batches[vid].count; i++) {
+            struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(batches[vid].pkts[i], struct rte_ether_hdr *);
+            struct vhost_dev *vdev = batches[vid].vdev;
+            rte_ether_addr_copy(&vdev->mac_address, &eth_hdr->dst_addr); // dst MAC = vm MAC
+            rte_ether_addr_copy(&config.mac, &eth_hdr->src_addr);        // src MAC = our MAC
+        }
+
         uint16_t sent = vhost_send(ctx, batches[vid].count, vid, batches[vid].pkts);
         if (sent < batches[vid].count) {
             LOG_WARN("Failed to forward %d/%d packets to vid=%d\n", batches[vid].count - sent, batches[vid].count, vid);

@@ -104,6 +104,7 @@ struct device_statistics {
 struct vhost_dev { // vhost device
     // Device MAC address (Obtained on first TX packet).
     struct rte_ether_addr mac_address;
+    uint32_t vm_ip_address;
     /**< Data core that the device is added to. */
     uint16_t coreid;
     /**< A device is set as ready if the MAC address has been set. */
