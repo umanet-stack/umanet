@@ -74,6 +74,22 @@ struct vhost_dev *find_vhost_dev_core_ip(struct dataplane_context *ctx, uint32_t
     return NULL;
 }
 
+// Search for VM device by IP address across all cores (similar to find_vhost_dev for MAC)
+struct vhost_dev *find_vhost_dev_ip(uint32_t vm_ip_address) {
+    struct vhost_dev *vdev;
+    for (int i = 0; i < fp_cores_max; i++) {
+        struct dataplane_context *ctx = ctxs[i];
+        if (ctx == NULL)
+            continue;
+        for (int j = 0; j < ctx->vhost.device_num; j++) {
+            vdev = ctx->vhost.vdev_list[j];
+            if (vdev != NULL && vdev->ready == DEVICE_RX && vdev->vm_ip_address == vm_ip_address)
+                return vdev;
+        }
+    }
+    return NULL;
+}
+
 struct vhost_dev *find_vhost_dev_core_mac(struct dataplane_context *ctx, struct rte_ether_addr *mac) {
     struct vhost_dev *vdev;
     for (int j = 0; j < ctx->vhost.device_num; j++) {
