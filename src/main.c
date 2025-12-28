@@ -35,6 +35,11 @@ volatile unsigned fp_scale_to = 0;
 int exited;
 
 struct dataplane_topology *global = NULL;
+struct eth_tx_ctx **eth_tx_ctxs = NULL;
+struct eth_rx_ctx **eth_rx_ctxs = NULL;
+struct vhost_tx_ctx **vhost_tx_ctxs = NULL;
+struct vhost_rx_ctx **vhost_rx_ctxs = NULL;
+
 struct dataplane_context **ctxs = NULL;
 struct core_load *core_loads = NULL;
 
@@ -92,12 +97,20 @@ int main(int argc, char *argv[]) {
         goto error_exit;
     }
     LOG_IMPT("Initialized dataplane topology\n");
+
     if (init_rings() != 0) {
         res = EXIT_FAILURE;
         LOG_ERROR("init_rings failed\n");
         goto error_exit;
     }
     LOG_IMPT("Initialized rings\n");
+
+    if (init_dataplane_ctxs() != 0) {
+        res = EXIT_FAILURE;
+        LOG_ERROR("init_dataplane_ctxs failed\n");
+        goto error_exit;
+    }
+    LOG_IMPT("Initialized dataplane contexts\n");
 
     if ((core_loads = calloc(fp_cores_max, sizeof(*core_loads))) == NULL) {
         res = EXIT_FAILURE;

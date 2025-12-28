@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "log.h"
+#include "src/include/state.h"
 #include "src/vhost/vhost.h"
 
 // Global hash table for MAC address to vhost_dev lookup
@@ -217,6 +218,14 @@ static int new_device(int vid) {
      * may be on different cores.
      */
     ctx = ctxs[vid % fp_cores_max];
+
+    struct vhost_rx_ctx *vhost_rx_ctx = vhost_rx_ctxs[vid % VHOST_RX_CORES];
+    vhost_rx_ctx->vdev_ids[vhost_rx_ctx->num_vdevs] = vid;
+    vhost_rx_ctx->num_vdevs++;
+
+    struct vhost_tx_ctx *vhost_tx_ctx = vhost_tx_ctxs[vid % VHOST_TX_CORES];
+    vhost_tx_ctx->vdev_ids[vhost_tx_ctx->num_vdevs] = vid;
+    vhost_tx_ctx->num_vdevs++;
     // LOG_INFO("(%d) Searching for suitable context (fp_cores_max=%d)...\n", vid, fp_cores_max);
 
     // for (int i = 0; i < fp_cores_max; i++) {

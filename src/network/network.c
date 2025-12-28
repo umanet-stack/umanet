@@ -227,6 +227,7 @@ int network_thread_init(struct dataplane_context *ctx) {
     if ((t->pool = mempool_alloc()) == NULL) {
         goto error_mpool;
     }
+    vhost_rx_ctxs[ctx->id % VHOST_RX_CORES]->mempool = t->pool;
 
     /* initialize tx queue */
     t->queue_id = ctx->id;
