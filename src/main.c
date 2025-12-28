@@ -91,6 +91,13 @@ int main(int argc, char *argv[]) {
         LOG_ERROR("init_dataplane_topology failed\n");
         goto error_exit;
     }
+    LOG_IMPT("Initialized dataplane topology\n");
+    if (init_rings() != 0) {
+        res = EXIT_FAILURE;
+        LOG_ERROR("init_rings failed\n");
+        goto error_exit;
+    }
+    LOG_IMPT("Initialized rings\n");
 
     if ((core_loads = calloc(fp_cores_max, sizeof(*core_loads))) == NULL) {
         res = EXIT_FAILURE;

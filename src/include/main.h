@@ -42,6 +42,9 @@ extern struct rte_ether_addr eth_addr;
 extern unsigned fp_cores_max;
 
 int init_dataplane_topology(void);
+int init_rings(void);
+void destroy_rings(void);
+
 int slowpath_main(void);
 
 int shm_preinit(void);

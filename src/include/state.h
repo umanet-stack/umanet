@@ -9,6 +9,8 @@
 #define VHOST_RX_CORES 2
 #define MAX_VHOSTS 64
 
+#define RING_SIZE 4096
+
 struct dataplane_topology {
     struct rte_ring *eth_tx_rings[ETH_TX_CORES];
     struct rte_ring *vhost_tx_rings[MAX_VHOSTS];
