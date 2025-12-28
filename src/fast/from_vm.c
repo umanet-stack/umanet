@@ -59,6 +59,20 @@ static inline void mark_device_inactive(struct dataplane_context *ctx, uint16_t 
     }
 }
 
+// Mark a device as active given a vdev pointer (used when forwarding packets to VM)
+void mark_vdev_active(struct dataplane_context *ctx, struct vhost_dev *vdev) {
+    if (unlikely(vdev == NULL))
+        return;
+
+    // Find device index by searching vdev_list
+    for (uint16_t i = 0; i < ctx->vhost.device_num; i++) {
+        if (ctx->vhost.vdev_list[i] == vdev) {
+            mark_device_active(ctx, i);
+            return;
+        }
+    }
+}
+
 static inline uint16_t poll_single_device(struct dataplane_context *ctx, struct vhost_dev *vdev, uint16_t dev_idx,
                                           struct rte_mbuf **pkts) {
     if (unlikely(vdev == NULL || vdev->remove)) {

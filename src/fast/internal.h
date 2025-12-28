@@ -48,6 +48,7 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
 
 void flush_eth_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q);
 void fastpath_from_eth(struct dataplane_context *ctx);
+void mark_vdev_active(struct dataplane_context *ctx, struct vhost_dev *vdev);
 
 struct rte_ether_addr *install_mac_flow(uint16_t port_id, uint32_t dst_ip, uint16_t queue_id);
 

@@ -110,6 +110,8 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
         if (sent < batches[vid].count) {
             LOG_WARN("Failed to forward %d/%d packets to vid=%d\n", batches[vid].count - sent, batches[vid].count, vid);
         }
+        // Mark device as active so it gets polled frequently to receive replies
+        mark_vdev_active(ctx, batches[vid].vdev);
         // Free ALL packets (enqueue copies them to guest memory)
         free_pkts(batches[vid].pkts, batches[vid].count);
 
