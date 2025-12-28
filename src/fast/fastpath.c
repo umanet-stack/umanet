@@ -117,24 +117,24 @@ void dataplane_loop(struct dataplane_context *ctx) {
 
     while (!exited) {
         STATS_TS(start);
-        // #ifdef DEBUG
-        //         sleep(1);
-        // #else
-        //         // Adaptive pause: only pause when idle to allow vhost-user state sync
-        //         // Similar to TAS's adaptive blocking, but using rte_pause() instead of epoll
-        //         // since vhost-user doesn't support eventfd notifications
-        //         if (was_idle) {
-        //             idle_count++;
-        //             // After being idle for multiple iterations, pause to allow vhost-user sync
-        //             // This gives the vhost-user backend time to update shared memory
-        //             if (idle_count > 2 || (start - last_active_ts > poll_cycle_tsc)) {
-        //                 rte_pause();
-        //             }
-        //         } else {
-        //             idle_count = 0;
-        //             last_active_ts = start;
-        //         }
-        // #endif
+#ifdef DEBUG
+        sleep(1);
+// #else
+//         // Adaptive pause: only pause when idle to allow vhost-user state sync
+//         // Similar to TAS's adaptive blocking, but using rte_pause() instead of epoll
+//         // since vhost-user doesn't support eventfd notifications
+//         if (was_idle) {
+//             idle_count++;
+//             // After being idle for multiple iterations, pause to allow vhost-user sync
+//             // This gives the vhost-user backend time to update shared memory
+//             if (idle_count > 2 || (start - last_active_ts > poll_cycle_tsc)) {
+//                 rte_pause();
+//             }
+//         } else {
+//             idle_count = 0;
+//             last_active_ts = start;
+//         }
+#endif
         unsigned packets_received = 0;
         ctx->stat_loop_iterations++;
 
