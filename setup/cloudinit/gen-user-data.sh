@@ -53,13 +53,13 @@ write_files:
     permissions: '0644'
     content: |
       [Unit]
-      Description=ping 1.1.1.1 test
+      Description=ping dpdk switch test
       After=network-online.target
       Wants=network-online.target
 
       [Service]
       Type=oneshot
-      ExecStart=/bin/ping -c 3 1.1.1.1
+      ExecStart=/bin/ping -c 3 192.168.10${NODE_ID}.1
       StandardOutput=journal+console
       StandardError=journal+console
 

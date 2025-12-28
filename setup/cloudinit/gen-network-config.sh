@@ -40,10 +40,12 @@ ethernets:
     dhcp4: no
     addresses: [10.10.$((NODE_ID+1)).$((i+2))/24]
     routes:
-      - to: default
+      - to: 10.10.0.0/16
         via: 10.10.$((NODE_ID+1)).1
     nameservers:
       addresses: [8.8.8.8, 8.8.4.4]
     optional: true
 EOF
 done
+# default via 192.168.x.1 because for TAP, this is br0
+# 10.10.x.1 is br0 for TAP when it is dpdk mode (same-node network only)
