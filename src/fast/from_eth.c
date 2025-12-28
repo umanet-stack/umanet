@@ -106,24 +106,18 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
             rte_ether_addr_copy(&config.mac, &eth_hdr->src_addr);        // src MAC = our MAC
         }
 
+        // Mark device as active BEFORE sending so it gets polled frequently to receive replies
+        // This ensures the device stays active even if some packets fail to enqueue
+        mark_vdev_active(ctx, batches[vid].vdev);
+
         uint16_t sent = vhost_send(ctx, batches[vid].count, vid, batches[vid].pkts);
         if (sent < batches[vid].count) {
             LOG_WARN("Failed to forward %d/%d packets to vid=%d\n", batches[vid].count - sent, batches[vid].count, vid);
+            // Free packets that failed to enqueue (vhost_send copies successfully enqueued packets)
+            free_pkts(&batches[vid].pkts[sent], batches[vid].count - sent);
         }
-        // Mark device as active so it gets polled frequently to receive replies
-        mark_vdev_active(ctx, batches[vid].vdev);
-        // Free ALL packets (enqueue copies them to guest memory)
-        free_pkts(batches[vid].pkts, batches[vid].count);
-
-        /* Retry if necessary */
-        if (config.enable_retry && unlikely(sent < batches[vid].count)) {
-            uint32_t retry = 0;
-
-            while (sent < batches[vid].count && retry++ < config.burst_rx_retry_num) { // max 4 retries
-                rte_delay_us(config.burst_rx_delay_time);
-                sent += vhost_send(ctx, batches[vid].count - sent, vid, &batches[vid].pkts[sent]);
-            }
-        }
+        // Free successfully enqueued packets (enqueue copies them to guest memory)
+        free_pkts(batches[vid].pkts, sent);
     }
 }
 
