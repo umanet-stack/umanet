@@ -82,7 +82,8 @@ static inline void register_device_ip(struct vhost_dev *vdev, struct rte_mbuf *m
                  (vdev->vm_ip_address >> 8) & 0xff, vdev->vm_ip_address & 0xff);
     } else if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)) {
         struct rte_arp_hdr *arp_hdr = (struct rte_arp_hdr *)(eth_hdr + 1);
-        vdev->vm_ip_address = rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip);
+        // source IP (arp_sip) = VM's IP
+        vdev->vm_ip_address = rte_be_to_cpu_32(arp_hdr->arp_data.arp_sip);
         LOG_INFO("(%d) IP address %u.%u.%u.%u registered from ARP packet\n", vdev->vid,
                  (vdev->vm_ip_address >> 24) & 0xff, (vdev->vm_ip_address >> 16) & 0xff,
                  (vdev->vm_ip_address >> 8) & 0xff, vdev->vm_ip_address & 0xff);
