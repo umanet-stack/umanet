@@ -275,7 +275,7 @@ static int new_device(int vid) {
         }
     }
 
-    LOG_INFO("(%d) device has been added to data core %d\n", vid, vdev->coreid);
+    LOG_IMPT("(%d) device added to core %d\n", vid, vdev->coreid);
 
     // Note: MAC address will be added to lookup table when learned in link_vmdq()
 

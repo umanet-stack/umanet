@@ -254,6 +254,8 @@ int network_thread_init(struct dataplane_context *ctx) {
     while (rx_init_done < num_threads)
         ;
 
+    LOG_IMPT("[%d] NIC TX/RX queue %d\n", ctx->id, t->queue_id);
+
     /* start device if this ìs core 0 */
     if (ctx->id == 0) {
         if (rte_eth_dev_start(net_port_id) != 0) {

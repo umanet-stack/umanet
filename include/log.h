@@ -24,6 +24,7 @@ void log_warn(const char *fmt, ...);
 
 void print_pkts(struct rte_mbuf **pkts, uint16_t count, enum log_level level);
 
+#define LOG_IMPT(fmt, ...) log_info(fmt, ##__VA_ARGS__)
 #define LOG_ERROR(fmt, ...) log_error(fmt, ##__VA_ARGS__)
 #define LOG_WARN(fmt, ...) log_warn(fmt, ##__VA_ARGS__)
 #define PRINT_PKTS_WARN(pkts, count, level) print_pkts(pkts, count, level)
