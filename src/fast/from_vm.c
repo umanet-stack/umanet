@@ -101,12 +101,17 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
     // Phase 1: Poll active devices (devices that recently had packets)
     for (uint16_t i = 0; i < ctx->vhost.device_num; i++) {
         vdev = ctx->vhost.vdev_list[i];
-        if (!vdev->is_active) {
+        // Check for NULL FIRST before accessing any fields
+        if (unlikely(vdev == NULL)) {
             continue;
         }
 
-        if (unlikely(vdev == NULL || vdev->remove)) {
+        if (unlikely(vdev->remove)) {
             mark_device_inactive(vdev);
+            continue;
+        }
+
+        if (!vdev->is_active) {
             continue;
         }
 
@@ -149,14 +154,19 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
         ctx->vhost.inactive_check_counter = 0;
         for (uint16_t i = 0; i < current_device_num; i++) {
             vdev = ctx->vhost.vdev_list[i];
+            // Check for NULL FIRST before accessing any fields
+            if (unlikely(vdev == NULL)) {
+                continue;
+            }
+
+            if (unlikely(vdev->remove)) {
+                continue;
+            }
+
             if (vdev->is_active) {
                 continue;
             }
             LOG_INFO("(%d) Checking inactive device %d\n", ctx->id, vdev->vid);
-
-            if (unlikely(vdev == NULL || vdev->remove)) {
-                continue;
-            }
 
             count = poll_single_device(ctx, vdev, pkts);
             if (count == 0) {
@@ -188,9 +198,14 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
     }
 
     // Handle device removal (check all devices)
-    for (uint16_t i = 0; i < current_device_num; i++) {
+    // Iterate backwards to avoid issues when removing devices (indices shift)
+    for (int i = current_device_num - 1; i >= 0; i--) {
         vdev = ctx->vhost.vdev_list[i];
-        if (unlikely(vdev != NULL && vdev->remove && vdev->ready != DEVICE_SAFE_REMOVE)) {
+        if (unlikely(vdev == NULL)) {
+            continue;
+        }
+
+        if (unlikely(vdev->remove && vdev->ready != DEVICE_SAFE_REMOVE)) {
             LOG_INFO("(%d) Removing device from dataplane (device_num=%d)\n", vdev->vid, ctx->vhost.device_num);
 
             struct mbuf_table *tx_q = &ctx->vhost.tx_q;
@@ -203,9 +218,18 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
             vdev->ready = DEVICE_SAFE_REMOVE;
             mark_device_inactive(vdev);
 
-            ctx->vhost.vdev_list[i] = NULL;
+            // Remove device from array by shifting remaining devices
+            // Move all devices after this one one position forward
+            for (int j = i; j < ctx->vhost.device_num - 1; j++) {
+                ctx->vhost.vdev_list[j] = ctx->vhost.vdev_list[j + 1];
+            }
+            ctx->vhost.vdev_list[ctx->vhost.device_num - 1] = NULL;
             ctx->vhost.device_num--;
             current_device_num = ctx->vhost.device_num;
+
+            // Note: destroy_device() in device.c will free the device after waiting for DEVICE_SAFE_REMOVE
+            // We should NOT free it here as it's still being accessed by destroy_device()
+
             if (current_device_num == 0) {
                 break;
             }
