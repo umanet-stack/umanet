@@ -16,10 +16,10 @@
 #include <rte_vhost.h>
 
 #include "./config/config.h"
-#include "./include/tas.h"
-// #include "src/fast/tap.h"
+#include "./include/main.h"
 #include "log.h"
 #include "src/include/fastpath.h"
+#include "src/include/state.h"
 #include "src/vhost/vhost.h"
 
 struct core_load {
@@ -34,6 +34,7 @@ volatile unsigned fp_scale_to = 0;
 
 int exited;
 
+struct dataplane_topology *global = NULL;
 struct dataplane_context **ctxs = NULL;
 struct core_load *core_loads = NULL;
 
@@ -84,6 +85,12 @@ int main(int argc, char *argv[]) {
         goto error_exit;
     }
     fp_cores_max = config.fp_cores_max;
+
+    if (init_dataplane_topology() != 0) {
+        res = EXIT_FAILURE;
+        LOG_ERROR("init_dataplane_topology failed\n");
+        goto error_exit;
+    }
 
     if ((core_loads = calloc(fp_cores_max, sizeof(*core_loads))) == NULL) {
         res = EXIT_FAILURE;

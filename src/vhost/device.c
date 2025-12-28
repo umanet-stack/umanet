@@ -2,7 +2,7 @@
  * Copyright(c) 2010-2017 Intel Corporation
  */
 
-#include "../include/tas.h"
+#include "../include/main.h"
 #include <rte_hash.h>
 #include <rte_jhash.h>
 #include <rte_lcore.h>

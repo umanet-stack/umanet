@@ -32,6 +32,8 @@ sources = files(
 	'src/vhost/queues.c',
 	'src/main.c',
 	'src/shm.c',
+	'src/dataplane.c',
+	'src/ring.c',
 )
 
 # Compiler flags

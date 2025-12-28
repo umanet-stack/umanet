@@ -39,7 +39,7 @@
 #include <rte_malloc.h>
 #include <utils.h>
 
-#include "include/tas.h"
+#include "include/main.h"
 #include <tas_memif.h>
 
 void *tas_shm = NULL;

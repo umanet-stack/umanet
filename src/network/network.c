@@ -41,7 +41,8 @@
 #include <rte_version.h>
 
 #include "../fast/internal.h"
-#include "../include/tas.h"
+#include "../include/main.h"
+#include "src/include/state.h"
 #include <tas_memif.h>
 #include <utils.h>
 #include <utils_rng.h>
@@ -119,7 +120,10 @@ int network_init(unsigned n_threads) {
     }
 
     // used -w (whitelist) for NIC PCI addr in dpdk args, this should have only one port with id 0
-    RTE_ETH_FOREACH_DEV(p) { net_port_id = p; }
+    RTE_ETH_FOREACH_DEV(p) {
+        net_port_id = p;
+        global->eth_port_id = p;
+    }
     if (!rte_eth_dev_is_valid_port(net_port_id)) {
         LOG_ERROR("Specified port ID(%u) is not valid\n", net_port_id);
         goto error_exit;

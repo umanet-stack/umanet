@@ -1,6 +1,6 @@
 #include "log.h"
 #include "src/include/fastpath.h"
-#include "src/include/tas.h"
+#include "src/include/main.h"
 #include "src/vhost/vhost.h"
 #include <rte_byteorder.h>
 #include <rte_ether.h>
