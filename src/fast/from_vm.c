@@ -61,9 +61,9 @@ static inline uint16_t poll_single_device(struct dataplane_context *ctx, struct 
     if (count == 0) {
         vdev->empty_poll_count++;
         // Only mark inactive after 3 consecutive empty polls
-        // if (vdev->empty_poll_count >= 3) {
-        //     mark_device_inactive(vdev);
-        // }
+        if (vdev->empty_poll_count >= 3) {
+            mark_device_inactive(vdev);
+        }
     } else {
         // Packets received: reset counter and mark active (will be polled every iteration)
         mark_device_active(vdev);
@@ -143,45 +143,48 @@ uint16_t fastpath_from_vhost(struct dataplane_context *ctx, uint32_t current_dev
         route_vhost_pkts(ctx, vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
     }
 
-    // check inactive devices (every iteration to prevent missing packets from VMs)
-    // This ensures that even if a device becomes inactive, it's still polled frequently
-    for (uint16_t i = 0; i < current_device_num; i++) {
-        vdev = ctx->vhost.vdev_list[i];
-        if (vdev->is_active) {
-            continue;
-        }
-        LOG_INFO("(%d) Checking inactive device %d\n", ctx->id, vdev->vid);
-
-        if (unlikely(vdev == NULL || vdev->remove)) {
-            continue;
-        }
-
-        count = poll_single_device(ctx, vdev, pkts);
-        if (count == 0) {
-            continue;
-        }
-
-        packets_received += count;
-
-        // Prefetch packet data
-        for (int j = 0; j < count && j < 4; j++) {
-            rte_prefetch0(rte_pktmbuf_mtod(pkts[j], void *));
-        }
-
-        /* setup VMDq for the first packet */
-        if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) {
-            LOG_INFO("(%d) In MAC learning mode, processing first packet\n", vdev->vid);
-            if (vdev->remove || link_vmdq(vdev, pkts[0]) == -1) {
-                LOG_ERROR("(%d) MAC learning failed, dropping %d packets\n", vdev->vid, count);
-                free_pkts(pkts, count);
+    // check inactive devices every x iterations to check for new pkts
+    ctx->vhost.inactive_check_counter++;
+    if (unlikely(ctx->vhost.inactive_check_counter >= 5)) {
+        ctx->vhost.inactive_check_counter = 0;
+        for (uint16_t i = 0; i < current_device_num; i++) {
+            vdev = ctx->vhost.vdev_list[i];
+            if (vdev->is_active) {
                 continue;
             }
-            LOG_INFO("(%d) MAC learning successful, device now in RX mode\n", vdev->vid);
-        }
-        if (unlikely(vdev->vm_ip_address == 0))
-            register_device_ip(vdev, pkts[0]);
+            LOG_INFO("(%d) Checking inactive device %d\n", ctx->id, vdev->vid);
 
-        route_vhost_pkts(ctx, vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
+            if (unlikely(vdev == NULL || vdev->remove)) {
+                continue;
+            }
+
+            count = poll_single_device(ctx, vdev, pkts);
+            if (count == 0) {
+                continue;
+            }
+
+            packets_received += count;
+
+            // Prefetch packet data
+            for (int j = 0; j < count && j < 4; j++) {
+                rte_prefetch0(rte_pktmbuf_mtod(pkts[j], void *));
+            }
+
+            /* setup VMDq for the first packet */
+            if (unlikely(vdev->ready == DEVICE_MAC_LEARNING) && count) {
+                LOG_INFO("(%d) In MAC learning mode, processing first packet\n", vdev->vid);
+                if (vdev->remove || link_vmdq(vdev, pkts[0]) == -1) {
+                    LOG_ERROR("(%d) MAC learning failed, dropping %d packets\n", vdev->vid, count);
+                    free_pkts(pkts, count);
+                    continue;
+                }
+                LOG_INFO("(%d) MAC learning successful, device now in RX mode\n", vdev->vid);
+            }
+            if (unlikely(vdev->vm_ip_address == 0))
+                register_device_ip(vdev, pkts[0]);
+
+            route_vhost_pkts(ctx, vdev, pkts, count, &ctx->vhost.tx_q, vlan_tags[vdev->vid]);
+        }
     }
 
     // Handle device removal (check all devices)
