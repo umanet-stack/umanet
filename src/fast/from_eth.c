@@ -107,7 +107,9 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
 
         // Mark device as active BEFORE sending so it gets polled frequently to receive replies
         // This ensures the device stays active even if some packets fail to enqueue
-        mark_device_active(ctx, batches[vid].vdev->vid);
+        LOG_INFO("[%d] Marking device %d active from incoming packet\n", ctx->id, batches[vid].vdev->vid);
+        batches[vid].vdev->is_active = 1;
+        batches[vid].vdev->empty_poll_count = 0;
 
         // vhost enqueue: pkts are COPIED to guest shared memory, must free
         uint16_t sent = vhost_send(ctx, batches[vid].count, vid, batches[vid].pkts);

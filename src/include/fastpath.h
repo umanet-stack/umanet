@@ -121,6 +121,10 @@ struct vhost_dev { // vhost device
     // Rate-limited logging for failed enqueue attempts
     uint64_t last_failed_log_ts; // TSC timestamp of last log
     uint64_t failed_pkts_count;  // Cumulative failed packets since last log
+
+    // Track consecutive empty polls before marking device inactive
+    uint8_t empty_poll_count;
+    uint8_t is_active;
 } __rte_cache_aligned;
 
 #define MAX_PKT_BURST 32              /* Max packets processed per burst (RX/TX) */
@@ -144,10 +148,7 @@ struct vhost_info {
     // Round-robin index for polling devices
     uint32_t poll_next_device;
 
-    // Active device tracking for optimized polling
-    uint16_t active_devices[MAX_VHOST_DEVICES_PER_CORE]; // Indices of active devices
-    uint16_t active_count;                               // Number of active devices
-    uint16_t inactive_check_counter;                     // Counter for checking inactive devices
+    uint16_t inactive_check_counter; // Counter for checking inactive devices
 
     struct mbuf_table tx_q;
 };
