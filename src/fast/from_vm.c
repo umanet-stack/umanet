@@ -32,8 +32,9 @@ static void virtio_tx_offload(struct rte_mbuf *m);
 static int route_vhost_local(struct vhost_dev *vdev, struct rte_mbuf **pkts, uint16_t count);
 
 // Helper functions for active device tracking
-static inline void mark_device_active(struct dataplane_context *ctx, uint16_t dev_idx) {
+void mark_device_active(struct dataplane_context *ctx, uint16_t dev_idx) {
     // Check if already in active list
+    LOG_INFO("(%d) Marking device %d ACTIVE\n", ctx->id, dev_idx);
     for (uint16_t i = 0; i < ctx->vhost.active_count; i++) {
         if (ctx->vhost.active_devices[i] == dev_idx) {
             return; // Already active
@@ -46,7 +47,8 @@ static inline void mark_device_active(struct dataplane_context *ctx, uint16_t de
 }
 
 static inline void mark_device_inactive(struct dataplane_context *ctx, uint16_t dev_idx) {
-    // Remove from active list
+    // Remove from ainlinective list
+    LOG_INFO("(%d) Marking device %d INactive\n", ctx->id, dev_idx);
     for (uint16_t i = 0; i < ctx->vhost.active_count; i++) {
         if (ctx->vhost.active_devices[i] == dev_idx) {
             // Shift remaining devices left
@@ -54,20 +56,6 @@ static inline void mark_device_inactive(struct dataplane_context *ctx, uint16_t 
                 ctx->vhost.active_devices[j] = ctx->vhost.active_devices[j + 1];
             }
             ctx->vhost.active_count--;
-            return;
-        }
-    }
-}
-
-// Mark a device as active given a vdev pointer (used when forwarding packets to VM)
-void mark_vdev_active(struct dataplane_context *ctx, struct vhost_dev *vdev) {
-    if (unlikely(vdev == NULL))
-        return;
-
-    // Find device index by searching vdev_list
-    for (uint16_t i = 0; i < ctx->vhost.device_num; i++) {
-        if (ctx->vhost.vdev_list[i] == vdev) {
-            mark_device_active(ctx, i);
             return;
         }
     }

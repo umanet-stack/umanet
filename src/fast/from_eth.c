@@ -98,7 +98,6 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
         if (batches[vid].count == 0)
             continue;
 
-        // vhost enqueue: pkts are COPIED to guest shared memory, must free
         for (int i = 0; i < batches[vid].count; i++) {
             struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(batches[vid].pkts[i], struct rte_ether_hdr *);
             struct vhost_dev *vdev = batches[vid].vdev;
@@ -108,8 +107,9 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
 
         // Mark device as active BEFORE sending so it gets polled frequently to receive replies
         // This ensures the device stays active even if some packets fail to enqueue
-        mark_vdev_active(ctx, batches[vid].vdev);
+        mark_device_active(ctx, batches[vid].vdev->vid);
 
+        // vhost enqueue: pkts are COPIED to guest shared memory, must free
         uint16_t sent = vhost_send(ctx, batches[vid].count, vid, batches[vid].pkts);
         if (sent < batches[vid].count) {
             LOG_WARN("Failed to forward %d/%d packets to vid=%d\n", batches[vid].count - sent, batches[vid].count, vid);
