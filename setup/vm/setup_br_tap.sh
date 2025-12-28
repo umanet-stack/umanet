@@ -1,26 +1,14 @@
 #!/usr/bin/env bash
-set -e
+set -eu
+source env.sh
 
-# Usage: ./setup_br_tap.sh <node_id>
-# node_id: 0 or 1
-
-if [ "$#" -ne 3 ]; then
-    echo "Usage: $0 <node_id> <nic> <num_vms>"
-    echo "  node_id: 0 or 1"
-    echo "  nic: enp65s0f0np0 or enp23s0f0np0 or ens1f1np1"
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <num_vms>"
     echo "  num_vms: number of VMs"
     exit 1
 fi
 
-NODE_ID=$1
-NIC=$2
-NUM_VMS=$3
-
-if [ "$NODE_ID" != "0" ] && [ "$NODE_ID" != "1" ]; then
-    echo "Error: node_id must be 0 or 1"
-    exit 1
-fi
-
+NUM_VMS=$1
 
 # delete tap0, br0
 for ((i=0; i<NUM_VMS; i++)); do
@@ -45,6 +33,16 @@ sudo ip link set $NIC up
 sudo ip addr flush dev $NIC || true
 sudo ip link set $NIC master br0 || true
 echo "✅ $NIC: removed IP and added to br0"
+
+# add route to other node
+# When a physical interface is added to a bridge, the interface becomes a bridge port (no IP).
+# The bridge (br0) gets the IP address. Routes should reference the bridge, not the physical interface
+if [ "$NODE_ID" = "0" ]; then
+  sudo ip route add 192.168.101.0/24 via 192.168.101.1 dev br0 onlink
+elif [ "$NODE_ID" = "1" ]; then
+  sudo ip route add 192.168.100.0/24 via 192.168.100.1 dev br0 onlink
+fi
+echo "✅ route added to other node"
 
 # create taps
 for ((i=0; i<NUM_VMS; i++)); do

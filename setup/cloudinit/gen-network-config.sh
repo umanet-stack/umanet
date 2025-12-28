@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -ex
+set -eu
+source env.sh
 
 if [ "$#" -ne 1 ]; then
   echo "Usage: $0 <num_vms>"
@@ -15,8 +16,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 rm -f "$SCRIPT_DIR/netplans/network-vm"*
 mkdir -p "$SCRIPT_DIR/netplans"
 for ((i=0; i<NUM_VMS; i++)); do
-  MAC_ADDRESS="12:34:56:78:90:$(printf "%02X" $i)"
-  MAC_ADDRESS_2="12:34:56:78:91:$(printf "%02X" $i)"
+  MAC_ADDRESS="${NODE_ID}2:34:56:78:90:$(printf "%02X" $i)"
+  MAC_ADDRESS_2="${NODE_ID}2:34:56:78:91:$(printf "%02X" $i)"
   cat > "$SCRIPT_DIR/netplans/network-vm$i" <<EOF
 version: 2
 ethernets:
@@ -25,10 +26,10 @@ ethernets:
     match:
       macaddress: $MAC_ADDRESS
     dhcp4: no
-    addresses: [192.168.100.$((i+2))/24]
+    addresses: [192.168.10${NODE_ID}.$((i+2))/24]
     routes:
       - to: default
-        via: 192.168.100.1
+        via: 192.168.10${NODE_ID}.1
     nameservers:
       addresses: [8.8.8.8, 8.8.4.4]
     optional: true
@@ -37,16 +38,14 @@ ethernets:
     match:
       macaddress: $MAC_ADDRESS_2
     dhcp4: no
-    addresses: [10.10.1.$((i+2))/24]
+    addresses: [10.10.$((NODE_ID+1)).$((i+2))/24]
     routes:
-      - to: default
-        via: 10.10.1.1
+      - to: 10.10.0.0/16
+        via: 10.10.$((NODE_ID+1)).1
     nameservers:
       addresses: [8.8.8.8, 8.8.4.4]
     optional: true
 EOF
 done
-
-# rm -f "/tmp/netplans/network-vm"*
-# mkdir -p "/tmp/netplans"
-# cp "$SCRIPT_DIR/netplans/network-vm"* "/tmp/netplans"
+# default via 192.168.x.1 because for TAP, this is br0
+# 10.10.x.1 is br0 for TAP when it is dpdk mode (same-node network only)

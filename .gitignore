@@ -11,3 +11,4 @@ bin
 sbin
 linuxrc
 initramfs-overlay.img
+.env

@@ -38,7 +38,9 @@ extern const struct rte_vhost_device_ops virtio_net_device_ops;
 
 int check_device_state(struct vhost_dev *vdev, const char *func);
 struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac);
-struct vhost_dev *find_vhost_dev_core(struct dataplane_context *ctx, struct rte_ether_addr *mac);
+struct vhost_dev *find_vhost_dev_core_mac(struct dataplane_context *ctx, struct rte_ether_addr *mac);
+struct vhost_dev *find_vhost_dev_core_ip(struct dataplane_context *ctx, uint32_t vm_ip_address);
+struct vhost_dev *find_vhost_dev_ip(uint32_t vm_ip_address);
 void unregister_vhost_drivers(int socket_num, const char *path);
 int register_vhost_drivers();
 

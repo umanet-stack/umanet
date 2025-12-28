@@ -33,7 +33,7 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
     for (i = 0; i < RTE_ETHER_ADDR_LEN; i++)
         vdev->mac_address.addr_bytes[i] = pkt_hdr->src_addr.addr_bytes[i];
 
-    LOG_INFO("(%d) mac %02x:%02x:%02x:%02x:%02x:%02x registered\n", vdev->vid, vdev->mac_address.addr_bytes[0],
+    LOG_IMPT("(%d) mac %02x:%02x:%02x:%02x:%02x:%02x registered\n", vdev->vid, vdev->mac_address.addr_bytes[0],
              vdev->mac_address.addr_bytes[1], vdev->mac_address.addr_bytes[2], vdev->mac_address.addr_bytes[3],
              vdev->mac_address.addr_bytes[4], vdev->mac_address.addr_bytes[5]);
 

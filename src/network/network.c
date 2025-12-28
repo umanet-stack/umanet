@@ -68,7 +68,9 @@ static struct rte_eth_conf port_conf = {
         {
             .rss_conf =
                 {
-                    .rss_hf = RTE_ETH_FLOW_NONFRAG_IPV4_TCP,
+                    // Include both TCP and UDP for proper RSS distribution
+                    // This ensures both TCP and UDP packets are distributed across queues
+                    .rss_hf = RTE_ETH_FLOW_NONFRAG_IPV4_TCP | RTE_ETH_FLOW_NONFRAG_IPV4_UDP,
                 },
         },
     .intr_conf =
@@ -253,6 +255,8 @@ int network_thread_init(struct dataplane_context *ctx) {
     __sync_add_and_fetch(&rx_init_done, 1);
     while (rx_init_done < num_threads)
         ;
+
+    LOG_IMPT("[%d] NIC TX/RX queue %d\n", ctx->id, t->queue_id);
 
     /* start device if this ìs core 0 */
     if (ctx->id == 0) {

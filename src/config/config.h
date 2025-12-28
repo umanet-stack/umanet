@@ -34,6 +34,8 @@ typedef struct {
     uint8_t ip_prefix;
     // mac address for this host
     struct rte_ether_addr mac;
+    // mac address of other node nic
+    struct rte_ether_addr other_node_mac;
 
     /* ===== TAS ===== */
     /* shared memory size */

@@ -59,10 +59,6 @@ int dataplane_context_init(struct dataplane_context *ctx) {
     ctx->vhost.device_num = 0;
     ctx->vhost.dev_removal_flag = 0;
     ctx->vhost.poll_next_device = 0;
-
-    // Initialize active device tracking
-    memset(ctx->vhost.active_devices, 0, sizeof(ctx->vhost.active_devices));
-    ctx->vhost.active_count = 0;
     ctx->vhost.inactive_check_counter = 0;
 
     memset(&ctx->vhost.tx_q, 0, sizeof(ctx->vhost.tx_q));
@@ -117,24 +113,24 @@ void dataplane_loop(struct dataplane_context *ctx) {
 
     while (!exited) {
         STATS_TS(start);
-        // #ifdef DEBUG
-        //         sleep(1);
-        // #else
-        //         // Adaptive pause: only pause when idle to allow vhost-user state sync
-        //         // Similar to TAS's adaptive blocking, but using rte_pause() instead of epoll
-        //         // since vhost-user doesn't support eventfd notifications
-        //         if (was_idle) {
-        //             idle_count++;
-        //             // After being idle for multiple iterations, pause to allow vhost-user sync
-        //             // This gives the vhost-user backend time to update shared memory
-        //             if (idle_count > 2 || (start - last_active_ts > poll_cycle_tsc)) {
-        //                 rte_pause();
-        //             }
-        //         } else {
-        //             idle_count = 0;
-        //             last_active_ts = start;
-        //         }
-        // #endif
+#ifdef DEBUG
+        sleep(1);
+// #else
+//         // Adaptive pause: only pause when idle to allow vhost-user state sync
+//         // Similar to TAS's adaptive blocking, but using rte_pause() instead of epoll
+//         // since vhost-user doesn't support eventfd notifications
+//         if (was_idle) {
+//             idle_count++;
+//             // After being idle for multiple iterations, pause to allow vhost-user sync
+//             // This gives the vhost-user backend time to update shared memory
+//             if (idle_count > 2 || (start - last_active_ts > poll_cycle_tsc)) {
+//                 rte_pause();
+//             }
+//         } else {
+//             idle_count = 0;
+//             last_active_ts = start;
+//         }
+#endif
         unsigned packets_received = 0;
         ctx->stat_loop_iterations++;
 

@@ -1,21 +1,19 @@
 #!/usr/bin/env bash
-set -e
+set -eu
+source env.sh
 
 
-if [ "$#" -ne 4 ]; then
-    echo "Usage: $0 <i> <res_dir> <role> <command>"
+if [ "$#" -ne 3 ]; then
+    echo "Usage: $0 <i> <role> <command>"
     echo "  i: index of the VM"
-    echo "  res_dir: directory containing resources"
     echo "  role: server or client"
     echo "  command: iperf3 command"
     exit 1
 fi
 
 i=$1
-# e.g. /tmp
-RES_DIR=$2
-ROLE=$3
-COMMAND=$4
+ROLE=$2
+COMMAND=$3
 
 LOG_DIR="$(dirname "$0")/../../testing/dpdk/logs"
 logfile="$LOG_DIR/vm$i.log"
@@ -31,11 +29,11 @@ sudo systemd-run --scope \
 cloud-hypervisor \
     --cpus boot=1 \
     --memory size=512M,hugepages=on,shared=on,prefault=on \
-    --kernel "$RES_DIR/vmlinux.bin" \
+    --kernel "$TMPDIR/vmlinux.bin" \
     --initramfs /tmp/initramfs-overlay.img \
     --cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket ROLE=$ROLE IPERF_COMMAND_B64=$IPERF_COMMAND_B64" \
-    --disk path="$RES_DIR/vm-img.raw",readonly=on path="$RES_DIR/disks/state-$i.img" path="$RES_DIR/cloudinit/cloudinit-vm$i.img" \
-    --net tap=tap$i,mac=12:34:56:78:91:$(printf '%02X' $i) mac=12:34:56:78:90:$(printf '%02X' $i),vhost_user=true,socket=/mnt/huge/sock$i,num_queues=2,vhost_mode=client,queue_size=4096 \
+    --disk path="$TMPDIR/vm-img.raw",readonly=on path="$TMPDIR/disks/state-$i.img" path="$TMPDIR/cloudinit/cloudinit-vm$i.img" \
+    --net tap=tap$i,mac=${NODE_ID}2:34:56:78:91:$(printf '%02X' $i) mac=${NODE_ID}2:34:56:78:90:$(printf '%02X' $i),vhost_user=on,socket=/mnt/huge/sock$i,num_queues=2,vhost_mode=client,queue_size=4096 \
     > "$logfile" 2>&1 &
 
 echo "  VM$i -> $COMMAND"

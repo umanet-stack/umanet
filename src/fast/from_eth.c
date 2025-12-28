@@ -1,6 +1,7 @@
 #include <generic/rte_cycles.h>
 #include <rte_ethdev.h>
 #include <rte_hash.h>
+#include <rte_ip.h>
 #include <rte_mbuf_core.h>
 
 #include "log.h"
@@ -10,11 +11,32 @@
 #include "src/network/network.h"
 #include "src/vhost/vhost.h"
 
+static inline void check_and_install_flow(uint32_t dst_ip, struct rte_ether_hdr *eth_hdr) {
+    struct rte_flow *flow;
+
+    // Check if IP is in VM subnet
+    uint32_t subnet_base = (dst_ip & 0xFFFFFF00); // Get /24 subnet
+    uint32_t vm_base = (config.ip & 0xFFFFFF00);  // Gateway IP subnet
+
+    if (subnet_base == vm_base && (dst_ip & 0xFF) >= 2) {
+        // Lookup flow by IP
+        flow = NULL;
+        rte_hash_lookup_data(mac_flow_table, &dst_ip, (void **)&flow);
+        if (unlikely(flow == NULL)) {
+            // Calculate VM ID from IP (VM 0 = .2, VM 1 = .3, etc.)
+            uint8_t vm_id = (dst_ip & 0xFF) - 2;
+            struct rte_ether_addr *target_vm_mac = install_mac_flow(net_port_id, dst_ip, vm_id % fp_cores_max);
+            if (target_vm_mac != NULL) {
+                rte_ether_addr_copy(target_vm_mac, &eth_hdr->dst_addr);
+            }
+        }
+    }
+}
+
 // receive packets from physical NIC and forward them to a VM
 void fastpath_from_eth(struct dataplane_context *ctx) {
     uint16_t rx_count;
     struct rte_mbuf *pkts[MAX_PKT_BURST];
-    struct rte_flow *flow;
 
     // STATS_TS(eth_poll_start);
     rx_count = network_poll(ctx, MAX_PKT_BURST, pkts);
@@ -48,23 +70,43 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
         struct vhost_dev *target_vdev = NULL;
         struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
 
-        // flow steering by mac address
-        // pkts that are not for vm will also get installed to a flow table
-        flow = NULL;
-        rte_hash_lookup_data(mac_flow_table, &eth_hdr->dst_addr, (void **)&flow);
-        if (unlikely(flow == NULL)) {
-            // vm MAC: 12:34:56:78:90:xx
-            uint8_t vm_id = eth_hdr->dst_addr.addr_bytes[5] - '0';
-            install_mac_flow(net_port_id, &eth_hdr->dst_addr, vm_id % fp_cores_max);
-        }
+        // flow steering by IP address (for packets destined to DPDK NIC MAC)
+        if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
+            struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
+            uint32_t dst_ip = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
+            check_and_install_flow(dst_ip, eth_hdr);
 
-        // TODOZ: Use a hash table keyed by MAC address
-        target_vdev = find_vhost_dev_core(ctx, &eth_hdr->dst_addr);
+            // Try current core first (faster), then search all cores if not found
+            target_vdev = find_vhost_dev_core_ip(ctx, dst_ip);
+            if (target_vdev == NULL) {
+                target_vdev = find_vhost_dev_ip(dst_ip);
+            }
+        } else if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)) {
+            struct rte_arp_hdr *arp_hdr = (struct rte_arp_hdr *)(eth_hdr + 1);
+            uint32_t target_ip = rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip);
+            check_and_install_flow(target_ip, eth_hdr);
+
+            // if pkt is ARP request
+            if (target_vdev == NULL && process_arp(ctx, NULL, pkts[i], ARP_SRC_ETH) == 0) {
+                continue; // ARP was handled (e.g., gateway ARP request)
+            }
+
+            // if pkt is ARP reply for a VM
+            if (arp_hdr->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REPLY)) {
+                target_vdev = find_vhost_dev_core_ip(ctx, target_ip);
+                if (target_vdev == NULL)
+                    target_vdev = find_vhost_dev_ip(target_ip);
+            }
+        } else {
+            // TODOZ: Use a hash table keyed by MAC address
+            target_vdev = find_vhost_dev_core_mac(ctx, &eth_hdr->dst_addr);
+            if (target_vdev == NULL) {
+                target_vdev = find_vhost_dev(&eth_hdr->dst_addr);
+            }
+        }
 
         if (target_vdev != NULL) {
             target_vid = target_vdev->vid;
-        } else if (process_arp(ctx, NULL, pkts[i], ARP_SRC_ETH) == 0) {
-            continue;
         }
 
         // Add to batch for target VM
@@ -82,25 +124,28 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
         if (batches[vid].count == 0)
             continue;
 
-        LOG_VM_OUT("Forwarding %d packets to vid=%d\n", batches[vid].count, vid);
-        PRINT_PKTS(batches[vid].pkts, batches[vid].count, LOG_VM_OUT);
+        for (int i = 0; i < batches[vid].count; i++) {
+            struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(batches[vid].pkts[i], struct rte_ether_hdr *);
+            struct vhost_dev *vdev = batches[vid].vdev;
+            rte_ether_addr_copy(&vdev->mac_address, &eth_hdr->dst_addr); // dst MAC = vm MAC
+            rte_ether_addr_copy(&config.mac, &eth_hdr->src_addr);        // src MAC = our MAC
+        }
+
+        // Mark device as active BEFORE sending so it gets polled frequently to receive replies
+        // This ensures the device stays active even if some packets fail to enqueue
+        LOG_INFO("[%d] Marking device %d active from incoming packet\n", ctx->id, batches[vid].vdev->vid);
+        batches[vid].vdev->is_active = 1;
+        batches[vid].vdev->empty_poll_count = 0;
+
         // vhost enqueue: pkts are COPIED to guest shared memory, must free
         uint16_t sent = vhost_send(ctx, batches[vid].count, vid, batches[vid].pkts);
         if (sent < batches[vid].count) {
             LOG_WARN("Failed to forward %d/%d packets to vid=%d\n", batches[vid].count - sent, batches[vid].count, vid);
+            // Free packets that failed to enqueue (vhost_send copies successfully enqueued packets)
+            free_pkts(&batches[vid].pkts[sent], batches[vid].count - sent);
         }
-        // Free ALL packets (enqueue copies them to guest memory)
-        free_pkts(batches[vid].pkts, batches[vid].count);
-
-        /* Retry if necessary */
-        if (config.enable_retry && unlikely(sent < batches[vid].count)) {
-            uint32_t retry = 0;
-
-            while (sent < batches[vid].count && retry++ < config.burst_rx_retry_num) { // max 4 retries
-                rte_delay_us(config.burst_rx_delay_time);
-                sent += vhost_send(ctx, batches[vid].count - sent, vid, &batches[vid].pkts[sent]);
-            }
-        }
+        // Free successfully enqueued packets (enqueue copies them to guest memory)
+        free_pkts(batches[vid].pkts, sent);
     }
 }
 
@@ -118,8 +163,6 @@ void flush_eth_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q) {
     // Gateway mode: Change MACs for proper routing
     // VMs send to gateway MAC 02:00:00:00:00:fe, we forward to physical gateway
     struct rte_ether_hdr *eth_hdr;
-    // MAC of enp23s0f0np0 of other node
-    struct rte_ether_addr gateway_mac = {{0x40, 0xa6, 0xb7, 0xc3, 0x51, 0xc8}};
 
     for (int i = 0; i < tx_q->len; i++) {
         eth_hdr = rte_pktmbuf_mtod(tx_q->m_table[i], struct rte_ether_hdr *);
@@ -129,8 +172,8 @@ void flush_eth_tx(struct dataplane_context *ctx, struct mbuf_table *tx_q) {
         if (rte_is_broadcast_ether_addr(&eth_hdr->dst_addr) || rte_is_multicast_ether_addr(&eth_hdr->dst_addr)) {
             // Keep broadcast/multicast - don't change
         } else if (rte_is_same_ether_addr(&eth_hdr->dst_addr, &config.mac)) {
-            // VM sent to gateway MAC - forward to other node's MAC
-            rte_ether_addr_copy(&gateway_mac, &eth_hdr->dst_addr);
+            // VM sent to other node NIC's MAC
+            rte_ether_addr_copy(&config.other_node_mac, &eth_hdr->dst_addr);
         }
         // Otherwise, keep the original destination MAC (for direct communication)
     }

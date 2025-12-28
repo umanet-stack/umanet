@@ -14,19 +14,14 @@ sudo cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm-img.raw
 ./setup/cloudinit/gen-cloud-init.sh 32
 
 # setup node (allow internet NAT)
-# c6620
-./setup/setup_node.sh 0 enp23s0f0np0
-# c6525-25g
-./setup/setup_node.sh 0 enp65s0f0np0
-# xl170
-./setup/setup_node.sh 0 ens1f1np1
+./setup/setup_node.sh
 
 # disable SMT (2 threads/core => 1 thread/core)
 echo off | sudo tee /sys/devices/system/cpu/smt/control
 
 # first run: let it install packages + setup services (use tap to access internet)
-./setup/vm/setup_br_tap.sh 0 enp23s0f0np0 32
-./setup/vm/spawn_vms.sh tap 32 /tmp samenode
+./setup/vm/setup_br_tap.sh 32
+./setup/vm/spawn_vms.sh tap 32 vm-vm-internal
 
 # kill all vms when done
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
@@ -58,17 +53,17 @@ sudo cloud-hypervisor \
 ## Testing DPDK
 make sure to run as TAP at least once to download iperf
 ```bash
-# vm0 DPDK
+# vm0 DPDK node 0
 sudo cloud-hypervisor \
 	--cpus boot=1 \
-	--memory size=512M,hugepages=on,shared=true \
+	--memory size=512M,hugepages=on,shared=on \
 	--kernel /tmp/vmlinux.bin \
 	--initramfs /tmp/initramfs-overlay.img \
 	--disk path=/tmp/vm-img.raw,readonly=on path=/tmp/disks/state-0.img path=/tmp/cloudinit/cloudinit-vm0.img \
 	--cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
-	--net tap=tap0,mac=12:34:56:78:91:00 mac=12:34:56:78:90:00,vhost_user=true,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=4096
+	--net tap=tap0,mac=02:34:56:78:91:00 mac=02:34:56:78:90:00,vhost_user=on,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=4096
 
-# vm1 DPDK
+# vm1 DPDK node 0
 sudo cloud-hypervisor \
 	--cpus boot=1 \
 	--memory size=512M,hugepages=on,shared=on \
@@ -76,5 +71,15 @@ sudo cloud-hypervisor \
 	--initramfs /tmp/initramfs-overlay.img \
 	--disk path=/tmp/vm-img.raw,readonly=on path=/tmp/disks/state-1.img path=/tmp/cloudinit/cloudinit-vm1.img \
 	--cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
-	--net tap=tap1,mac=12:34:56:78:91:01 mac=12:34:56:78:90:01,vhost_user=true,socket=/mnt/huge/sock1,num_queues=2,vhost_mode=client,queue_size=4096
+	--net tap=tap1,mac=02:34:56:78:91:01 mac=02:34:56:78:90:01,vhost_user=on,socket=/mnt/huge/sock1,num_queues=2,vhost_mode=client,queue_size=4096
+
+# vm0 DPDK node 1
+sudo cloud-hypervisor \
+	--cpus boot=1 \
+	--memory size=512M,hugepages=on,shared=on \
+	--kernel /tmp/vmlinux.bin \
+	--initramfs /tmp/initramfs-overlay.img \
+	--disk path=/tmp/vm-img.raw,readonly=on path=/tmp/disks/state-0.img path=/tmp/cloudinit/cloudinit-vm0.img \
+	--cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
+	--net tap=tap0,mac=12:34:56:78:91:00 mac=12:34:56:78:90:00,vhost_user=on,socket=/mnt/huge/sock0,num_queues=2,vhost_mode=client,queue_size=4096
 ```

@@ -398,14 +398,14 @@ def main():
     parser.add_argument(
         "mode",
         nargs="?",
-        choices=["samenode", "multinode"],
-        default="samenode",
-        help="Processing mode: 'samenode' (process only odd VMs) or 'multinode' (process all VMs) (default: samenode)"
+        choices=["vm-vm-internal", "vm-client"],
+        default="vm-vm-internal",
+        help="Processing mode: 'vm-vm-internal' (process only odd VMs) or 'vm-client' (process all VMs) (default: vm-vm-internal)"
     )
     args = parser.parse_args()
     
     # Determine if we should process all VMs
-    process_all_vms = (args.mode == "multinode")
+    process_all_vms = (args.mode == "vm-client")
     
     # Set up directories relative to script
     base_dir = SCRIPT_DIR / args.folder
@@ -428,7 +428,7 @@ def main():
         vm_num = int(vm_name[2:])  # Extract number: "vm1" -> 1
         
         # Count based on mode
-        if process_all_vms or vm_num % 2 == 1:  # All VMs for multinode, odd VMs for samenode
+        if process_all_vms or vm_num % 2 == 1:  # All VMs for vm-client, odd VMs for vm-vm-internal
             num_vms += 1
     
     # Create report directory: {mode}/report-{n}vm

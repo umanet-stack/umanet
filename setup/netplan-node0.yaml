@@ -4,7 +4,8 @@ network:
     # ens1f1np1:
     # enp65s0f0np0:
     enp23s0f0np0:
-      addresses: [10.10.1.1/24]
+      addresses: [192.168.100.1/24]
       routes:
           - to: 192.168.101.0/24
-            via: 10.10.1.2
+            via: 192.168.101.1
+            on-link: true

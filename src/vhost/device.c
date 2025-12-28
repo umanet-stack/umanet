@@ -64,7 +64,33 @@ struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
     return NULL;
 }
 
-struct vhost_dev *find_vhost_dev_core(struct dataplane_context *ctx, struct rte_ether_addr *mac) {
+struct vhost_dev *find_vhost_dev_core_ip(struct dataplane_context *ctx, uint32_t vm_ip_address) {
+    struct vhost_dev *vdev;
+    for (int j = 0; j < ctx->vhost.device_num; j++) {
+        vdev = ctx->vhost.vdev_list[j];
+        if (vdev != NULL && vdev->ready == DEVICE_RX && vdev->vm_ip_address == vm_ip_address)
+            return vdev;
+    }
+    return NULL;
+}
+
+// Search for VM device by IP address across all cores (similar to find_vhost_dev for MAC)
+struct vhost_dev *find_vhost_dev_ip(uint32_t vm_ip_address) {
+    struct vhost_dev *vdev;
+    for (int i = 0; i < fp_cores_max; i++) {
+        struct dataplane_context *ctx = ctxs[i];
+        if (ctx == NULL)
+            continue;
+        for (int j = 0; j < ctx->vhost.device_num; j++) {
+            vdev = ctx->vhost.vdev_list[j];
+            if (vdev != NULL && vdev->ready == DEVICE_RX && vdev->vm_ip_address == vm_ip_address)
+                return vdev;
+        }
+    }
+    return NULL;
+}
+
+struct vhost_dev *find_vhost_dev_core_mac(struct dataplane_context *ctx, struct rte_ether_addr *mac) {
     struct vhost_dev *vdev;
     for (int j = 0; j < ctx->vhost.device_num; j++) {
         vdev = ctx->vhost.vdev_list[j];
@@ -167,7 +193,7 @@ static void destroy_device(int vid) {
  */
 // dpdk automatically assigns vid (0, 1, 2, ...) to each device
 static int new_device(int vid) {
-    uint32_t device_num_min = 64;
+    // uint32_t device_num_min = 64;
     struct vhost_dev *vdev;
     struct dataplane_context *ctx = NULL;
 
@@ -190,36 +216,37 @@ static int new_device(int vid) {
      * Example with 8 cores, 32 VMs: Each core handles ~4 VMs, but VMs sharing an RX queue
      * may be on different cores.
      */
-    LOG_INFO("(%d) Searching for suitable context (fp_cores_max=%d)...\n", vid, fp_cores_max);
+    ctx = ctxs[vid % fp_cores_max];
+    // LOG_INFO("(%d) Searching for suitable context (fp_cores_max=%d)...\n", vid, fp_cores_max);
 
-    for (int i = 0; i < fp_cores_max; i++) {
-        // Validate context pointer before dereferencing
-        if (ctxs[i] == NULL) {
-            LOG_WARN("(%d) Warning: ctxs[%d] is NULL, skipping\n", vid, i);
-            continue;
-        }
+    // for (int i = 0; i < fp_cores_max; i++) {
+    //     // Validate context pointer before dereferencing
+    //     if (ctxs[i] == NULL) {
+    //         LOG_WARN("(%d) Warning: ctxs[%d] is NULL, skipping\n", vid, i);
+    //         continue;
+    //     }
 
-        LOG_INFO("(%d) Context %d has %d devices\n", vid, i, ctxs[i]->vhost.device_num);
+    //     LOG_INFO("(%d) Context %d has %d devices\n", vid, i, ctxs[i]->vhost.device_num);
 
-        if (ctxs[i]->vhost.device_num < device_num_min) {
-            device_num_min = ctxs[i]->vhost.device_num;
-            ctx = ctxs[i];
-        }
-    }
+    //     if (ctxs[i]->vhost.device_num < device_num_min) {
+    //         device_num_min = ctxs[i]->vhost.device_num;
+    //         ctx = ctxs[i];
+    //     }
+    // }
 
-    if (ctx == NULL) {
-        if (fp_cores_max == 0) {
-            LOG_ERROR("(%d) ERROR: fp_cores_max is 0, no dataplane cores configured!\n", vid);
-        } else {
-            LOG_ERROR("(%d) couldn't find suitable context (fp_cores_max=%d, all contexts NULL or full)\n", vid,
-                      fp_cores_max);
-            LOG_ERROR(
-                "(%d) This might be a timing issue - contexts may not be initialized yet. VM connection will retry.\n",
-                vid);
-        }
-        rte_free(vdev);
-        return -1;
-    }
+    // if (ctx == NULL) {
+    //     if (fp_cores_max == 0) {
+    //         LOG_ERROR("(%d) ERROR: fp_cores_max is 0, no dataplane cores configured!\n", vid);
+    //     } else {
+    //         LOG_ERROR("(%d) couldn't find suitable context (fp_cores_max=%d, all contexts NULL or full)\n", vid,
+    //                   fp_cores_max);
+    //         LOG_ERROR(
+    //             "(%d) This might be a timing issue - contexts may not be initialized yet. VM connection will
+    //             retry.\n", vid);
+    //     }
+    //     rte_free(vdev);
+    //     return -1;
+    // }
 
     LOG_INFO("(%d) Selected context %d (device_num=%d)\n", vid, ctx->id, ctx->vhost.device_num);
     vdev->coreid = ctx->id;
@@ -242,11 +269,8 @@ static int new_device(int vid) {
     ctx->vhost.vdev_list[dev_idx] = vdev;
     ctx->vhost.device_num++;
 
-    // Add new device to active list so it gets polled immediately
-    // This ensures new devices are checked right away
-    if (ctx->vhost.active_count < MAX_VHOST_DEVICES_PER_CORE) {
-        ctx->vhost.active_devices[ctx->vhost.active_count++] = dev_idx;
-    }
+    // make it active to ensure new devices are checked right away
+    vdev->is_active = 1;
 
     /* Disable notifications. */
     // Normally, guest would send interrupt when it adds packets to TX queue or consumes packets from RX queue
@@ -267,7 +291,7 @@ static int new_device(int vid) {
         }
     }
 
-    LOG_INFO("(%d) device has been added to data core %d\n", vid, vdev->coreid);
+    LOG_IMPT("[%d] added device %d\n", vdev->coreid, vid);
 
     // Note: MAC address will be added to lookup table when learned in link_vmdq()
 

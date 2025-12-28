@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -ex
+set -eu
+source env.sh
 
 if [ "$#" -ne 1 ]; then
   echo "Usage: $0 <num_vms>"

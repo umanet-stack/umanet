@@ -49,6 +49,23 @@ write_files:
       [Install]
       WantedBy=multi-user.target
 
+  - path: /etc/systemd/system/ping.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=ping dpdk switch test
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/bin/ping -c 3 192.168.10${NODE_ID}.1
+      StandardOutput=journal+console
+      StandardError=journal+console
+
+      [Install]
+      WantedBy=multi-user.target
+
   - path: /usr/local/bin/start-iperf.sh
     permissions: '0755'
     content: |
@@ -121,6 +138,8 @@ runcmd:
   - systemctl restart systemd-resolved
   - systemctl daemon-reexec
   - systemctl daemon-reload
+  - systemctl enable ping
+  - systemctl start ping
   - systemctl enable iperf
   - systemctl start iperf
 

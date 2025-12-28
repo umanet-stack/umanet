@@ -4,40 +4,49 @@ sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | t
 ```
 
 # tap
-For `samenode`, if you run 8 vms = 4 servers + 4 clients = `report-4vm`
+## vm-vm-internal
+For `vm-vm-internal`, if you run 8 vms = 4 servers + 4 clients = `report-4vm`
 ```bash
 # need to rerun br/tap setup after dpdk test
-./setup/vm/setup_br_tap.sh 0 enp23s0f0np0 32
-./setup/vm/spawn_vms.sh tap 32 /tmp samenode
-python testing/process_results.py tap samenode
-
-./setup/vm/spawn_vms.sh tap 32 /tmp multinode
-python testing/process_results.py tap multinode
-
+./setup/vm/setup_br_tap.sh 32
+./setup/vm/spawn_vms.sh tap 32 vm-vm-internal
+python testing/process_results.py tap vm-vm-internal
+```
+## multinode
+```bash
+# node 1
+./setup/vm/setup_br_tap.sh 32
+./setup/vm/spawn_vms.sh tap 32 vm-server
+# node 0
+./setup/vm/setup_br_tap.sh 32
+./setup/vm/spawn_vms.sh tap 32 vm-client
+python testing/process_results.py tap vm-client
 ```
 
 # dpdk
+## vm-vm-internal
 ```bash
 # run TAP once before DPDK to make it download iperf
 # no. of vhost must match no. of VMs!
-sudo ./build_and_run.sh 0 enp23s0f0np0 0000:17:00.0 test 5 32
-./setup/vm/spawn_vms.sh dpdk 32 /tmp samenode
-python testing/process_results.py dpdk samenode
-
-sudo ./build_and_run.sh 0 enp23s0f0np0 0000:17:00.0 test 5 32
-./setup/vm/spawn_vms.sh dpdk 32 /tmp multinode
-python testing/process_results.py dpdk multinode
-
-# kill all vms to end/reset experiment
-sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
+sudo ./build_and_run.sh test 5 32
+./setup/vm/spawn_vms.sh dpdk 32 vm-vm-internal
+python testing/process_results.py dpdk vm-vm-internal
+```
+## multinode
+- vm user-data has ping service that will ping 3 times to make dpdk app learn IP of vm
+```bash
+# node 1
+sudo ./build_and_run.sh test 5 32
+./setup/vm/spawn_vms.sh dpdk 32 vm-server
+# node 0
+sudo ./build_and_run.sh test 5 32
+./setup/vm/spawn_vms.sh dpdk 32 vm-client
+python testing/process_results.py dpdk vm-client
 ```
 
-## multinode setup
 ```bash
-# make sure the set other node nic
-sudo ip addr flush dev enp23s0f0np0
-sudo ip addr add 192.168.100.99/24 dev enp23s0f0np0
-sudo ip link set enp23s0f0np0 up
+# kill all vms to end/reset experiment
+sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
 ```
 
 # OVS DPDK

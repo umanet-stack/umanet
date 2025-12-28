@@ -48,7 +48,7 @@ int process_arp(struct dataplane_context *ctx, struct vhost_dev *vdev, struct rt
         int ret = vhost_send(ctx, 1, vdev->vid, &m);
         if (unlikely(ret == 0))
             LOG_WARN("[%d] Failed to enqueue ARP reply to vid=%d\n", ctx->id, vdev->vid);
-    } else if (src == ARP_SRC_ETH) {
+    } else if (src == ARP_SRC_ETH) { // handled in from_eth instead
         int ret = network_send(ctx, 1, &m);
         if (unlikely(ret == 0))
             LOG_WARN("[%d] Failed to send ARP reply to physical NIC\n", ctx->id);
