@@ -129,7 +129,7 @@ struct rte_ether_addr *install_mac_flow(uint16_t port_id, uint32_t dst_ip, uint1
         return NULL;
     }
 
-    LOG_INFO("Flow added to mac flow table for IP %u.%u.%u.%u (VM %d), queue=%u\n", (dst_ip >> 24) & 0xff,
+    LOG_IMPT("Flow added to mac flow table for IP %u.%u.%u.%u (VM %d), queue=%u\n", (dst_ip >> 24) & 0xff,
              (dst_ip >> 16) & 0xff, (dst_ip >> 8) & 0xff, dst_ip & 0xff, vm_id, queue_id);
 
     return mac;
