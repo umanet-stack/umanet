@@ -11,11 +11,32 @@
 #include "src/network/network.h"
 #include "src/vhost/vhost.h"
 
+static inline void check_and_install_flow(uint32_t dst_ip, struct rte_ether_hdr *eth_hdr) {
+    struct rte_flow *flow;
+
+    // Check if IP is in VM subnet
+    uint32_t subnet_base = (dst_ip & 0xFFFFFF00); // Get /24 subnet
+    uint32_t vm_base = (config.ip & 0xFFFFFF00);  // Gateway IP subnet
+
+    if (subnet_base == vm_base && (dst_ip & 0xFF) >= 2) {
+        // Lookup flow by IP
+        flow = NULL;
+        rte_hash_lookup_data(mac_flow_table, &dst_ip, (void **)&flow);
+        if (unlikely(flow == NULL)) {
+            // Calculate VM ID from IP (VM 0 = .2, VM 1 = .3, etc.)
+            uint8_t vm_id = (dst_ip & 0xFF) - 2;
+            struct rte_ether_addr *target_vm_mac = install_mac_flow(net_port_id, dst_ip, vm_id % fp_cores_max);
+            if (target_vm_mac != NULL) {
+                rte_ether_addr_copy(target_vm_mac, &eth_hdr->dst_addr);
+            }
+        }
+    }
+}
+
 // receive packets from physical NIC and forward them to a VM
 void fastpath_from_eth(struct dataplane_context *ctx) {
     uint16_t rx_count;
     struct rte_mbuf *pkts[MAX_PKT_BURST];
-    struct rte_flow *flow;
 
     // STATS_TS(eth_poll_start);
     rx_count = network_poll(ctx, MAX_PKT_BURST, pkts);
@@ -50,37 +71,42 @@ void fastpath_from_eth(struct dataplane_context *ctx) {
         struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
 
         // flow steering by IP address (for packets destined to DPDK NIC MAC)
-        flow = NULL;
         if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
             struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
             uint32_t dst_ip = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
+            check_and_install_flow(dst_ip, eth_hdr);
 
-            // Check if IP is in VM subnet
-            uint32_t subnet_base = (dst_ip & 0xFFFFFF00); // Get /24 subnet
-            uint32_t vm_base = (config.ip & 0xFFFFFF00);  // Gateway IP subnet
-
-            if (subnet_base == vm_base && (dst_ip & 0xFF) >= 2) {
-                // Lookup flow by IP
-                rte_hash_lookup_data(mac_flow_table, &dst_ip, (void **)&flow);
-                if (unlikely(flow == NULL)) {
-                    // Calculate VM ID from IP (VM 0 = .2, VM 1 = .3, etc.)
-                    uint8_t vm_id = (dst_ip & 0xFF) - 2;
-                    struct rte_ether_addr *target_vm_mac = install_mac_flow(net_port_id, dst_ip, vm_id % fp_cores_max);
-                    if (target_vm_mac != NULL) {
-                        rte_ether_addr_copy(target_vm_mac, &eth_hdr->dst_addr);
-                    }
-                }
-            }
+            // Try current core first (faster), then search all cores if not found
             target_vdev = find_vhost_dev_core_ip(ctx, dst_ip);
+            if (target_vdev == NULL) {
+                target_vdev = find_vhost_dev_ip(dst_ip);
+            }
+        } else if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)) {
+            struct rte_arp_hdr *arp_hdr = (struct rte_arp_hdr *)(eth_hdr + 1);
+            uint32_t target_ip = rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip);
+            check_and_install_flow(target_ip, eth_hdr);
+
+            // if pkt is ARP request
+            if (target_vdev == NULL && process_arp(ctx, NULL, pkts[i], ARP_SRC_ETH) == 0) {
+                continue; // ARP was handled (e.g., gateway ARP request)
+            }
+
+            // if pkt is ARP reply for a VM
+            if (arp_hdr->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REPLY)) {
+                target_vdev = find_vhost_dev_core_ip(ctx, target_ip);
+                if (target_vdev == NULL)
+                    target_vdev = find_vhost_dev_ip(target_ip);
+            }
         } else {
             // TODOZ: Use a hash table keyed by MAC address
             target_vdev = find_vhost_dev_core_mac(ctx, &eth_hdr->dst_addr);
+            if (target_vdev == NULL) {
+                target_vdev = find_vhost_dev(&eth_hdr->dst_addr);
+            }
         }
 
         if (target_vdev != NULL) {
             target_vid = target_vdev->vid;
-        } else if (process_arp(ctx, NULL, pkts[i], ARP_SRC_ETH) == 0) {
-            continue;
         }
 
         // Add to batch for target VM

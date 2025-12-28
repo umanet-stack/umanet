@@ -53,13 +53,15 @@ struct rte_ether_addr *install_mac_flow(uint16_t port_id, uint32_t dst_ip, uint1
     extern struct dataplane_context **ctxs;
     extern unsigned fp_cores_max;
 
-    // Search all cores for the VM with matching VID
+    // Search all cores for the VM with matching IP address
+    // Use IP address matching instead of VID matching, as VIDs are assigned by DPDK
+    // and may not correspond to VM IDs calculated from IP addresses
     for (int core = 0; core < fp_cores_max; core++) {
         if (ctxs[core] == NULL)
             continue;
         for (int j = 0; j < ctxs[core]->vhost.device_num; j++) {
             struct vhost_dev *vdev = ctxs[core]->vhost.vdev_list[j];
-            if (vdev != NULL && vdev->ready == DEVICE_RX && vdev->vid == vm_id) {
+            if (vdev != NULL && vdev->ready == DEVICE_RX && vdev->vm_ip_address == dst_ip) {
                 mac = &vdev->mac_address;
                 break;
             }
