@@ -26,7 +26,7 @@ sources = files(
 	# 'src/fast/from_eth.c',
 	# 'src/fast/from_vm.c',
 	# 'src/network/nat.c',
-	# 'src/network/network.c',
+	'src/network/network.c',
 	# 'src/network/tap.c',
 	# 'src/vhost/device.c',
 	# 'src/vhost/queues.c',

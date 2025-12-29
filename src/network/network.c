@@ -24,7 +24,6 @@
 
 #include "log.h"
 #include "src/config/config.h"
-#include "src/include/fastpath.h"
 #include <assert.h>
 #include <stdio.h>
 
@@ -42,6 +41,7 @@
 
 #include "../fast/internal.h"
 #include "../include/main.h"
+#include "network.h"
 #include "src/include/state.h"
 #include <tas_memif.h>
 #include <utils.h>
@@ -84,7 +84,6 @@ static unsigned num_threads;
 static struct network_rx_thread **net_threads;
 
 static struct rte_eth_dev_info eth_devinfo;
-struct rte_ether_addr eth_addr;
 
 uint16_t rss_reta_size;
 static struct rte_eth_rss_reta_entry64 *rss_reta = NULL;
@@ -95,19 +94,12 @@ static int reta_setup(void);
 static int reta_mlx5_resize(void);
 static rte_spinlock_t initlock = RTE_SPINLOCK_INITIALIZER;
 
-int network_init(unsigned n_threads) {
+int network_init(uint16_t n_threads) {
     uint8_t count;
     int ret;
     uint16_t p;
 
     num_threads = n_threads;
-
-    /* allocate thread pointer arrays */
-    net_threads = rte_calloc("net thread ptrs", n_threads, sizeof(*net_threads), 0);
-    if (net_threads == NULL) {
-        LOG_ERROR("Allocating net thread pointers failed\n");
-        goto error_exit;
-    }
 
     /* make sure there is only one port */
     count = rte_eth_dev_count_avail();
@@ -120,18 +112,15 @@ int network_init(unsigned n_threads) {
     }
 
     // used -w (whitelist) for NIC PCI addr in dpdk args, this should have only one port with id 0
-    RTE_ETH_FOREACH_DEV(p) {
-        net_port_id = p;
-        global->eth_port_id = p;
-    }
-    if (!rte_eth_dev_is_valid_port(net_port_id)) {
-        LOG_ERROR("Specified port ID(%u) is not valid\n", net_port_id);
+    RTE_ETH_FOREACH_DEV(p) { global->eth_port_id = p; }
+    if (!rte_eth_dev_is_valid_port(global->eth_port_id)) {
+        LOG_ERROR("Specified port ID(%u) is not valid\n", global->eth_port_id);
         goto error_exit;
     }
 
-    /* get mac address and device info */
-    rte_eth_macaddr_get(net_port_id, &eth_addr);
-    rte_eth_dev_info_get(net_port_id, &eth_devinfo);
+    // get mac address and device info
+    rte_eth_macaddr_get(global->eth_port_id, &global->eth_addr);
+    rte_eth_dev_info_get(global->eth_port_id, &eth_devinfo);
 
     if (eth_devinfo.max_rx_queues < n_threads || eth_devinfo.max_tx_queues < n_threads) {
         LOG_ERROR("Error: NIC does not support enough hw queues (rx=%u tx=%u)"
@@ -186,8 +175,6 @@ int network_init(unsigned n_threads) {
         /* mask unsupported TX offloads (use same mask as port-level) */
         eth_devinfo.default_txconf.offloads = requested_offloads & eth_devinfo.tx_offload_capa;
     }
-
-    // memcpy(&tas_info->mac_address, &eth_addr, 6);
 
     return 0;
 
@@ -452,7 +439,7 @@ static int reta_setup() {
     rss_reta_size = eth_devinfo.reta_size;
     rss_reta = rte_calloc("rss reta", ((rss_reta_size + RTE_ETH_RETA_GROUP_SIZE - 1) / RTE_ETH_RETA_GROUP_SIZE),
                           sizeof(*rss_reta), 0);
-    rss_core_buckets = rte_calloc("rss core buckets", fp_cores_max, sizeof(*rss_core_buckets), 0);
+    rss_core_buckets = rte_calloc("rss core buckets", global->fp_cores, sizeof(*rss_core_buckets), 0);
 
     if (rss_reta == NULL || rss_core_buckets == NULL) {
         fprintf(stderr, "reta_setup: rss_reta alloc failed\n");
@@ -472,7 +459,7 @@ static int reta_setup() {
         rss_core_buckets[c]++;
         rss_reta[i / RTE_ETH_RETA_GROUP_SIZE].mask = -1ULL;
         rss_reta[i / RTE_ETH_RETA_GROUP_SIZE].reta[i % RTE_ETH_RETA_GROUP_SIZE] = c;
-        fp_state->flow_group_steering[i] = c;
+        // fp_state->flow_group_steering[i] = c;
         c = (c + 1) % fp_cores_cur;
     }
 

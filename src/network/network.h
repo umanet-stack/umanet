@@ -32,7 +32,7 @@
 #include <rte_mbuf.h>
 #include <rte_memcpy.h>
 
-int network_init(unsigned n_threads);
+int network_init(uint16_t n_threads);
 void network_cleanup(void);
 void network_dump_stats(void);
 
