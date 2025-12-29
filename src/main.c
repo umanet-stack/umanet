@@ -36,8 +36,8 @@ static int common_thread(void *arg);
 
 static void sigint_handler(__rte_unused int signum) {
     unregister_vhost_drivers(config.nb_sockets, config.socket_files);
-    dataplane_dump_stats();
-    network_dump_stats(); // Dump hardware TX/RX statistics including errors
+    // dataplane_dump_stats();
+    // network_dump_stats(); // Dump hardware TX/RX statistics including errors
     exit(0);
 }
 
@@ -57,6 +57,7 @@ int main(int argc, char *argv[]) {
         res = EXIT_FAILURE;
         goto error_exit;
     }
+    LOG_IMPT("✅ Initialized DPDK EAL\n");
     argc -= dpdk_args; // Update argc to exclude DPDK-specific arguments
     argv += dpdk_args;
 
@@ -66,28 +67,28 @@ int main(int argc, char *argv[]) {
         res = EXIT_FAILURE;
         goto error_exit;
     }
-    fp_cores_max = config.fp_cores_max;
+    LOG_IMPT("✅ Parsed config\n");
 
     if (init_dataplane_topology() != 0) {
         res = EXIT_FAILURE;
         LOG_ERROR("init_dataplane_topology failed\n");
         goto error_exit;
     }
-    LOG_IMPT("Initialized dataplane topology\n");
+    LOG_IMPT("✅ Initialized dataplane topology\n");
 
     if (init_rings() != 0) {
         res = EXIT_FAILURE;
         LOG_ERROR("init_rings failed\n");
         goto error_exit;
     }
-    LOG_IMPT("Initialized rings\n");
+    LOG_IMPT("✅ Initialized rings\n");
 
     if (init_dataplane_ctxs() != 0) {
         res = EXIT_FAILURE;
         LOG_ERROR("init_dataplane_ctxs failed\n");
         goto error_exit;
     }
-    LOG_IMPT("Initialized dataplane contexts\n");
+    LOG_IMPT("✅ Initialized dataplane contexts\n");
 
     // Sets up RX/TX queues per core, initializes ARP, routing tables
     LOG_INFO("Initializing network...\n");
@@ -96,12 +97,14 @@ int main(int argc, char *argv[]) {
         LOG_ERROR("network init failed\n");
         goto error_shm_cleanup;
     }
+    LOG_IMPT("✅ Initialized network\n");
 
     if (init_mac_flow_table() != 0) {
         res = EXIT_FAILURE;
         LOG_ERROR("init_mac_flow_table failed\n");
         goto error_network_cleanup;
     }
+    LOG_IMPT("✅ Initialized mac flow table\n");
 
     // Start worker threads BEFORE vhost registration
     // This ensures TX queues are initialized before vhost can send packets
