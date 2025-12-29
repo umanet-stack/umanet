@@ -185,137 +185,106 @@ void network_dump_stats(void) {
     }
 }
 
-// NIC TX/RX queues id = ctx id, + start eth if core 0
-int network_thread_init(struct dataplane_context *ctx) {
-    static volatile uint32_t tx_init_done = 0;
-    static volatile uint32_t rx_init_done = 0;
-    static volatile uint32_t start_done = 0;
+static volatile uint32_t tx_init_done = 0;
+static volatile uint32_t rx_init_done = 0;
+static volatile uint32_t start_done = 0;
 
-    struct network_thread *t = &ctx->net;
+int network_tx_queue_init(struct eth_tx_ctx *ctx) {
     int ret;
 
-    /* initialize tx queue */
-    t->queue_id = ctx->id;
     rte_spinlock_lock(&initlock);
-    ret = rte_eth_tx_queue_setup(global->eth_port_id, t->queue_id, TX_DESCRIPTORS, rte_socket_id(),
+    ret = rte_eth_tx_queue_setup(global->eth_port_id, ctx->eth_queue_id, TX_DESCRIPTORS, rte_socket_id(),
                                  &eth_devinfo.default_txconf);
     rte_spinlock_unlock(&initlock);
     if (ret != 0) {
-        fprintf(stderr, "network_thread_init: rte_eth_tx_queue_setup failed\n");
-        goto error_tx_queue;
+        LOG_ERROR("network_tx_queue_init: rte_eth_tx_queue_setup failed\n");
+        return -1;
     }
 
+    LOG_IMPT("[%d] NIC TX queue %d initialized\n", ctx->id, ctx->eth_queue_id);
+    return ret;
+}
+
+int network_rx_queue_init(struct eth_rx_ctx *ctx) {
     /* barrier to make sure tx queues are initialized first */
     __sync_add_and_fetch(&tx_init_done, 1);
     while (tx_init_done < global->eth_rx_cores)
         ;
 
-    /* initialize rx queue */
-    t->queue_id = ctx->id;
+    int ret;
     rte_spinlock_lock(&initlock);
-    ret = rte_eth_rx_queue_setup(global->eth_port_id, t->queue_id, RX_DESCRIPTORS, rte_socket_id(),
-                                 &eth_devinfo.default_rxconf, t->pool);
+    ret = rte_eth_rx_queue_setup(global->eth_port_id, ctx->eth_queue_id, RX_DESCRIPTORS, rte_socket_id(),
+                                 &eth_devinfo.default_rxconf, ctx->mempool);
     rte_spinlock_unlock(&initlock);
     if (ret != 0) {
-        fprintf(stderr, "network_thread_init: rte_eth_rx_queue_setup failed\n");
-        goto error_rx_queue;
+        LOG_ERROR("network_rx_queue_init: rte_eth_rx_queue_setup failed\n");
+        return -1;
     }
 
+    LOG_IMPT("[%d] NIC RX queue %d initialized\n", ctx->id, ctx->eth_queue_id);
+    return ret;
+}
+
+int network_start_eth() {
     /* barrier to make sure rx queues are initialized first */
     __sync_add_and_fetch(&rx_init_done, 1);
     while (rx_init_done < global->eth_rx_cores)
         ;
 
-    LOG_IMPT("[%d] NIC TX/RX queue %d\n", ctx->id, t->queue_id);
+    int ret;
+    if (rte_eth_dev_start(global->eth_port_id) != 0) {
+        fprintf(stderr, "rte_eth_dev_start failed\n");
+        goto error_tx_queue;
+    }
 
-    /* start device if this ìs core 0 */
-    if (ctx->id == 0) {
-        if (rte_eth_dev_start(global->eth_port_id) != 0) {
-            fprintf(stderr, "rte_eth_dev_start failed\n");
+    /* Check and wait for link to be up */
+    struct rte_eth_link link;
+    int link_check_retries = 10;
+    int link_up = 0;
+    while (link_check_retries-- > 0) {
+        rte_eth_link_get(global->eth_port_id, &link);
+        if (link.link_status == RTE_ETH_LINK_UP) {
+            link_up = 1;
+            fprintf(stderr, "Link is UP: speed=%u Mbps, duplex=%s\n", link.link_speed,
+                    link.link_duplex == RTE_ETH_LINK_FULL_DUPLEX ? "full" : "half");
+            break;
+        }
+        fprintf(stderr, "Waiting for link to come up... (retries left: %d)\n", link_check_retries);
+        rte_delay_ms(500);
+    }
+    if (!link_up) {
+        fprintf(stderr, "WARNING: Link is DOWN after starting device. Packets may not transmit!\n");
+    }
+
+    /* Enable promiscuous mode to receive all packets (needed for ARP replies and forwarding) */
+    if (rte_eth_promiscuous_enable(global->eth_port_id) != 0) {
+        fprintf(stderr, "WARNING: Failed to enable promiscuous mode\n");
+    } else {
+        fprintf(stderr, "Promiscuous mode enabled for port %d\n", global->eth_port_id);
+    }
+
+    /* enable vlan stripping if configured */
+    if (config.fp_vlan_strip) {
+        ret = rte_eth_dev_get_vlan_offload(global->eth_port_id);
+        ret |= RTE_ETH_VLAN_STRIP_OFFLOAD;
+        if (rte_eth_dev_set_vlan_offload(global->eth_port_id, ret)) {
+            fprintf(stderr, "network_thread_init: vlan off set failed\n");
             goto error_tx_queue;
         }
-
-        /* Check and wait for link to be up */
-        struct rte_eth_link link;
-        int link_check_retries = 10;
-        int link_up = 0;
-        while (link_check_retries-- > 0) {
-            rte_eth_link_get(global->eth_port_id, &link);
-            if (link.link_status == RTE_ETH_LINK_UP) {
-                link_up = 1;
-                fprintf(stderr, "Link is UP: speed=%u Mbps, duplex=%s\n", link.link_speed,
-                        link.link_duplex == RTE_ETH_LINK_FULL_DUPLEX ? "full" : "half");
-                break;
-            }
-            fprintf(stderr, "Waiting for link to come up... (retries left: %d)\n", link_check_retries);
-            rte_delay_ms(500);
-        }
-        if (!link_up) {
-            fprintf(stderr, "WARNING: Link is DOWN after starting device. Packets may not transmit!\n");
-        }
-
-        /* Enable promiscuous mode to receive all packets (needed for ARP replies and forwarding) */
-        if (rte_eth_promiscuous_enable(global->eth_port_id) != 0) {
-            fprintf(stderr, "WARNING: Failed to enable promiscuous mode\n");
-        } else {
-            fprintf(stderr, "Promiscuous mode enabled for port %d\n", global->eth_port_id);
-        }
-
-        /* enable vlan stripping if configured */
-        if (config.fp_vlan_strip) {
-            ret = rte_eth_dev_get_vlan_offload(global->eth_port_id);
-            ret |= RTE_ETH_VLAN_STRIP_OFFLOAD;
-            if (rte_eth_dev_set_vlan_offload(global->eth_port_id, ret)) {
-                fprintf(stderr, "network_thread_init: vlan off set failed\n");
-                goto error_tx_queue;
-            }
-        }
-
-        /* setting up RETA - non-fatal if not supported (e.g., safe mode) */
-        if (config.fp_autoscale) {
-            if (reta_setup() != 0) {
-                fprintf(stderr, "RETA setup failed - continuing without autoscaling support\n");
-                /* Don't treat as fatal error - device may not support RSS/RETA */
-            }
-        }
-        start_done = 1;
     }
 
-    /* barrier wait for main thread to start the device */
-    while (!start_done)
-        ;
-
-    if (config.fp_interrupts) {
-        /* setup rx queue interrupt */
-        rte_spinlock_lock(&initlock);
-        ret =
-            rte_eth_dev_rx_intr_ctl_q(global->eth_port_id, t->queue_id, RTE_EPOLL_PER_THREAD, RTE_INTR_EVENT_ADD, NULL);
-        rte_spinlock_unlock(&initlock);
-        if (ret != 0) {
-            fprintf(stderr,
-                    "network_thread_init: rte_eth_dev_rx_intr_ctl_q failed "
-                    "(%d)\n",
-                    rte_errno);
-            goto error_int_queue;
+    /* setting up RETA - non-fatal if not supported (e.g., safe mode) */
+    if (config.fp_autoscale) {
+        if (reta_setup() != 0) {
+            fprintf(stderr, "RETA setup failed - continuing without autoscaling support\n");
+            /* Don't treat as fatal error - device may not support RSS/RETA */
         }
     }
-
+    start_done = 1;
     return 0;
 
-error_int_queue:
-    /* TODO: destroy rx queue */
-error_rx_queue:
-    /* TODO: destroy tx queue */
 error_tx_queue:
     return -1;
-}
-
-int network_rx_interrupt_ctl(struct network_thread *t, int turnon) {
-    if (turnon) {
-        return rte_eth_dev_rx_intr_enable(global->eth_port_id, t->queue_id);
-    } else {
-        return rte_eth_dev_rx_intr_disable(global->eth_port_id, t->queue_id);
-    }
 }
 
 // int network_scale_up(uint16_t old, uint16_t new) {

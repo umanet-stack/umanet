@@ -1,5 +1,6 @@
 #include "log.h"
 #include "src/include/state.h"
+#include "src/network/network.h"
 #include "src/vhost/vhost.h"
 #include <rte_malloc.h>
 
@@ -43,6 +44,12 @@ int init_dataplane_ctxs() {
         }
         eth_rx_ctxs[i]->id = i;
         eth_rx_ctxs[i]->eth_queue_id = i;
+
+        if ((eth_rx_ctxs[i]->mempool = network_mempool_alloc()) == NULL) {
+            LOG_ERROR("init_eth_rx_ctxs: failed to allocate eth_rx_ctxs[%d]->mempool\n", i);
+            rte_free(eth_rx_ctxs[i]);
+            return -1;
+        }
     }
 
     for (int i = 0; i < global->eth_tx_cores; i++) {

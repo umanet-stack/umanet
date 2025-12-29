@@ -117,20 +117,44 @@ int main(int argc, char *argv[]) {
     for (int wait = 0; wait < max_wait && !all_ready; wait++) {
         sleep(1);
         all_ready = 1;
-        for (int i = 0; i < global->fp_cores; i++) {
-            if (ctxs[i] == NULL) {
-                LOG_INFO("Waiting for context %d to initialize...\n", i);
+        for (int i = 0; i < global->eth_rx_cores; i++) {
+            if (eth_rx_ctxs[i] == NULL) {
+                all_ready = 0;
+                break;
+            }
+        }
+        for (int i = 0; i < global->eth_tx_cores; i++) {
+            if (eth_tx_ctxs[i] == NULL) {
+                all_ready = 0;
+                break;
+            }
+        }
+        for (int i = 0; i < global->vhost_rx_cores; i++) {
+            if (vhost_rx_ctxs[i] == NULL) {
+                all_ready = 0;
+                break;
+            }
+        }
+        for (int i = 0; i < global->vhost_tx_cores; i++) {
+            if (vhost_tx_ctxs[i] == NULL) {
                 all_ready = 0;
                 break;
             }
         }
     }
 
-    // if (!all_ready) {
-    //     res = EXIT_FAILURE;
-    //     LOG_ERROR("ERROR: Not all dataplane contexts initialized after %d seconds\n", max_wait);
-    //     goto error_dataplane_cleanup;
-    // }
+    if (network_start_eth() != 0) {
+        res = EXIT_FAILURE;
+        LOG_ERROR("network_start_eth failed\n");
+        goto error_dataplane_cleanup;
+    }
+    LOG_IMPT("✅ Started network\n");
+
+    if (!all_ready) {
+        res = EXIT_FAILURE;
+        LOG_ERROR("ERROR: Not all dataplane contexts initialized after %d seconds\n", max_wait);
+        goto error_dataplane_cleanup;
+    }
 
     LOG_IMPT("✅ All %d dataplane contexts initialized successfully\n", global->fp_cores);
 
@@ -166,15 +190,22 @@ static int common_thread(void *arg) {
 
     if (id < global->eth_rx_cores) {
         struct eth_rx_ctx *eth_rx_ctx = eth_rx_ctxs[id];
+        if (network_rx_queue_init(eth_rx_ctx) != 0) {
+            LOG_ERROR("network_rx_queue_init failed\n");
+            return -1;
+        }
         LOG_IMPT("[%u] Entering eth_rx loop...\n", id);
 
     } else if (id < global->eth_rx_cores + global->eth_tx_cores) {
         struct eth_tx_ctx *eth_tx_ctx = eth_tx_ctxs[id - global->eth_rx_cores];
+        if (network_tx_queue_init(eth_tx_ctx) != 0) {
+            LOG_ERROR("network_tx_queue_init failed\n");
+            return -1;
+        }
         LOG_IMPT("[%u] Entering eth_tx loop...\n", id);
 
     } else if (id < global->eth_rx_cores + global->eth_tx_cores + global->vhost_rx_cores) {
         struct vhost_rx_ctx *vhost_rx_ctx = vhost_rx_ctxs[id - global->eth_rx_cores - global->eth_tx_cores];
-        vhost_rx_ctx->mempool = vhost_mempool_alloc();
         LOG_IMPT("[%u] Entering vhost_rx loop...\n", id);
 
     } else if (id < global->eth_rx_cores + global->eth_tx_cores + global->vhost_rx_cores + global->vhost_tx_cores) {

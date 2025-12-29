@@ -25,6 +25,7 @@
 #ifndef NETWORK_H_
 #define NETWORK_H_
 
+#include "src/include/state.h"
 #include <rte_config.h>
 #include <rte_ethdev.h>
 #include <rte_ether.h>
@@ -36,12 +37,27 @@ int network_init();
 void network_cleanup(void);
 void network_dump_stats(void);
 
-int network_thread_init(struct dataplane_context *ctx);
-int network_rx_interrupt_ctl(struct network_thread *t, int turnon);
-
 static inline void free_pkts(struct rte_mbuf **pkts, uint16_t n) {
     while (n--)
         rte_pktmbuf_free(pkts[n]);
 }
+
+#define PERTHREAD_MBUFS 2048
+#define BUFFER_SIZE 2048
+#define MBUF_SIZE (BUFFER_SIZE + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
+
+struct rte_mempool *network_mempool_alloc() {
+    static unsigned pool_id = 0;
+    unsigned n;
+    char name[32];
+    n = __sync_fetch_and_add(&pool_id, 1);
+    snprintf(name, 32, "mbuf_pool_%u\n", n);
+    return rte_mempool_create(name, PERTHREAD_MBUFS, MBUF_SIZE, 32, sizeof(struct rte_pktmbuf_pool_private),
+                              rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, rte_socket_id(), 0);
+}
+
+int network_tx_queue_init(struct eth_tx_ctx *ctx);
+int network_rx_queue_init(struct eth_rx_ctx *ctx);
+int network_start_eth();
 
 #endif /* ndef NETWORK_H_ */

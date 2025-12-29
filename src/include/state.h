@@ -36,6 +36,7 @@ struct dataplane_topology {
 struct eth_rx_ctx {
     uint16_t id;
     uint16_t eth_queue_id; // same as id
+    struct rte_mempool *mempool;
     // struct route_table *rt; // read-only snapshot
 };
 
