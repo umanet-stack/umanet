@@ -22,13 +22,24 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef MAIN_H_
-#define MAIN_H_
+#ifndef TAS_H_
+#define TAS_H_
 
 #include "../../include/tas_memif.h"
 #include "../config/config.h"
 
+/** @addtogroup tas
+ *  @brief TAS.
+ */
+
 extern config_t config;
+
+extern void *tas_shm;
+extern struct flextcp_pl_mem *fp_state;
+extern struct flexnic_info *tas_info;
+
+extern struct rte_ether_addr eth_addr;
+extern unsigned fp_cores_max;
 
 int init_dataplane_topology(void);
 int init_dataplane_ctxs(void);
@@ -36,6 +47,18 @@ int init_rings(void);
 void destroy_rings(void);
 
 int slowpath_main(void);
+
+int shm_preinit(void);
+int shm_init(unsigned num);
+void shm_cleanup(void);
+void shm_set_ready(void);
+
+int network_init(unsigned num_threads);
+void network_cleanup(void);
+void network_dump_stats(void);
+
+/* used by trace and shm */
+void *util_create_shmsiszed(const char *name, size_t size, void *addr);
 
 struct notify_blockstate {
     uint64_t last_active_ts;
@@ -52,4 +75,8 @@ void notify_canblock_reset(struct notify_blockstate *nbs);
 
 int init_mac_flow_table(void);
 
-#endif /* MAIN_H_ */
+/* should become config options */
+#define FLEXNIC_INTERNAL_MEM_SIZE (1024 * 1024 * 32)
+#define FLEXNIC_NUM_QMQUEUES (128 * 1024)
+
+#endif /* ndef TAS_H_ */

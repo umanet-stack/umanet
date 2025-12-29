@@ -1,6 +1,7 @@
 #ifndef STATE_H_
 #define STATE_H_
 
+#include <rte_ether.h>
 #include <rte_ring.h>
 
 #define ETH_TX_CORES 2
@@ -21,6 +22,7 @@ struct dataplane_topology {
     struct rte_ring *eth_tx_rings[ETH_TX_CORES];
     struct rte_ring *vhost_tx_rings[MAX_VHOSTS];
     uint16_t eth_port_id;
+    struct rte_ether_addr eth_addr;
 };
 
 struct eth_rx_ctx {
