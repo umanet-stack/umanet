@@ -101,6 +101,32 @@ struct device_statistics {
     rte_atomic64_t rx_total_atomic;
 };
 
+struct vhost_dev { // vhost device
+    // Device MAC address (Obtained on first TX packet).
+    struct rte_ether_addr mac_address;
+    uint32_t vm_ip_address;
+    /**< Data core that the device is added to. */
+    uint16_t coreid;
+    /**< A device is set as ready if the MAC address has been set. */
+    volatile uint8_t ready;
+    /**< Device is marked for removal from the data core. */
+    volatile uint8_t remove;
+
+    int vid;                      // vhost device ID, assigned by dpdk
+    uint64_t features;            // Virtio feature flags
+    size_t hdr_len;               // Header length
+    struct rte_vhost_memory *mem; // Guest memory mapping
+    struct device_statistics stats;
+
+    // Rate-limited logging for failed enqueue attempts
+    uint64_t last_failed_log_ts; // TSC timestamp of last log
+    uint64_t failed_pkts_count;  // Cumulative failed packets since last log
+
+    // Track consecutive empty polls before marking device inactive
+    uint8_t empty_poll_count;
+    uint8_t is_active;
+} __rte_cache_aligned;
+
 #define MAX_PKT_BURST 32              /* Max packets processed per burst (RX/TX) */
 #define MAX_VHOST_DEVICES_PER_CORE 64 /* Max vhost devices per dataplane core */
 

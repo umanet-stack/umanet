@@ -63,7 +63,7 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
  * Removes MAC address and vlan tag from VMDQ. Ensures that nothing is adding buffers to the RX
  * queue before disabling RX on the device.
  */
-void unlink_vmdq(struct dataplane_context *ctx, struct vhost_dev *vdev) {
+void unlink_vmdq(struct vhost_dev *vdev) {
     unsigned i = 0;
 
     if (vdev->ready == DEVICE_RX) {

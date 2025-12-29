@@ -9,8 +9,7 @@
 #include <rte_vhost.h>
 #include <sys/queue.h>
 
-#include "log.h"
-#include "src/include/fastpath.h"
+#include "src/include/state.h"
 
 enum { VIRTIO_RXQ, VIRTIO_TXQ };
 
@@ -26,6 +25,29 @@ enum { VIRTIO_RXQ, VIRTIO_TXQ };
 
 extern const struct rte_vhost_device_ops virtio_net_device_ops;
 
+struct vhost_dev { // vhost device
+    // Device MAC address (Obtained on first TX packet).
+    struct rte_ether_addr mac_address;
+    uint32_t vm_ip_address;
+    /**< A device is set as ready if the MAC address has been set. */
+    volatile uint8_t ready;
+    /**< Device is marked for removal from the data core. */
+    volatile uint8_t remove;
+
+    int vid;                      // vhost device ID, assigned by dpdk
+    uint64_t features;            // Virtio feature flags
+    size_t hdr_len;               // Header length
+    struct rte_vhost_memory *mem; // Guest memory mapping
+
+    // Rate-limited logging for failed enqueue attempts
+    uint64_t last_failed_log_ts; // TSC timestamp of last log
+    uint64_t failed_pkts_count;  // Cumulative failed packets since last log
+
+    // Track consecutive empty polls before marking device inactive
+    uint8_t empty_poll_count;
+    uint8_t is_active;
+} __rte_cache_aligned;
+
 int check_device_state(struct vhost_dev *vdev, const char *func);
 struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac);
 struct vhost_dev *find_vhost_dev_core_mac(struct dataplane_context *ctx, struct rte_ether_addr *mac);
@@ -35,38 +57,40 @@ void unregister_vhost_drivers(int socket_num, const char *path);
 int register_vhost_drivers();
 
 int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m);
-void unlink_vmdq(struct dataplane_context *ctx, struct vhost_dev *vdev);
+void unlink_vmdq(struct vhost_dev *vdev);
 
 // copy pkt from guest vring buffer to DPDK mbuf (vm -> dpdk)
 // This can fail if the vhost connection is broken
-static inline unsigned vhost_poll(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
-    int16_t ret = rte_vhost_dequeue_burst(vid, VIRTIO_TXQ, ctx->net.pool, pkts, num);
-    if (ret == 0)
-        return 0;
+// static inline unsigned vhost_poll(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts)
+// {
+//     int16_t ret = rte_vhost_dequeue_burst(vid, VIRTIO_TXQ, ctx->net.pool, pkts, num);
+//     if (ret == 0)
+//         return 0;
 
-    STATS_ADD(ctx, pkt_vhost_rx, ret);
-    STATS_ADD(ctx, call_vhost_rx, 1);
-    if (ret == num) {
-        STATS_ADD(ctx, cou_vhost_poll_max, 1);
-    }
-    LOG_VM_IN("[%d](%d) Received %d packets from VM\n", ctx->id, vid, ret);
-    PRINT_PKTS(pkts, ret, LOG_VM_IN);
+//     STATS_ADD(ctx, pkt_vhost_rx, ret);
+//     STATS_ADD(ctx, call_vhost_rx, 1);
+//     if (ret == num) {
+//         STATS_ADD(ctx, cou_vhost_poll_max, 1);
+//     }
+//     LOG_VM_IN("[%d](%d) Received %d packets from VM\n", ctx->id, vid, ret);
+//     PRINT_PKTS(pkts, ret, LOG_VM_IN);
 
-    return ret;
-}
+//     return ret;
+// }
 
-static inline unsigned vhost_send(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
-    num = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
-    if (num == 0)
-        return 0;
+// static inline unsigned vhost_send(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts)
+// {
+//     num = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
+//     if (num == 0)
+//         return 0;
 
-    STATS_ADD(ctx, pkt_vhost_tx, num);
-    STATS_ADD(ctx, call_vhost_tx, 1);
-    LOG_VM_OUT("[%d](%d) Sent %d packets to VM\n", ctx->id, vid, num);
-    PRINT_PKTS(pkts, num, LOG_VM_OUT);
+//     STATS_ADD(ctx, pkt_vhost_tx, num);
+//     STATS_ADD(ctx, call_vhost_tx, 1);
+//     LOG_VM_OUT("[%d](%d) Sent %d packets to VM\n", ctx->id, vid, num);
+//     PRINT_PKTS(pkts, num, LOG_VM_OUT);
 
-    return num;
-}
+//     return num;
+// }
 
 #define PERTHREAD_MBUFS 2048
 #define BUFFER_SIZE 2048

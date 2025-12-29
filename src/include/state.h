@@ -3,6 +3,7 @@
 
 #include <rte_ether.h>
 #include <rte_ring.h>
+#include <stdatomic.h>
 
 #define ETH_TX_CORES 2
 #define ETH_RX_CORES 2
@@ -18,6 +19,7 @@ extern struct eth_rx_ctx **eth_rx_ctxs;
 extern struct eth_tx_ctx **eth_tx_ctxs;
 extern struct vhost_rx_ctx **vhost_rx_ctxs;
 extern struct vhost_tx_ctx **vhost_tx_ctxs;
+extern _Atomic(struct vdev_list *) vdev_list;
 
 struct dataplane_topology {
     uint16_t eth_port_id;
@@ -47,14 +49,28 @@ struct eth_tx_ctx {
 
 struct vhost_rx_ctx {
     uint16_t id;
-    uint16_t vdev_ids[MAX_VHOSTS];
-    uint16_t num_vdevs;
     struct rte_mempool *mempool;
+    /* Flag to synchronize device removal. */
+    volatile uint8_t dev_removal_flag;
+    // Round-robin index for polling devices
+    uint16_t next_device;
+    // Counter for checking inactive devices
+    uint16_t inactive_check_counter;
 };
 
 struct vhost_tx_ctx {
     uint16_t id;
-    uint16_t vdev_ids[MAX_VHOSTS];
+    /* Flag to synchronize device removal. */
+    volatile uint8_t dev_removal_flag;
+    // Round-robin index for polling devices
+    uint16_t next_device;
+    // Counter for checking inactive devices
+    uint16_t inactive_check_counter;
+};
+
+// FP: atomic_load, SP: atomic_store
+struct vdev_list {
+    struct vhost_dev *vdevs[MAX_VHOSTS];
     uint16_t num_vdevs;
 };
 
