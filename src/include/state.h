@@ -8,6 +8,7 @@
 #define ETH_RX_CORES 2
 #define VHOST_TX_CORES 2
 #define VHOST_RX_CORES 2
+#define FP_CORES ETH_TX_CORES + ETH_RX_CORES + VHOST_TX_CORES + VHOST_RX_CORES
 #define MAX_VHOSTS 64
 
 #define RING_SIZE 4096
@@ -23,6 +24,11 @@ struct dataplane_topology {
     struct rte_ring *vhost_tx_rings[MAX_VHOSTS];
     uint16_t eth_port_id;
     struct rte_ether_addr eth_addr;
+    uint16_t eth_tx_cores;
+    uint16_t eth_rx_cores;
+    uint16_t vhost_tx_cores;
+    uint16_t vhost_rx_cores;
+    uint16_t fp_cores;
 };
 
 struct eth_rx_ctx {

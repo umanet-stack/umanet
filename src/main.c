@@ -18,8 +18,8 @@
 #include "./config/config.h"
 #include "./include/main.h"
 #include "log.h"
-#include "src/include/fastpath.h"
 #include "src/include/state.h"
+#include "src/network/network.h"
 #include "src/vhost/vhost.h"
 
 config_t config;
@@ -35,7 +35,7 @@ static void thread_error(void);
 static int common_thread(void *arg);
 
 static void sigint_handler(__rte_unused int signum) {
-    unregister_vhost_drivers(config.nb_sockets, config.socket_files);
+    // unregister_vhost_drivers(config.nb_sockets, config.socket_files);
     // dataplane_dump_stats();
     // network_dump_stats(); // Dump hardware TX/RX statistics including errors
     exit(0);
@@ -92,19 +92,19 @@ int main(int argc, char *argv[]) {
 
     // Sets up RX/TX queues per core, initializes ARP, routing tables
     LOG_INFO("Initializing network...\n");
-    if (network_init(fp_cores_max) != 0) {
+    if (network_init(global->eth_rx_cores) != 0) {
         res = EXIT_FAILURE;
         LOG_ERROR("network init failed\n");
-        goto error_shm_cleanup;
+        goto error_network_cleanup;
     }
     LOG_IMPT("✅ Initialized network\n");
 
-    if (init_mac_flow_table() != 0) {
-        res = EXIT_FAILURE;
-        LOG_ERROR("init_mac_flow_table failed\n");
-        goto error_network_cleanup;
-    }
-    LOG_IMPT("✅ Initialized mac flow table\n");
+    // if (init_mac_flow_table() != 0) {
+    //     res = EXIT_FAILURE;
+    //     LOG_ERROR("init_mac_flow_table failed\n");
+    //     goto error_network_cleanup;
+    // }
+    // LOG_IMPT("✅ Initialized mac flow table\n");
 
     // Start worker threads BEFORE vhost registration
     // This ensures TX queues are initialized before vhost can send packets
@@ -118,33 +118,33 @@ int main(int argc, char *argv[]) {
     LOG_INFO("Waiting for worker threads to initialize TX/RX queues...\n");
 
     // Wait for all contexts to be initialized
-    int max_wait = 10; // 10 seconds max
-    int all_ready = 0;
-    for (int wait = 0; wait < max_wait && !all_ready; wait++) {
-        sleep(1);
-        all_ready = 1;
-        for (int i = 0; i < fp_cores_max; i++) {
-            if (ctxs[i] == NULL) {
-                LOG_INFO("Waiting for context %d to initialize...\n", i);
-                all_ready = 0;
-                break;
-            }
-        }
-    }
+    // int max_wait = 10; // 10 seconds max
+    // int all_ready = 0;
+    // for (int wait = 0; wait < max_wait && !all_ready; wait++) {
+    //     sleep(1);
+    //     all_ready = 1;
+    //     for (int i = 0; i < FP_CORES; i++) {
+    //         if (ctxs[i] == NULL) {
+    //             LOG_INFO("Waiting for context %d to initialize...\n", i);
+    //             all_ready = 0;
+    //             break;
+    //         }
+    //     }
+    // }
 
-    if (!all_ready) {
-        res = EXIT_FAILURE;
-        LOG_ERROR("ERROR: Not all dataplane contexts initialized after %d seconds\n", max_wait);
-        goto error_dataplane_cleanup;
-    }
+    // if (!all_ready) {
+    //     res = EXIT_FAILURE;
+    //     LOG_ERROR("ERROR: Not all dataplane contexts initialized after %d seconds\n", max_wait);
+    //     goto error_dataplane_cleanup;
+    // }
 
     LOG_INFO("All %d dataplane contexts initialized successfully\n", fp_cores_max);
 
-    if (register_vhost_drivers() != 0) {
-        res = EXIT_FAILURE;
-        LOG_ERROR("register_vhost_drivers failed\n");
-        goto error_dataplane_cleanup;
-    }
+    // if (register_vhost_drivers() != 0) {
+    //     res = EXIT_FAILURE;
+    //     LOG_ERROR("register_vhost_drivers failed\n");
+    //     goto error_dataplane_cleanup;
+    // }
 
     // Wait for lcores to finish (keeps main alive)
     unsigned lcore_id;
@@ -157,8 +157,6 @@ int main(int argc, char *argv[]) {
 error_dataplane_cleanup:
 error_network_cleanup:
     network_cleanup();
-error_shm_cleanup:
-    shm_cleanup();
 error_exit:
     return res;
 }
@@ -206,31 +204,25 @@ static int start_threads(void) {
     void *arg;
 
     cores_avail = rte_lcore_count();
-    /* fast path cores + one slow path core */
-    cores_needed = fp_cores_max + 1;
+    // 8 fast path cores + 1 slow path core
+    // -l 0-8 = 1 master core (core 0) + 8 slave cores (core 1-8)
+    cores_needed = FP_CORES + 1;
 
-    if ((ctxs = rte_calloc("context list", fp_cores_max, sizeof(*ctxs), 64)) == NULL) {
-        perror("datplane_init: calloc failed");
-        return -1;
-    }
-
-    /* check that we have enough cores */
-    // -l 2 = 1 master core (core 0) + 1 slave core (core 1)
     if (cores_avail < cores_needed) {
-        LOG_ERROR("Not enough cores: got %u need %u\n", cores_avail, cores_needed);
+        LOG_ERROR("Not enough cores: got %u, need %u\n", cores_avail, cores_needed);
         return -1;
     }
 
-    /* start common threads */
     RTE_LCORE_FOREACH_WORKER(core) {
-        if (threads_launched < fp_cores_max) {
-            arg = (void *)(uintptr_t)threads_launched;
-            if (rte_eal_remote_launch(common_thread, arg, core) != 0) {
-                LOG_ERROR("ERROR\n");
-                return -1;
-            }
-            threads_launched++;
-        }
+        LOG_INFO("Launching worker thread on core %u\n", core);
+        // if (threads_launched < fp_cores_max) {
+        //     arg = (void *)(uintptr_t)threads_launched;
+        //     if (rte_eal_remote_launch(common_thread, arg, core) != 0) {
+        //         LOG_ERROR("ERROR\n");
+        //         return -1;
+        //     }
+        //     threads_launched++;
+        // }
     }
 
     return 0;
