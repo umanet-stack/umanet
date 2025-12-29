@@ -84,7 +84,6 @@ uint16_t rss_reta_size;
 static struct rte_eth_rss_reta_entry64 *rss_reta = NULL;
 static uint16_t *rss_core_buckets = NULL;
 
-static struct rte_mempool *mempool_alloc(void);
 static int reta_setup(void);
 static rte_spinlock_t initlock = RTE_SPINLOCK_INITIALIZER;
 
@@ -194,12 +193,6 @@ int network_thread_init(struct dataplane_context *ctx) {
 
     struct network_thread *t = &ctx->net;
     int ret;
-
-    /* allocate mempool */
-    if ((t->pool = mempool_alloc()) == NULL) {
-        goto error_mpool;
-    }
-    vhost_rx_ctxs[ctx->id % VHOST_RX_CORES]->mempool = t->pool;
 
     /* initialize tx queue */
     t->queue_id = ctx->id;
@@ -314,9 +307,6 @@ error_int_queue:
 error_rx_queue:
     /* TODO: destroy tx queue */
 error_tx_queue:
-    /* TODO: free mempool */
-error_mpool:
-    rte_free(t);
     return -1;
 }
 

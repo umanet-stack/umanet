@@ -1,8 +1,10 @@
 #include "log.h"
 #include "src/include/state.h"
+#include "src/vhost/vhost.h"
+#include <rte_malloc.h>
 
 int init_dataplane_topology() {
-    if ((global = calloc(1, sizeof(*global))) == NULL) {
+    if ((global = rte_calloc("global", 1, sizeof(*global), 0)) == NULL) {
         LOG_ERROR("dataplane_init: failed to allocate global\n");
         return -1;
     }
@@ -17,25 +19,25 @@ int init_dataplane_topology() {
 }
 
 int init_dataplane_ctxs() {
-    if ((eth_rx_ctxs = calloc(global->eth_rx_cores, sizeof(*eth_rx_ctxs))) == NULL) {
+    if ((eth_rx_ctxs = rte_calloc("eth_rx_ctxs", global->eth_rx_cores, sizeof(*eth_rx_ctxs), 0)) == NULL) {
         LOG_ERROR("init_dataplane_ctxs: failed to allocate eth_rx_ctxs\n");
         return -1;
     }
-    if ((eth_tx_ctxs = calloc(global->eth_tx_cores, sizeof(*eth_tx_ctxs))) == NULL) {
+    if ((eth_tx_ctxs = rte_calloc("eth_tx_ctxs", global->eth_tx_cores, sizeof(*eth_tx_ctxs), 0)) == NULL) {
         LOG_ERROR("init_dataplane_ctxs: failed to allocate eth_tx_ctxs\n");
         return -1;
     }
-    if ((vhost_rx_ctxs = calloc(global->vhost_rx_cores, sizeof(*vhost_rx_ctxs))) == NULL) {
+    if ((vhost_rx_ctxs = rte_calloc("vhost_rx_ctxs", global->vhost_rx_cores, sizeof(*vhost_rx_ctxs), 0)) == NULL) {
         LOG_ERROR("init_dataplane_ctxs: failed to allocate vhost_rx_ctxs\n");
         return -1;
     }
-    if ((vhost_tx_ctxs = calloc(global->vhost_tx_cores, sizeof(*vhost_tx_ctxs))) == NULL) {
+    if ((vhost_tx_ctxs = rte_calloc("vhost_tx_ctxs", global->vhost_tx_cores, sizeof(*vhost_tx_ctxs), 0)) == NULL) {
         LOG_ERROR("init_dataplane_ctxs: failed to allocate vhost_tx_ctxs\n");
         return -1;
     }
 
     for (int i = 0; i < global->eth_rx_cores; i++) {
-        if ((eth_rx_ctxs[i] = calloc(1, sizeof(*eth_rx_ctxs[i]))) == NULL) {
+        if ((eth_rx_ctxs[i] = rte_calloc("eth_rx_ctxs[%d]", 1, sizeof(*eth_rx_ctxs[i]), 0)) == NULL) {
             LOG_ERROR("init_eth_rx_ctxs: failed to allocate eth_rx_ctxs[%d]\n", i);
             return -1;
         }
@@ -44,7 +46,7 @@ int init_dataplane_ctxs() {
     }
 
     for (int i = 0; i < global->eth_tx_cores; i++) {
-        if ((eth_tx_ctxs[i] = calloc(1, sizeof(*eth_tx_ctxs[i]))) == NULL) {
+        if ((eth_tx_ctxs[i] = rte_calloc("eth_tx_ctxs[%d]", 1, sizeof(*eth_tx_ctxs[i]), 0)) == NULL) {
             LOG_ERROR("init_eth_tx_ctxs: failed to allocate eth_tx_ctxs[%d]\n", i);
             return -1;
         }
@@ -53,24 +55,30 @@ int init_dataplane_ctxs() {
     }
 
     for (int i = 0; i < global->vhost_rx_cores; i++) {
-        if ((vhost_rx_ctxs[i] = calloc(1, sizeof(*vhost_rx_ctxs[i]))) == NULL) {
+        if ((vhost_rx_ctxs[i] = rte_calloc("vhost_rx_ctxs[%d]", 1, sizeof(*vhost_rx_ctxs[i]), 0)) == NULL) {
             LOG_ERROR("init_vhost_rx_ctxs: failed to allocate vhost_rx_ctxs[%d]\n", i);
             return -1;
         }
         vhost_rx_ctxs[i]->id = i;
         vhost_rx_ctxs[i]->mempool = NULL;
         vhost_rx_ctxs[i]->num_vdevs = 0;
+
+        if ((vhost_rx_ctxs[i]->mempool = vhost_mempool_alloc()) == NULL) {
+            LOG_ERROR("init_vhost_rx_ctxs: failed to allocate vhost_rx_ctxs[%d]->mempool\n", i);
+            rte_free(vhost_rx_ctxs[i]);
+            return -1;
+        }
     }
 
     for (int i = 0; i < global->vhost_tx_cores; i++) {
-        if ((vhost_tx_ctxs[i] = calloc(1, sizeof(*vhost_tx_ctxs[i]))) == NULL) {
+        if ((vhost_tx_ctxs[i] = rte_calloc("vhost_tx_ctxs[%d]", 1, sizeof(*vhost_tx_ctxs[i]), 0)) == NULL) {
             LOG_ERROR("init_vhost_tx_ctxs: failed to allocate vhost_tx_ctxs[%d]\n", i);
             return -1;
         }
         vhost_tx_ctxs[i]->id = i;
         vhost_tx_ctxs[i]->num_vdevs = 0;
     }
-    // vhost module takes care of vdev_ids, mempool
+    // vhost module takes care of vdev_ids
 
     return 0;
 }
