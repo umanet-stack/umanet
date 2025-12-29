@@ -22,13 +22,26 @@
 #include "src/include/state.h"
 #include "src/vhost/vhost.h"
 
+struct core_load {
+    uint64_t cyc_busy;
+};
+
 config_t config;
+
+unsigned fp_cores_max;
+volatile unsigned fp_cores_cur = 1;
+volatile unsigned fp_scale_to = 0;
+
+int exited;
 
 struct dataplane_topology *global = NULL;
 struct eth_tx_ctx **eth_tx_ctxs = NULL;
 struct eth_rx_ctx **eth_rx_ctxs = NULL;
 struct vhost_tx_ctx **vhost_tx_ctxs = NULL;
 struct vhost_rx_ctx **vhost_rx_ctxs = NULL;
+
+struct dataplane_context **ctxs = NULL;
+struct core_load *core_loads = NULL;
 
 static int start_threads(void);
 static void thread_error(void);
@@ -49,6 +62,16 @@ int main(int argc, char *argv[]) {
     // Register signal handler for SIGINT (Ctrl+C) (graceful shutdown)
     signal(SIGINT, sigint_handler);
 
+    /* initialize config with defaults before using it */
+    init_config(&config);
+
+    /* allocate shared memory before dpdk grabs all huge pages */
+    if (shm_preinit() != 0) {
+        LOG_ERROR("shm preinit failed\n");
+        res = EXIT_FAILURE;
+        goto error_exit;
+    }
+
     /* init DPDK EAL (Environment Abstraction Layer) */
     rte_log_set_global_level(RTE_LOG_ERR);
     int dpdk_args = rte_eal_init(argc, argv); // Parses DPDK-specific arguments (--lcores, --huge-dir, etc.)
@@ -60,7 +83,7 @@ int main(int argc, char *argv[]) {
     argc -= dpdk_args; // Update argc to exclude DPDK-specific arguments
     argv += dpdk_args;
 
-    init_config(&config);
+    /* parse app arguments */
     if (parse_config(&config, argc, argv) != 0) {
         LOG_ERROR("invalid argument\n");
         res = EXIT_FAILURE;
@@ -89,6 +112,19 @@ int main(int argc, char *argv[]) {
     }
     LOG_IMPT("Initialized dataplane contexts\n");
 
+    if ((core_loads = calloc(fp_cores_max, sizeof(*core_loads))) == NULL) {
+        res = EXIT_FAILURE;
+        LOG_ERROR("core loads alloc failed\n");
+        goto error_exit;
+    }
+
+    // Sets up application queues and DMA regions
+    if (shm_init(fp_cores_max) != 0) {
+        res = EXIT_FAILURE;
+        LOG_ERROR("dma init failed\n");
+        goto error_exit;
+    }
+
     // Sets up RX/TX queues per core, initializes ARP, routing tables
     LOG_INFO("Initializing network...\n");
     if (network_init(fp_cores_max) != 0) {
@@ -102,6 +138,33 @@ int main(int argc, char *argv[]) {
         LOG_ERROR("init_mac_flow_table failed\n");
         goto error_network_cleanup;
     }
+
+    // LOG_INFO("Initializing TAP interface (vtap0)...\n");
+    // if (tap_init() != 0) {
+    //     LOG_WARN("Failed to initialize TAP interface - packets to gateway IP will be dropped\n");
+    // }
+
+    // Initialize NAT with public IP (128.110.219.130)
+    // Gateway IP (config.ip) is for internal VMs, NAT needs public IP for internet
+    // uint32_t nat_ip = (128 << 24) | (110 << 16) | (219 << 8) | 130; // 128.110.219.130
+    // LOG_INFO("Initializing NAT with public IP %u.%u.%u.%u...\n", (nat_ip >> 24) & 0xff, (nat_ip >> 16) & 0xff,
+    //          (nat_ip >> 8) & 0xff, nat_ip & 0xff);
+    // if (nat_init(nat_ip) != 0) {
+    //     res = EXIT_FAILURE;
+    //     LOG_ERROR("NAT init failed\n");
+    //     goto error_network_cleanup;
+    // }
+
+    LOG_INFO("Checking dataplane config...\n");
+    if (dataplane_init() != 0) {
+        res = EXIT_FAILURE;
+        LOG_ERROR("dpinit failed\n");
+        goto error_network_cleanup;
+    }
+
+    // Sets flag in shared memory indicating TAS is ready, app waiting to connect can now proceed
+    LOG_INFO("Marking shm ready...\n");
+    shm_set_ready();
 
     // Start worker threads BEFORE vhost registration
     // This ensures TX queues are initialized before vhost can send packets
@@ -147,6 +210,10 @@ int main(int argc, char *argv[]) {
     unsigned lcore_id;
     RTE_LCORE_FOREACH_WORKER(lcore_id) { rte_eal_wait_lcore(lcore_id); }
 
+    // LOG_INFO("Cleaning up TAP interface...\n");
+    // tap_cleanup();
+
+    /* clean up the EAL */
     rte_eal_cleanup();
 
     return 0;
@@ -178,6 +245,14 @@ static int common_thread(void *arg) {
     ctxs[id] = ctx;
     ctx->id = id;
 
+    /* initialize trace if enabled */
+#ifdef FLEXNIC_TRACING
+    if (trace_thread_init(id) != 0) {
+        LOG_ERROR("initializing trace failed\n");
+        goto error_trace;
+    }
+#endif
+
     /* initialize data plane context */
     if (dataplane_context_init(ctx) != 0) {
         LOG_ERROR("initializing data plane context\n");
@@ -192,6 +267,9 @@ static int common_thread(void *arg) {
     return 0;
 
 error_dpctx:
+#ifdef FLEXNIC_TRACING
+error_trace:
+#endif
     dataplane_context_destroy(ctx);
 error_alloc:
     thread_error();
