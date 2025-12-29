@@ -53,7 +53,6 @@
 #define RX_DESCRIPTORS 256
 #define TX_DESCRIPTORS 128
 
-uint8_t net_port_id = 0;
 static struct rte_eth_conf port_conf = {
     .rxmode =
         {
@@ -80,7 +79,6 @@ static struct rte_eth_conf port_conf = {
         },
 };
 
-static unsigned num_threads;
 static struct network_rx_thread **net_threads;
 
 static struct rte_eth_dev_info eth_devinfo;
@@ -91,15 +89,12 @@ static uint16_t *rss_core_buckets = NULL;
 
 static struct rte_mempool *mempool_alloc(void);
 static int reta_setup(void);
-static int reta_mlx5_resize(void);
 static rte_spinlock_t initlock = RTE_SPINLOCK_INITIALIZER;
 
-int network_init(uint16_t n_threads) {
+int network_init() {
     uint8_t count;
     int ret;
     uint16_t p;
-
-    num_threads = n_threads;
 
     /* make sure there is only one port */
     count = rte_eth_dev_count_avail();
@@ -122,10 +117,10 @@ int network_init(uint16_t n_threads) {
     rte_eth_macaddr_get(global->eth_port_id, &global->eth_addr);
     rte_eth_dev_info_get(global->eth_port_id, &eth_devinfo);
 
-    if (eth_devinfo.max_rx_queues < n_threads || eth_devinfo.max_tx_queues < n_threads) {
+    if (eth_devinfo.max_rx_queues < global->eth_rx_cores || eth_devinfo.max_tx_queues < global->eth_rx_cores) {
         LOG_ERROR("Error: NIC does not support enough hw queues (rx=%u tx=%u)"
                   " for the requested number of cores (%u)\n",
-                  eth_devinfo.max_rx_queues, eth_devinfo.max_tx_queues, n_threads);
+                  eth_devinfo.max_rx_queues, eth_devinfo.max_tx_queues, global->eth_rx_cores);
         goto error_exit;
     }
 
@@ -153,17 +148,10 @@ int network_init(uint16_t n_threads) {
         port_conf.intr_conf.rxq = 0;
 
     /* initialize port */
-    ret = rte_eth_dev_configure(net_port_id, n_threads, n_threads, &port_conf);
+    ret = rte_eth_dev_configure(global->eth_port_id, global->eth_rx_cores, global->eth_rx_cores, &port_conf);
     if (ret < 0) {
         LOG_ERROR("rte_eth_dev_configure failed\n");
         goto error_exit;
-    }
-
-    /* workaround for mlx5. */
-    if (config.fp_autoscale) {
-        if (reta_mlx5_resize() != 0) {
-            goto error_exit;
-        }
     }
 
     eth_devinfo.default_rxconf.offloads = 0;
@@ -184,7 +172,7 @@ error_exit:
 }
 
 void network_cleanup(void) {
-    rte_eth_dev_stop(net_port_id);
+    rte_eth_dev_stop(global->eth_port_id);
     rte_free(net_threads);
 }
 
@@ -219,8 +207,8 @@ int network_thread_init(struct dataplane_context *ctx) {
     /* initialize tx queue */
     t->queue_id = ctx->id;
     rte_spinlock_lock(&initlock);
-    ret =
-        rte_eth_tx_queue_setup(net_port_id, t->queue_id, TX_DESCRIPTORS, rte_socket_id(), &eth_devinfo.default_txconf);
+    ret = rte_eth_tx_queue_setup(global->eth_port_id, t->queue_id, TX_DESCRIPTORS, rte_socket_id(),
+                                 &eth_devinfo.default_txconf);
     rte_spinlock_unlock(&initlock);
     if (ret != 0) {
         fprintf(stderr, "network_thread_init: rte_eth_tx_queue_setup failed\n");
@@ -229,14 +217,14 @@ int network_thread_init(struct dataplane_context *ctx) {
 
     /* barrier to make sure tx queues are initialized first */
     __sync_add_and_fetch(&tx_init_done, 1);
-    while (tx_init_done < num_threads)
+    while (tx_init_done < global->eth_rx_cores)
         ;
 
     /* initialize rx queue */
     t->queue_id = ctx->id;
     rte_spinlock_lock(&initlock);
-    ret = rte_eth_rx_queue_setup(net_port_id, t->queue_id, RX_DESCRIPTORS, rte_socket_id(), &eth_devinfo.default_rxconf,
-                                 t->pool);
+    ret = rte_eth_rx_queue_setup(global->eth_port_id, t->queue_id, RX_DESCRIPTORS, rte_socket_id(),
+                                 &eth_devinfo.default_rxconf, t->pool);
     rte_spinlock_unlock(&initlock);
     if (ret != 0) {
         fprintf(stderr, "network_thread_init: rte_eth_rx_queue_setup failed\n");
@@ -245,14 +233,14 @@ int network_thread_init(struct dataplane_context *ctx) {
 
     /* barrier to make sure rx queues are initialized first */
     __sync_add_and_fetch(&rx_init_done, 1);
-    while (rx_init_done < num_threads)
+    while (rx_init_done < global->eth_rx_cores)
         ;
 
     LOG_IMPT("[%d] NIC TX/RX queue %d\n", ctx->id, t->queue_id);
 
     /* start device if this ìs core 0 */
     if (ctx->id == 0) {
-        if (rte_eth_dev_start(net_port_id) != 0) {
+        if (rte_eth_dev_start(global->eth_port_id) != 0) {
             fprintf(stderr, "rte_eth_dev_start failed\n");
             goto error_tx_queue;
         }
@@ -262,7 +250,7 @@ int network_thread_init(struct dataplane_context *ctx) {
         int link_check_retries = 10;
         int link_up = 0;
         while (link_check_retries-- > 0) {
-            rte_eth_link_get(net_port_id, &link);
+            rte_eth_link_get(global->eth_port_id, &link);
             if (link.link_status == RTE_ETH_LINK_UP) {
                 link_up = 1;
                 fprintf(stderr, "Link is UP: speed=%u Mbps, duplex=%s\n", link.link_speed,
@@ -277,17 +265,17 @@ int network_thread_init(struct dataplane_context *ctx) {
         }
 
         /* Enable promiscuous mode to receive all packets (needed for ARP replies and forwarding) */
-        if (rte_eth_promiscuous_enable(net_port_id) != 0) {
+        if (rte_eth_promiscuous_enable(global->eth_port_id) != 0) {
             fprintf(stderr, "WARNING: Failed to enable promiscuous mode\n");
         } else {
-            fprintf(stderr, "Promiscuous mode enabled for port %d\n", net_port_id);
+            fprintf(stderr, "Promiscuous mode enabled for port %d\n", global->eth_port_id);
         }
 
         /* enable vlan stripping if configured */
         if (config.fp_vlan_strip) {
-            ret = rte_eth_dev_get_vlan_offload(net_port_id);
+            ret = rte_eth_dev_get_vlan_offload(global->eth_port_id);
             ret |= RTE_ETH_VLAN_STRIP_OFFLOAD;
-            if (rte_eth_dev_set_vlan_offload(net_port_id, ret)) {
+            if (rte_eth_dev_set_vlan_offload(global->eth_port_id, ret)) {
                 fprintf(stderr, "network_thread_init: vlan off set failed\n");
                 goto error_tx_queue;
             }
@@ -310,7 +298,8 @@ int network_thread_init(struct dataplane_context *ctx) {
     if (config.fp_interrupts) {
         /* setup rx queue interrupt */
         rte_spinlock_lock(&initlock);
-        ret = rte_eth_dev_rx_intr_ctl_q(net_port_id, t->queue_id, RTE_EPOLL_PER_THREAD, RTE_INTR_EVENT_ADD, NULL);
+        ret =
+            rte_eth_dev_rx_intr_ctl_q(global->eth_port_id, t->queue_id, RTE_EPOLL_PER_THREAD, RTE_INTR_EVENT_ADD, NULL);
         rte_spinlock_unlock(&initlock);
         if (ret != 0) {
             fprintf(stderr,
@@ -336,9 +325,9 @@ error_mpool:
 
 int network_rx_interrupt_ctl(struct network_thread *t, int turnon) {
     if (turnon) {
-        return rte_eth_dev_rx_intr_enable(net_port_id, t->queue_id);
+        return rte_eth_dev_rx_intr_enable(global->eth_port_id, t->queue_id);
     } else {
-        return rte_eth_dev_rx_intr_disable(net_port_id, t->queue_id);
+        return rte_eth_dev_rx_intr_disable(global->eth_port_id, t->queue_id);
     }
 }
 
@@ -463,7 +452,7 @@ static int reta_setup() {
         c = (c + 1) % fp_cores_cur;
     }
 
-    if (rte_eth_dev_rss_reta_update(net_port_id, rss_reta, rss_reta_size) != 0) {
+    if (rte_eth_dev_rss_reta_update(global->eth_port_id, rss_reta, rss_reta_size) != 0) {
         fprintf(stderr, "reta_setup: rte_eth_dev_rss_reta_update failed (RSS/RETA may not be supported)\n");
         fprintf(stderr, "reta_setup: Continuing without RETA setup - autoscaling will be limited\n");
         /* Clean up allocated memory */
@@ -484,28 +473,4 @@ error_exit:
     rss_core_buckets = NULL;
     rss_reta_size = 0;
     return -1;
-}
-
-/* The mlx5 driver by default picks reta size = number of queues. Which is not
- * enough for scaling up and down with balanced load. But when updating the reta
- * with a larger size, the mlx5 driver resizes the reta.
- */
-static int reta_mlx5_resize(void) {
-    if (!strcmp(eth_devinfo.driver_name, "net_mlx5")) {
-        /* for mlx5 we can increase the size with a call to
-         * rte_eth_dev_rss_reta_update with the target size, so just up the
-         * reta_sizeo in devinfo so that the reta_setup() call increases it.
-         */
-        eth_devinfo.reta_size = 512;
-    }
-
-    /* warn if reta is too small */
-    if (eth_devinfo.reta_size < 128) {
-        fprintf(stderr,
-                "net: RSS redirection table is small (%u), this results in"
-                " bad load balancing when scaling down\n",
-                eth_devinfo.reta_size);
-    }
-
-    return 0;
 }
