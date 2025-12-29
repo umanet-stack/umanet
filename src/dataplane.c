@@ -1,7 +1,7 @@
 #include "log.h"
 #include "src/include/state.h"
 
-int init_dataplane_topology(void) {
+int init_dataplane_topology() {
     if ((global = calloc(1, sizeof(*global))) == NULL) {
         LOG_ERROR("dataplane_init: failed to allocate global\n");
         return -1;
@@ -16,7 +16,7 @@ int init_dataplane_topology(void) {
     return 0;
 }
 
-int init_dataplane_ctxs(void) {
+int init_dataplane_ctxs() {
     if ((eth_rx_ctxs = calloc(global->eth_rx_cores, sizeof(*eth_rx_ctxs))) == NULL) {
         LOG_ERROR("init_dataplane_ctxs: failed to allocate eth_rx_ctxs\n");
         return -1;
@@ -70,6 +70,7 @@ int init_dataplane_ctxs(void) {
         vhost_tx_ctxs[i]->id = i;
         vhost_tx_ctxs[i]->num_vdevs = 0;
     }
+    // vhost module takes care of vdev_ids, mempool
 
     return 0;
 }

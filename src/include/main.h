@@ -30,12 +30,12 @@
 
 extern config_t config;
 
-int init_dataplane_topology(void);
-int init_dataplane_ctxs(void);
-int init_rings(void);
-void destroy_rings(void);
+int init_dataplane_topology();
+int init_dataplane_ctxs();
+int init_rings();
+void destroy_rings();
 
-int slowpath_main(void);
+int slowpath_main();
 
 struct notify_blockstate {
     uint64_t last_active_ts;

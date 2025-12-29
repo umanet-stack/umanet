@@ -2,7 +2,7 @@
 #include "src/include/state.h"
 #include <rte_ring.h>
 
-int init_rings(void) {
+int init_rings() {
     for (int i = 0; i < global->eth_tx_cores; i++) {
         char *name = malloc(sizeof(char) * 100);
         sprintf(name, "eth_tx_ring_%d", i);
@@ -19,7 +19,7 @@ int init_rings(void) {
     return 0;
 }
 
-void destroy_rings(void) {
+void destroy_rings() {
     for (int i = 0; i < global->eth_tx_cores; i++) {
         rte_ring_free(global->eth_tx_rings[i]);
         free(global->eth_tx_rings[i]);

@@ -20,10 +20,12 @@ extern struct vhost_rx_ctx **vhost_rx_ctxs;
 extern struct vhost_tx_ctx **vhost_tx_ctxs;
 
 struct dataplane_topology {
-    struct rte_ring *eth_tx_rings[ETH_TX_CORES];
-    struct rte_ring *vhost_tx_rings[MAX_VHOSTS];
     uint16_t eth_port_id;
     struct rte_ether_addr eth_addr;
+
+    struct rte_ring *eth_tx_rings[ETH_TX_CORES];
+    struct rte_ring *vhost_tx_rings[MAX_VHOSTS];
+
     uint16_t eth_tx_cores;
     uint16_t eth_rx_cores;
     uint16_t vhost_tx_cores;
