@@ -127,7 +127,7 @@ int network_init() {
     /* mask unsupported RSS hash functions */
     if ((port_conf.rx_adv_conf.rss_conf.rss_hf & eth_devinfo.flow_type_rss_offloads) !=
         port_conf.rx_adv_conf.rss_conf.rss_hf) {
-        LOG_WARN("Warning: NIC does not support all requested RSS hash functions.\n");
+        LOG_WARN("NIC does not support all requested RSS hash functions.\n");
         port_conf.rx_adv_conf.rss_conf.rss_hf &= eth_devinfo.flow_type_rss_offloads;
     }
 
@@ -137,7 +137,7 @@ int network_init() {
         /* mask unsupported TX offloads */
         port_conf.txmode.offloads = requested_offloads & eth_devinfo.tx_offload_capa;
         if (port_conf.txmode.offloads != requested_offloads) {
-            LOG_WARN("Warning: NIC does not support all requested TX offloads (requested: 0x%lx, supported: 0x%lx, "
+            LOG_WARN("NIC does not support all requested TX offloads (requested: 0x%lx, supported: 0x%lx, "
                      "using: 0x%lx).\n",
                      requested_offloads, eth_devinfo.tx_offload_capa, port_conf.txmode.offloads);
         }
@@ -148,7 +148,7 @@ int network_init() {
         port_conf.intr_conf.rxq = 0;
 
     /* initialize port */
-    ret = rte_eth_dev_configure(global->eth_port_id, global->eth_rx_cores, global->eth_rx_cores, &port_conf);
+    ret = rte_eth_dev_configure(global->eth_port_id, global->eth_rx_cores, global->eth_tx_cores, &port_conf);
     if (ret < 0) {
         LOG_ERROR("rte_eth_dev_configure failed\n");
         goto error_exit;
@@ -449,7 +449,8 @@ static int reta_setup() {
         rss_reta[i / RTE_ETH_RETA_GROUP_SIZE].mask = -1ULL;
         rss_reta[i / RTE_ETH_RETA_GROUP_SIZE].reta[i % RTE_ETH_RETA_GROUP_SIZE] = c;
         // fp_state->flow_group_steering[i] = c;
-        c = (c + 1) % fp_cores_cur;
+        // c = (c + 1) % fp_cores_cur;
+        c = (c + 1) % global->eth_rx_cores;
     }
 
     if (rte_eth_dev_rss_reta_update(global->eth_port_id, rss_reta, rss_reta_size) != 0) {

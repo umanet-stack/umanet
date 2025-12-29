@@ -41,8 +41,6 @@ static void sigint_handler(__rte_unused int signum) {
     exit(0);
 }
 
-static unsigned threads_launched = 0;
-
 int main(int argc, char *argv[]) {
     int res = EXIT_SUCCESS;
 
@@ -90,9 +88,8 @@ int main(int argc, char *argv[]) {
     }
     LOG_IMPT("✅ Initialized dataplane contexts\n");
 
-    // Sets up RX/TX queues per core, initializes ARP, routing tables
-    LOG_INFO("Initializing network...\n");
-    if (network_init(global->eth_rx_cores) != 0) {
+    // Sets up RX/TX queues per core
+    if (network_init() != 0) {
         res = EXIT_FAILURE;
         LOG_ERROR("network init failed\n");
         goto error_network_cleanup;
@@ -108,7 +105,6 @@ int main(int argc, char *argv[]) {
 
     // Start worker threads BEFORE vhost registration
     // This ensures TX queues are initialized before vhost can send packets
-    LOG_INFO("Launching switch workers on cores: ");
     if (start_threads() != 0) {
         res = EXIT_FAILURE;
         LOG_ERROR("start_threads failed\n");
@@ -116,21 +112,19 @@ int main(int argc, char *argv[]) {
     }
 
     LOG_INFO("Waiting for worker threads to initialize TX/RX queues...\n");
-
-    // Wait for all contexts to be initialized
-    // int max_wait = 10; // 10 seconds max
-    // int all_ready = 0;
-    // for (int wait = 0; wait < max_wait && !all_ready; wait++) {
-    //     sleep(1);
-    //     all_ready = 1;
-    //     for (int i = 0; i < FP_CORES; i++) {
-    //         if (ctxs[i] == NULL) {
-    //             LOG_INFO("Waiting for context %d to initialize...\n", i);
-    //             all_ready = 0;
-    //             break;
-    //         }
-    //     }
-    // }
+    int max_wait = 10; // 10 seconds max
+    int all_ready = 0;
+    for (int wait = 0; wait < max_wait && !all_ready; wait++) {
+        sleep(1);
+        all_ready = 1;
+        for (int i = 0; i < global->fp_cores; i++) {
+            if (ctxs[i] == NULL) {
+                LOG_INFO("Waiting for context %d to initialize...\n", i);
+                all_ready = 0;
+                break;
+            }
+        }
+    }
 
     // if (!all_ready) {
     //     res = EXIT_FAILURE;
@@ -138,7 +132,7 @@ int main(int argc, char *argv[]) {
     //     goto error_dataplane_cleanup;
     // }
 
-    LOG_INFO("All %d dataplane contexts initialized successfully\n", fp_cores_max);
+    LOG_IMPT("✅ All %d dataplane contexts initialized successfully\n", global->fp_cores);
 
     // if (register_vhost_drivers() != 0) {
     //     res = EXIT_FAILURE;
@@ -167,7 +161,7 @@ static int common_thread(void *arg) {
 
     {
         char name[17];
-        snprintf(name, sizeof(name), "stcp-fp-%u", id);
+        snprintf(name, sizeof(name), "fp-core-%u", id);
         pthread_setname_np(pthread_self(), name);
     }
 
@@ -213,16 +207,17 @@ static int start_threads(void) {
         return -1;
     }
 
+    uint16_t threads_launched = 0;
     RTE_LCORE_FOREACH_WORKER(core) {
-        LOG_INFO("Launching worker thread on core %u\n", core);
-        // if (threads_launched < fp_cores_max) {
-        //     arg = (void *)(uintptr_t)threads_launched;
-        //     if (rte_eal_remote_launch(common_thread, arg, core) != 0) {
-        //         LOG_ERROR("ERROR\n");
-        //         return -1;
-        //     }
-        //     threads_launched++;
-        // }
+        LOG_IMPT("Launching worker thread on core %u\n", core);
+        if (threads_launched < global->fp_cores) {
+            arg = (void *)(uintptr_t)threads_launched;
+            if (rte_eal_remote_launch(common_thread, arg, core) != 0) {
+                LOG_ERROR("ERROR\n");
+                return -1;
+            }
+            threads_launched++;
+        }
     }
 
     return 0;
