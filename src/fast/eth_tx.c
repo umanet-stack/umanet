@@ -3,6 +3,7 @@
 #include "src/include/state.h"
 #include <rte_ethdev.h>
 #include <rte_ring.h>
+#include <unistd.h>
 
 static inline int network_send(struct eth_tx_ctx *ctx, unsigned num, struct rte_mbuf **pkts);
 

@@ -134,11 +134,11 @@ int main(int argc, char *argv[]) {
 
     LOG_IMPT("✅ All %d dataplane contexts initialized successfully\n", global->fp_cores);
 
-    // if (register_vhost_drivers() != 0) {
-    //     res = EXIT_FAILURE;
-    //     LOG_ERROR("register_vhost_drivers failed\n");
-    //     goto error_dataplane_cleanup;
-    // }
+    if (register_vhost_drivers() != 0) {
+        res = EXIT_FAILURE;
+        LOG_ERROR("register_vhost_drivers failed\n");
+        goto error_dataplane_cleanup;
+    }
 
     // Wait for lcores to finish (keeps main alive)
     unsigned lcore_id;
@@ -157,7 +157,6 @@ error_exit:
 
 static int common_thread(void *arg) {
     uint16_t id = (uintptr_t)arg;
-    struct dataplane_context *ctx;
 
     {
         char name[17];
@@ -165,32 +164,31 @@ static int common_thread(void *arg) {
         pthread_setname_np(pthread_self(), name);
     }
 
-    /* Allocate fastpath core context */
-    if ((ctx = rte_zmalloc("fastpath core context", sizeof(*ctx), 0)) == NULL) {
-        LOG_ERROR("Allocating fastpath core context failed\n");
-        goto error_alloc;
+    if (id < global->eth_rx_cores) {
+        struct eth_rx_ctx *eth_rx_ctx = eth_rx_ctxs[id];
+        LOG_IMPT("[%u] Entering eth_rx loop...\n", id);
+
+    } else if (id < global->eth_rx_cores + global->eth_tx_cores) {
+        struct eth_tx_ctx *eth_tx_ctx = eth_tx_ctxs[id - global->eth_rx_cores];
+        LOG_IMPT("[%u] Entering eth_tx loop...\n", id);
+
+    } else if (id < global->eth_rx_cores + global->eth_tx_cores + global->vhost_rx_cores) {
+        struct vhost_rx_ctx *vhost_rx_ctx = vhost_rx_ctxs[id - global->eth_rx_cores - global->eth_tx_cores];
+        vhost_rx_ctx->mempool = vhost_mempool_alloc();
+        LOG_IMPT("[%u] Entering vhost_rx loop...\n", id);
+
+    } else if (id < global->eth_rx_cores + global->eth_tx_cores + global->vhost_rx_cores + global->vhost_tx_cores) {
+        struct vhost_tx_ctx *vhost_tx_ctx =
+            vhost_tx_ctxs[id - global->eth_rx_cores - global->eth_tx_cores - global->vhost_rx_cores];
+        LOG_IMPT("[%u] Entering vhost_tx loop...\n", id);
+
+    } else {
+        LOG_ERROR("Invalid core ID: %u\n", id);
+        thread_error();
+        return -1;
     }
-    ctxs[id] = ctx;
-    ctx->id = id;
 
-    /* initialize data plane context */
-    if (dataplane_context_init(ctx) != 0) {
-        LOG_ERROR("initializing data plane context\n");
-        goto error_dpctx;
-    }
-
-    /* poll doorbells and network */
-    LOG_INFO("Entering dataplane loop...\n");
-    dataplane_loop(ctx);
-
-    dataplane_context_destroy(ctx);
     return 0;
-
-error_dpctx:
-    dataplane_context_destroy(ctx);
-error_alloc:
-    thread_error();
-    return -1;
 }
 
 static int start_threads(void) {

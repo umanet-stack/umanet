@@ -12,17 +12,7 @@
 #include "log.h"
 #include "src/include/fastpath.h"
 
-// rte = runtime env (dpdk)
-// queue type identifiers: receive, transmit, total count
-enum { VIRTIO_RXQ, VIRTIO_TXQ, VIRTIO_QNUM };
-
-// https://www.redhat.com/en/blog/journey-vhost-users-realm
-// https://www.redhat.com/en/blog/virtqueues-and-virtio-ring-how-data-travels
-// struct vhost_queue {
-//     struct rte_vhost_vring vr; // DPDK vhost vring
-//     uint16_t last_avail_idx;   // last processed available descriptor index
-//     uint16_t last_used_idx;    // last processed used descriptor index
-// };
+enum { VIRTIO_RXQ, VIRTIO_TXQ };
 
 #define REQUEST_DEV_REMOVAL 1
 #define ACK_DEV_REMOVAL 0
@@ -78,4 +68,17 @@ static inline unsigned vhost_send(struct dataplane_context *ctx, unsigned num, u
     return num;
 }
 
+#define PERTHREAD_MBUFS 2048
+#define BUFFER_SIZE 2048
+#define MBUF_SIZE (BUFFER_SIZE + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
+
+static struct rte_mempool *vhost_mempool_alloc(void) {
+    static unsigned pool_id = 0;
+    unsigned n;
+    char name[32];
+    n = __sync_fetch_and_add(&pool_id, 1);
+    snprintf(name, 32, "mbuf_pool_%u\n", n);
+    return rte_mempool_create(name, PERTHREAD_MBUFS, MBUF_SIZE, 32, sizeof(struct rte_pktmbuf_pool_private),
+                              rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, rte_socket_id(), 0);
+}
 #endif
