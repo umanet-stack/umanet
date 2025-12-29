@@ -21,6 +21,7 @@
 #include "src/include/state.h"
 #include "src/network/network.h"
 #include "src/vhost/vhost.h"
+#include <stdatomic.h>
 
 config_t config;
 
@@ -29,6 +30,7 @@ struct eth_tx_ctx **eth_tx_ctxs = NULL;
 struct eth_rx_ctx **eth_rx_ctxs = NULL;
 struct vhost_tx_ctx **vhost_tx_ctxs = NULL;
 struct vhost_rx_ctx **vhost_rx_ctxs = NULL;
+_Atomic(struct vdev_list *) vdev_list = NULL;
 
 static int start_threads(void);
 static void thread_error(void);
