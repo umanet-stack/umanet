@@ -47,9 +47,6 @@
 #include <utils.h>
 #include <utils_rng.h>
 
-#define PERTHREAD_MBUFS 2048
-#define BUFFER_SIZE 2048
-#define MBUF_SIZE (BUFFER_SIZE + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
 #define RX_DESCRIPTORS 256
 #define TX_DESCRIPTORS 128
 
@@ -329,16 +326,6 @@ int network_rx_interrupt_ctl(struct network_thread *t, int turnon) {
     } else {
         return rte_eth_dev_rx_intr_disable(global->eth_port_id, t->queue_id);
     }
-}
-
-static struct rte_mempool *mempool_alloc(void) {
-    static unsigned pool_id = 0;
-    unsigned n;
-    char name[32];
-    n = __sync_fetch_and_add(&pool_id, 1);
-    snprintf(name, 32, "mbuf_pool_%u\n", n);
-    return rte_mempool_create(name, PERTHREAD_MBUFS, MBUF_SIZE, 32, sizeof(struct rte_pktmbuf_pool_private),
-                              rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, rte_socket_id(), 0);
 }
 
 // int network_scale_up(uint16_t old, uint16_t new) {

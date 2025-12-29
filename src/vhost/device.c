@@ -42,7 +42,7 @@ struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
     if (unlikely(mac_lookup_table == NULL)) {
         // Hash table not initialized yet, fall back to linear search
         struct vhost_dev *vdev;
-        for (int i = 0; i < fp_cores_max; i++) {
+        for (int i = 0; i < global->fp_cores; i++) {
             struct dataplane_context *ctx = ctxs[i];
             if (ctx == NULL)
                 continue;
@@ -78,7 +78,7 @@ struct vhost_dev *find_vhost_dev_core_ip(struct dataplane_context *ctx, uint32_t
 // Search for VM device by IP address across all cores (similar to find_vhost_dev for MAC)
 struct vhost_dev *find_vhost_dev_ip(uint32_t vm_ip_address) {
     struct vhost_dev *vdev;
-    for (int i = 0; i < fp_cores_max; i++) {
+    for (int i = 0; i < global->fp_cores; i++) {
         struct dataplane_context *ctx = ctxs[i];
         if (ctx == NULL)
             continue;
@@ -115,7 +115,7 @@ static void destroy_device(int vid) {
     LOG_INFO("destroy_device called for vid=%d\n", vid);
 
     // Find the device across all contexts
-    for (int i = 0; i < fp_cores_max; i++) {
+    for (int i = 0; i < global->fp_cores; i++) {
         for (int j = 0; j < ctxs[i]->vhost.device_num; j++) {
             if (ctxs[i]->vhost.vdev_list[j] != NULL && ctxs[i]->vhost.vdev_list[j]->vid == vid) {
                 vdev = ctxs[i]->vhost.vdev_list[j];
@@ -217,7 +217,7 @@ static int new_device(int vid) {
      * Example with 8 cores, 32 VMs: Each core handles ~4 VMs, but VMs sharing an RX queue
      * may be on different cores.
      */
-    ctx = ctxs[vid % fp_cores_max];
+    ctx = ctxs[vid % global->fp_cores];
 
     struct vhost_rx_ctx *vhost_rx_ctx = vhost_rx_ctxs[vid % VHOST_RX_CORES];
     vhost_rx_ctx->vdev_ids[vhost_rx_ctx->num_vdevs] = vid;

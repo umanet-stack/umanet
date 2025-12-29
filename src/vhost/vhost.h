@@ -72,7 +72,7 @@ static inline unsigned vhost_send(struct dataplane_context *ctx, unsigned num, u
 #define BUFFER_SIZE 2048
 #define MBUF_SIZE (BUFFER_SIZE + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
 
-static struct rte_mempool *vhost_mempool_alloc(void) {
+struct rte_mempool *vhost_mempool_alloc() {
     static unsigned pool_id = 0;
     unsigned n;
     char name[32];

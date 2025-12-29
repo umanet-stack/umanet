@@ -7,10 +7,9 @@
 #include <rte_mbuf_core.h>
 
 #include "log.h"
-#include "src/network/network.h"
+#include "src/include/state.h"
 #include "src/vhost/vhost.h"
 
-// External reference to MAC lookup table
 extern struct rte_hash *mac_lookup_table;
 
 /*
@@ -38,7 +37,7 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
              vdev->mac_address.addr_bytes[4], vdev->mac_address.addr_bytes[5]);
 
     /* Register the MAC address without pool */
-    ret = rte_eth_dev_mac_addr_add(net_port_id, &vdev->mac_address, 0);
+    ret = rte_eth_dev_mac_addr_add(global->eth_port_id, &vdev->mac_address, 0);
     if (ret)
         LOG_ERROR("(%d) failed to add device MAC address\n", vdev->vid);
 
@@ -66,8 +65,6 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
  */
 void unlink_vmdq(struct dataplane_context *ctx, struct vhost_dev *vdev) {
     unsigned i = 0;
-    unsigned rx_count;
-    struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
 
     if (vdev->ready == DEVICE_RX) {
         // Remove from MAC lookup hash table before clearing MAC
@@ -79,17 +76,17 @@ void unlink_vmdq(struct dataplane_context *ctx, struct vhost_dev *vdev) {
         }
 
         /*clear MAC and VLAN settings*/
-        rte_eth_dev_mac_addr_remove(net_port_id, &vdev->mac_address);
+        rte_eth_dev_mac_addr_remove(global->eth_port_id, &vdev->mac_address);
         for (i = 0; i < 6; i++)
             vdev->mac_address.addr_bytes[i] = 0;
 
         /*Clear out the receive buffers*/
-        rx_count = network_poll(ctx, MAX_PKT_BURST, pkts_burst);
+        // rx_count = network_poll(ctx, MAX_PKT_BURST, pkts_burst);
 
-        while (rx_count) { // until queue is empty
-            free_pkts(pkts_burst, rx_count);
-            rx_count = network_poll(ctx, MAX_PKT_BURST, pkts_burst);
-        }
+        // while (rx_count) { // until queue is empty
+        //     free_pkts(pkts_burst, rx_count);
+        //     rx_count = network_poll(ctx, MAX_PKT_BURST, pkts_burst);
+        // }
 
         vdev->ready = DEVICE_MAC_LEARNING;
     }
