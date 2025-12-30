@@ -31,7 +31,6 @@ struct eth_rx_ctx **eth_rx_ctxs = NULL;
 struct vhost_tx_ctx **vhost_tx_ctxs = NULL;
 struct vhost_rx_ctx **vhost_rx_ctxs = NULL;
 _Atomic(struct vdev_list *) vdev_list = NULL;
-_Atomic(struct vhost_rx_plan *) *vhost_rx_plans = NULL;
 
 static int start_threads(void);
 static void thread_error(void);
@@ -90,6 +89,13 @@ int main(int argc, char *argv[]) {
         goto error_exit;
     }
     LOG_IMPT("✅ Initialized dataplane contexts\n");
+
+    if (init_vhost_rx_plans() != 0) {
+        res = EXIT_FAILURE;
+        LOG_ERROR("init_vhost_rx_plans failed\n");
+        goto error_exit;
+    }
+    LOG_IMPT("✅ Initialized vhost RX plans\n");
 
     // Sets up RX/TX queues per core
     if (network_init() != 0) {
@@ -212,7 +218,7 @@ static int common_thread(void *arg) {
     } else if (id < global->eth_rx_cores + global->eth_tx_cores + global->vhost_rx_cores) {
         struct vhost_rx_ctx *vhost_rx_ctx = vhost_rx_ctxs[id - global->eth_rx_cores - global->eth_tx_cores];
         vhost_rx_ctx->core_id = id;
-        LOG_IMPT("[%u] Entering vhost_rx loop...\n", vhost_rx_ctx->core_id);
+        vhost_rx_loop(vhost_rx_ctx);
 
     } else if (id < global->eth_rx_cores + global->eth_tx_cores + global->vhost_rx_cores + global->vhost_tx_cores) {
         struct vhost_tx_ctx *vhost_tx_ctx =

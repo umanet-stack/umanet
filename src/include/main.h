@@ -25,8 +25,8 @@
 #ifndef MAIN_H_
 #define MAIN_H_
 
-#include "../../include/tas_memif.h"
 #include "../config/config.h"
+#include "src/include/state.h"
 
 extern config_t config;
 
@@ -34,6 +34,8 @@ int init_dataplane_topology();
 int init_dataplane_ctxs();
 int init_rings();
 void destroy_rings();
+
+void vhost_rx_loop(struct vhost_rx_ctx *ctx);
 
 int slowpath_main();
 

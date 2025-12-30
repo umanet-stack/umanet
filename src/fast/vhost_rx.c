@@ -6,6 +6,8 @@
 static inline unsigned vhost_poll(struct vhost_rx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts);
 
 void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
+    LOG_IMPT("[%u] Entering vhost_rx loop...\n", ctx->core_id);
+
     while (1) {
         STATS_TS(start);
 #ifdef DEBUG
