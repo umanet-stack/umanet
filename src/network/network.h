@@ -25,6 +25,7 @@
 #ifndef NETWORK_H_
 #define NETWORK_H_
 
+#include "log.h"
 #include "src/include/state.h"
 #include <rte_config.h>
 #include <rte_ethdev.h>
@@ -44,16 +45,25 @@ static inline void free_pkts(struct rte_mbuf **pkts, uint16_t n) {
 
 #define PERTHREAD_MBUFS 2048
 #define BUFFER_SIZE 2048
-#define MBUF_SIZE (BUFFER_SIZE + sizeof(struct rte_mbuf) + RTE_PKTMBUF_HEADROOM)
+#define MBUF_SIZE (BUFFER_SIZE + RTE_PKTMBUF_HEADROOM)
 
-struct rte_mempool *network_mempool_alloc() {
-    static unsigned pool_id = 0;
-    unsigned n;
+static inline struct rte_mempool *network_mempool_alloc() {
+    static _Atomic unsigned pool_id;
+    unsigned n = atomic_fetch_add(&pool_id, 1);
+
     char name[32];
-    n = __sync_fetch_and_add(&pool_id, 1);
-    snprintf(name, 32, "mbuf_pool_%u\n", n);
-    return rte_mempool_create(name, PERTHREAD_MBUFS, MBUF_SIZE, 32, sizeof(struct rte_pktmbuf_pool_private),
-                              rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, rte_socket_id(), 0);
+    snprintf(name, sizeof(name), "mempool_eth_%u", n);
+
+    struct rte_mempool *mp =
+        rte_mempool_create(name, PERTHREAD_MBUFS, MBUF_SIZE, 32, sizeof(struct rte_pktmbuf_pool_private),
+                           rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, rte_socket_id(), 0);
+
+    if (mp == NULL) {
+        LOG_ERROR("Failed to create mempool %s: %s\n", name, rte_strerror(rte_errno));
+        return NULL;
+    }
+
+    return mp;
 }
 
 int network_tx_queue_init(struct eth_tx_ctx *ctx);
