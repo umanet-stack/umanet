@@ -26,32 +26,56 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
 
         struct vhost_rx_plan *plan = atomic_load(&vhost_rx_plans[ctx->vhost_rx_core_id]);
         for (int i = 0; i < plan->num; i++) {
-            struct rte_mbuf *pkts[MAX_PKT_BURST];
             uint16_t num = MAX_PKT_BURST;
+            struct rte_mbuf *pkts[num];
+            struct vhost_dev *vdev = vdev_list->vdevs[plan->vids[i]];
 
             int poll_num = vhost_poll(ctx, num, plan->vids[i], pkts);
             LOG_INFO("[%d](%d) polled %d packets from vhost_rx_plan[%d]\n", ctx->core_id, plan->vids[i], poll_num,
                      ctx->vhost_rx_core_id);
 
-            struct rte_mbuf *eth_pkts[MAX_PKT_BURST];
-            struct {
-                struct rte_mbuf *pkts[MAX_PKT_BURST];
-                uint16_t cnt;
-            } vm_bucket[MAX_VHOSTS];
-            struct rte_mbuf *vm_pkts[MAX_VHOSTS][MAX_PKT_BURST];
-            struct rte_mbuf *slow_pkts[MAX_PKT_BURST];
+            struct rte_mbuf *eth_pkts[num];
+            struct slow_msg *slow_msgs[num];
             int eth_cnt = 0, slow_cnt = 0;
+            // struct {
+            //     struct rte_mbuf *pkts[num];
+            //     uint16_t cnt;
+            // } vm_bucket[MAX_VHOSTS];
+            struct rte_mbuf *vm_pkts[MAX_VHOSTS][num];
             uint16_t vm_cnt[MAX_VHOSTS] = {0};
             uint16_t dst_vids[MAX_VHOSTS] = {0};
+            uint16_t dst_cnt = 0;
+
+            if (unlikely(vdev->ready == DEVICE_MAC_LEARNING)) {
+                struct slow_msg *slow_msg = (struct slow_msg *)malloc(sizeof(struct slow_msg));
+                slow_msg->reason = SLOW_MAC_LEARNING;
+                slow_msg->src = SLOW_SRC_VHOST;
+                slow_msg->vid = plan->vids[i];
+                slow_msg->mbuf = pkts[0];
+                slow_msgs[slow_cnt++] = slow_msg;
+            }
 
             for (int j = 0; j < poll_num; j++) {
                 struct rte_mbuf *m = pkts[j];
+                struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
-                if (unlikely(is_arp_req(m))) {
-                    slow_pkts[slow_cnt++] = m;
-                } else if (dst_is_local_subnet(m)) {
+                if (unlikely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP))) {
+                    struct rte_arp_hdr *arp_hdr = (struct rte_arp_hdr *)(eth_hdr + 1);
+                    if (arp_hdr->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST)) {
+                        struct slow_msg *slow_msg = (struct slow_msg *)malloc(sizeof(struct slow_msg));
+                        slow_msg->reason = SLOW_ARP_REQ;
+                        slow_msg->src = SLOW_SRC_VHOST;
+                        slow_msg->vid = plan->vids[i];
+                        slow_msg->mbuf = m;
+                        slow_msgs[slow_cnt++] = slow_msg;
+                    }
+                    // ARP response: forward to vhost/eth
+                }
+
+                if (dst_is_local_subnet(m)) {
                     // use ip to vid table
                     // vm_pkts[vm_cnt++] = m;
+                    // dst_vids[dst_cnt++] = ...;
                 } else {
                     eth_pkts[eth_cnt++] = m;
                 }
@@ -81,7 +105,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             }
 
             if (slow_cnt) {
-                int enq_num = rte_ring_enqueue_burst(global->slowpath_ring, (void **)slow_pkts, slow_cnt, NULL);
+                int enq_num = rte_ring_enqueue_burst(global->slowpath_ring, (void **)slow_msgs, slow_cnt, NULL);
                 LOG_INFO("[%d](%d) enqueued %d packets to slowpath_ring\n", ctx->core_id, plan->vids[i], enq_num);
                 if (enq_num < slow_cnt) {
                     STATS_ADD(ctx->vdev_stats[ctx->vhost_rx_core_id], ring_enq_fail_count, slow_cnt - enq_num);

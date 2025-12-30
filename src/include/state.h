@@ -92,9 +92,10 @@ struct vhost_rx_plan {
 } __rte_cache_aligned;
 
 struct control_ctx {
-    struct arp_table *arp;
-    struct route_table *route_table;
-    struct vhost_map *vmap;
+    uint16_t core_id;
+    // struct arp_table *arp;
+    // struct route_table *route_table;
+    // struct vhost_map *vmap;
 };
 
 #endif /* STATE_H_ */
