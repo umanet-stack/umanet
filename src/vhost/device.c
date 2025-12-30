@@ -191,6 +191,8 @@ static int new_device(int vid) {
     }
     vdev->vid = vid;
     vdev->ready = DEVICE_MAC_LEARNING;
+    vdev->mac = (struct rte_ether_addr){0};
+    vdev->ip = 0;
 
     if (vdev_list->num >= MAX_VHOSTS) {
         LOG_ERROR("(%d) too many devices on vdev_list (max %d)\n", vid, MAX_VHOSTS);
@@ -215,8 +217,8 @@ static int new_device(int vid) {
 
         memcpy(new, old, sizeof(*new));
 
-        new->vdevs[new->num] = vdev;
-        new->num++;
+        new->vdevs[vid] = vdev;
+        new->num = old->num + 1;
 
         if (atomic_compare_exchange_weak_explicit(&vdev_list, &old, new, memory_order_release, memory_order_acquire)) {
             break; // success
