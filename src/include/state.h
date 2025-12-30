@@ -81,7 +81,8 @@ struct vhost_tx_ctx {
 // Published via atomic pointer swap, Never mutated, RX/TX cores only read
 struct vdev_list {
     uint16_t num;
-    struct vhost_dev vdevs[MAX_VHOSTS];
+    // indexed by vid
+    struct vhost_dev *vdevs[MAX_VHOSTS];
 } __rte_cache_aligned;
 
 // Poll plan generated from vdev_list, read by vhost RX cores
@@ -95,6 +96,5 @@ struct control_ctx {
     struct route_table *route_table;
     struct vhost_map *vmap;
 };
-
 
 #endif /* STATE_H_ */

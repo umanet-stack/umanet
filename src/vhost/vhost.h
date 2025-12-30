@@ -51,7 +51,6 @@ struct vhost_dev {
 
     // ready if the MAC address has been set
     volatile uint8_t ready;
-    volatile uint8_t remove;
 } __rte_cache_aligned;
 
 // Per-core runtime state (NO sharing)
@@ -108,6 +107,8 @@ int vhost_rx_plan_remove(int vid);
 
 int init_route_table();
 int cleanup_route_table();
+
+// static inline unsigned is_route_added()
 
 // static inline unsigned vhost_send(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts)
 // {

@@ -26,9 +26,8 @@ int check_device_state(struct vhost_dev *vdev, const char *func) {
         return -1;
     }
 
-    if (unlikely(vdev->remove || vdev->ready == DEVICE_SAFE_REMOVE)) {
-        LOG_WARN("Warning: Attempting to %s device vid=%d marked for removal (ready=%d, remove=%d)\n", func, vdev->vid,
-                 vdev->ready, vdev->remove);
+    if (unlikely(vdev->ready == DEVICE_SAFE_REMOVE)) {
+        LOG_WARN("(%d) Attempting to %s device marked for removal (ready=%d)\n", vdev->vid, func, vdev->ready);
         return -1;
     }
 
@@ -110,31 +109,25 @@ static void destroy_device(int vid) {
     struct vdev_list *old, *new;
     while (1) {
         old = atomic_load_explicit(&vdev_list, memory_order_acquire);
-
         new = rte_malloc(NULL, sizeof(*new), RTE_CACHE_LINE_SIZE);
         if (!new) {
             LOG_ERROR("allocation failed\n");
             return;
         }
         memcpy(new, old, sizeof(*new));
-
-        int idx = -1;
-        for (int i = 0; i < old->num; i++) {
-            if (old->vdevs[i].vid == vid) {
-                idx = i;
-                break;
-            }
+        if (new->vdevs[vid] == NULL) {
+            LOG_WARN("(%d) device  not found during destroy\n", vid);
+            rte_free(new);
+            return;
         }
-        if (idx == -1) {
-            LOG_WARN("Warning: device vid=%d not found during destroy\n", vid);
+        if (new->vdevs[vid]->ready != DEVICE_SAFE_REMOVE) {
+            LOG_WARN("(%d) device not in safe remove state during destroy\n", vid);
             rte_free(new);
             return;
         }
 
-        for (int i = idx; i < old->num - 1; i++) {
-            new->vdevs[i] = old->vdevs[i + 1];
-        }
         new->num = old->num - 1;
+        new->vdevs[vid] = NULL;
 
         if (atomic_compare_exchange_weak_explicit(&vdev_list, &old, new, memory_order_release, memory_order_acquire)) {
             break; // success
@@ -198,7 +191,6 @@ static int new_device(int vid) {
     }
     vdev->vid = vid;
     vdev->ready = DEVICE_MAC_LEARNING;
-    vdev->remove = 0;
 
     if (vdev_list->num >= MAX_VHOSTS) {
         LOG_ERROR("(%d) too many devices on vdev_list (max %d)\n", vid, MAX_VHOSTS);
@@ -223,7 +215,7 @@ static int new_device(int vid) {
 
         memcpy(new, old, sizeof(*new));
 
-        new->vdevs[new->num].vid = vid;
+        new->vdevs[new->num] = vdev;
         new->num++;
 
         if (atomic_compare_exchange_weak_explicit(&vdev_list, &old, new, memory_order_release, memory_order_acquire)) {
