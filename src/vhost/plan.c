@@ -66,29 +66,55 @@ int vhost_rx_plan_add(int vid) {
 }
 
 int vhost_rx_plan_remove(int vid) {
-    struct vhost_rx_plan *plan = NULL;
-    uint16_t min_vdev = MAX_VHOSTS;
+    int vhost_rx_core_id = -1;
     for (int i = 0; i < global->vhost_rx_cores; i++) {
         struct vhost_rx_plan *plan = vhost_rx_plans[i];
         for (int j = 0; j < plan->num; j++) {
             if (plan->vids[j] == vid) {
-                plan->vids[j] = 0;
-                plan->num--;
-                return 0;
+                vhost_rx_core_id = i;
             }
         }
-        if (plan->num < min_vdev) {
-            min_vdev = plan->num;
-            plan = vhost_rx_plans[i];
-        }
+        if (vhost_rx_core_id != -1)
+            break;
     }
 
-    if (plan == NULL) {
-        LOG_ERROR("Failed to find a suitable vhost_rx_plan\n");
+    if (vhost_rx_core_id == -1) {
+        LOG_ERROR("Failed to find vhost_rx_core_id for vid=%d\n", vid);
         return -1;
     }
 
-    plan->vids[plan->num] = vid;
-    plan->num++;
+    struct vhost_rx_plan *old, *new;
+    while (1) {
+        old = atomic_load_explicit(&vhost_rx_plans[vhost_rx_core_id], memory_order_acquire);
+
+        new = rte_malloc(NULL, sizeof(*new), RTE_CACHE_LINE_SIZE);
+        if (!new) {
+            LOG_ERROR("allocation failed\n");
+            return -1;
+        }
+        memcpy(new, old, sizeof(*new));
+
+        int idx = 0;
+        for (int i = 0; i < old->num; i++) {
+            if (new->vids[i] == vid) {
+                idx = i;
+                break;
+            }
+        }
+
+        for (int i = idx; i < old->num - 1; i++) {
+            new->vids[i] = old->vids[i + 1];
+        }
+        new->num = old->num - 1;
+
+        if (atomic_compare_exchange_weak_explicit(&vhost_rx_plans[vhost_rx_core_id], &old, new, memory_order_release,
+                                                  memory_order_acquire)) {
+            break; // success
+        }
+
+        // CAS failed — someone updated concurrently
+        rte_free(new);
+    }
+
     return 0;
 }

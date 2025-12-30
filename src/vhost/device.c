@@ -148,6 +148,12 @@ static void destroy_device(int vid) {
         rte_free(new);
     }
 
+    int res = vhost_rx_plan_remove(vid);
+    if (res != 0) {
+        LOG_ERROR("Failed to remove device vid=%d from vhost_rx_plan\n", vid);
+        return;
+    }
+
     LOG_INFO("Found device vid=%d, marking for removal\n", vid);
 
     /* Set the remove flag with memory barrier to ensure visibility */
@@ -251,7 +257,6 @@ static int new_device(int vid) {
     //     }
     // }
 
-    // update vhost_rx_plan
     int res = vhost_rx_plan_add(vid);
     if (res != 0) {
         LOG_ERROR("Failed to add device vid=%d to vhost_rx_plan\n", vid);
