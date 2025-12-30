@@ -29,7 +29,7 @@ sources = files(
 	'src/network/network.c',
 	# 'src/network/tap.c',
 	'src/vhost/device.c',
-	'src/vhost/queues.c',
+	# 'src/vhost/queues.c',
 	'src/main.c',
 	# 'src/shm.c',
 	'src/dataplane.c',

@@ -59,7 +59,7 @@ sudo rm -f /dev/hugepages/tas_memory
 - copy `.env.template` to `.env` and fill in the values
 ```bash
 # debug
-sudo ./build_and_run.sh debug 5 32
+sudo ./build_and_run.sh debug 8 32
 # test
 sudo ./build_and_run.sh test 8 32
 
