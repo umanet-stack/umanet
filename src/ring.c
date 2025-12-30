@@ -16,6 +16,12 @@ int init_rings() {
             rte_ring_create(name, RING_SIZE, rte_socket_id(), RING_F_MP_RTS_ENQ | RING_F_SC_DEQ);
         free(name);
     }
+
+    char *name = malloc(sizeof(char) * 100);
+    sprintf(name, "slowpath_ring");
+    global->slowpath_ring = rte_ring_create(name, RING_SIZE, rte_socket_id(), RING_F_MP_RTS_ENQ | RING_F_SC_DEQ);
+    free(name);
+
     return 0;
 }
 
@@ -28,4 +34,6 @@ void destroy_rings() {
         rte_ring_free(global->vhost_tx_rings[i]);
         free(global->vhost_tx_rings[i]);
     }
+    rte_ring_free(global->slowpath_ring);
+    free(global->slowpath_ring);
 }
