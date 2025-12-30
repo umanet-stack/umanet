@@ -45,7 +45,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             uint16_t dst_vids[MAX_VHOSTS] = {0};
             uint16_t dst_cnt = 0;
 
-            if (unlikely(vdev->ready == DEVICE_MAC_LEARNING)) {
+            if (unlikely(vdev->ready == DEVICE_MAC_LEARNING && poll_num > 0)) {
                 struct slow_msg *slow_msg = (struct slow_msg *)malloc(sizeof(struct slow_msg));
                 slow_msg->reason = SLOW_MAC_LEARNING;
                 slow_msg->src = SLOW_SRC_VHOST;
@@ -67,6 +67,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                         slow_msg->vid = vid;
                         slow_msg->mbuf = m;
                         slow_msgs[slow_cnt++] = slow_msg;
+                        continue;
                     }
                     // ARP response: forward to vhost/eth
                 }
@@ -109,11 +110,6 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                 if (enq_num < slow_cnt) {
                     STATS_ADD(ctx->vdev_stats[ctx->vhost_rx_core_id], ring_enq_fail_count, slow_cnt - enq_num);
                 }
-            }
-
-            int enq_num = rte_ring_enqueue_burst(global->vhost_tx_rings[vid], (void **)pkts, poll_num, NULL);
-            if (enq_num < num) {
-                STATS_ADD(ctx->vdev_stats[vid], ring_enq_fail_count, num - enq_num);
             }
         }
     }
