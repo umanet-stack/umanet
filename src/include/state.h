@@ -1,6 +1,7 @@
 #ifndef STATE_H_
 #define STATE_H_
 
+#include "src/vhost/vhost.h"
 #include <rte_ether.h>
 #include <rte_ring.h>
 #include <stdatomic.h>
@@ -56,6 +57,8 @@ struct vhost_rx_ctx {
     uint16_t next_device;
     // Counter for checking inactive devices
     uint16_t inactive_check_counter;
+
+    struct vdev_runtime vdev_rt[MAX_VHOSTS];
 };
 
 struct vhost_tx_ctx {
@@ -68,11 +71,11 @@ struct vhost_tx_ctx {
     uint16_t inactive_check_counter;
 };
 
-// FP: atomic_load, SP: atomic_store
+// Published via atomic pointer swap, Never mutated, RX/TX cores only read
 struct vdev_list {
-    struct vhost_dev *vdevs[MAX_VHOSTS];
-    uint16_t num_vdevs;
-};
+    uint16_t num;
+    struct vdev_fp vdevs[MAX_VHOSTS];
+} __rte_cache_aligned;
 
 struct control_ctx {
     struct arp_table *arp;

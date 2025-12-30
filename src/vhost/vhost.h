@@ -9,7 +9,7 @@
 #include <rte_vhost.h>
 #include <sys/queue.h>
 
-#include "src/include/state.h"
+// #include "src/include/state.h"
 
 enum { VIRTIO_RXQ, VIRTIO_TXQ };
 
@@ -24,6 +24,33 @@ enum { VIRTIO_RXQ, VIRTIO_TXQ };
 #define MBUF_TABLE_DRAIN_TSC ((rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US)
 
 extern const struct rte_vhost_device_ops virtio_net_device_ops;
+
+// SP, mutated freely, not cached aligned
+struct vhost_ctrl {
+    int vid;
+    uint64_t features;
+    size_t hdr_len;
+    struct rte_vhost_memory *mem;
+
+    struct rte_ether_addr mac;
+    uint32_t ip;
+
+    // lifecycle
+    bool attached;
+};
+
+struct vdev_fp {
+    int vid;
+    struct rte_ether_addr mac;
+    uint32_t ip;
+};
+
+// Per-core runtime state (NO sharing)
+struct vdev_runtime {
+    uint8_t empty_poll_count;
+    uint64_t last_failed_log_ts;
+    uint64_t failed_pkts_count;
+};
 
 struct vhost_dev { // vhost device
     // Device MAC address (Obtained on first TX packet).
