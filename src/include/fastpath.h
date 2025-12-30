@@ -46,7 +46,7 @@
 // In a large function, this kills instruction-level parallelism.
 #define STATS_TS(n) uint64_t n = rte_get_tsc_cycles()
 // Use regular addition instead of atomic (stats are per-core, no contention)
-#define STATS_TSADD(c, f, n) (c->stat_##f += (n))
+#define STATS_TSADD(c, f, n) (c->f += (n))
 #else
 #define STATS_TS(n)                                                                                                    \
     do {                                                                                                               \
@@ -55,7 +55,7 @@
     do {                                                                                                               \
     } while (0)
 #endif
-#define STATS_ADD(c, f, n) __sync_fetch_and_add(&c->stat_##f, n)
+#define STATS_ADD(c, f, n) __sync_fetch_and_add(&c->f, n)
 #else
 #define STATS_TS(n)                                                                                                    \
     do {                                                                                                               \

@@ -10,6 +10,7 @@
 #include <rte_ether.h>
 #include <rte_vhost.h>
 #include <stdatomic.h>
+#include <stdint.h>
 #include <sys/queue.h>
 
 // #include "src/include/state.h"
@@ -49,10 +50,11 @@ struct vdev_fp {
 };
 
 // Per-core runtime state (NO sharing)
-struct vdev_runtime {
-    uint8_t empty_poll_count;
-    uint64_t last_failed_log_ts;
-    uint64_t failed_pkts_count;
+struct vdev_rx_stats {
+    uint32_t call_count;
+    uint32_t pkt_count;
+    uint32_t empty_poll_count;
+    uint32_t max_poll_count;
 };
 
 struct vhost_dev { // vhost device
@@ -88,25 +90,6 @@ int register_vhost_drivers();
 
 int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m);
 void unlink_vmdq(struct vhost_dev *vdev);
-
-// copy pkt from guest vring buffer to DPDK mbuf (vm -> dpdk)
-// This can fail if the vhost connection is broken
-// static inline unsigned vhost_poll(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts)
-// {
-//     int16_t ret = rte_vhost_dequeue_burst(vid, VIRTIO_TXQ, ctx->net.pool, pkts, num);
-//     if (ret == 0)
-//         return 0;
-
-//     STATS_ADD(ctx, pkt_vhost_rx, ret);
-//     STATS_ADD(ctx, call_vhost_rx, 1);
-//     if (ret == num) {
-//         STATS_ADD(ctx, cou_vhost_poll_max, 1);
-//     }
-//     LOG_VM_IN("[%d](%d) Received %d packets from VM\n", ctx->id, vid, ret);
-//     PRINT_PKTS(pkts, ret, LOG_VM_IN);
-
-//     return ret;
-// }
 
 // static inline unsigned vhost_send(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts)
 // {
