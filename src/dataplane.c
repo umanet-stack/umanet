@@ -97,5 +97,11 @@ int init_dataplane_ctxs() {
     }
     // vhost module takes care of vdev_ids
 
+    if ((control_ctx = rte_calloc("control_ctx", 1, sizeof(struct control_ctx), 0)) == NULL) {
+        LOG_ERROR("init_dataplane_ctxs: failed to allocate control_ctxs\n");
+        return -1;
+    }
+    control_ctx->core_id = 0;
+
     return 0;
 }

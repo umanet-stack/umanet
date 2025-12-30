@@ -20,6 +20,7 @@
 #include "log.h"
 #include "src/include/state.h"
 #include "src/network/network.h"
+#include "src/slow/slowpath.h"
 #include "src/vhost/vhost.h"
 #include <stdatomic.h>
 
@@ -30,6 +31,7 @@ struct eth_tx_ctx **eth_tx_ctxs = NULL;
 struct eth_rx_ctx **eth_rx_ctxs = NULL;
 struct vhost_tx_ctx **vhost_tx_ctxs = NULL;
 struct vhost_rx_ctx **vhost_rx_ctxs = NULL;
+struct control_ctx *control_ctx = NULL;
 _Atomic(struct vdev_list *) vdev_list = NULL;
 
 static int start_threads(void);
@@ -173,9 +175,11 @@ int main(int argc, char *argv[]) {
         goto error_dataplane_cleanup;
     }
 
+    slowpath_loop(control_ctx);
+
     // Wait for lcores to finish (keeps main alive)
-    unsigned lcore_id;
-    RTE_LCORE_FOREACH_WORKER(lcore_id) { rte_eal_wait_lcore(lcore_id); }
+    // unsigned lcore_id;
+    // RTE_LCORE_FOREACH_WORKER(lcore_id) { rte_eal_wait_lcore(lcore_id); }
 
     rte_eal_cleanup();
 
@@ -197,8 +201,9 @@ static int common_thread(void *arg) {
         pthread_setname_np(pthread_self(), name);
     }
 
-    if (id < global->eth_rx_cores) {
-        struct eth_rx_ctx *eth_rx_ctx = eth_rx_ctxs[id];
+    // id starts at 1, but arrays are 0-indexed, so subtract 1
+    if (id <= global->eth_rx_cores) {
+        struct eth_rx_ctx *eth_rx_ctx = eth_rx_ctxs[id - 1];
         eth_rx_ctx->core_id = id;
         if (network_rx_queue_init(eth_rx_ctx) != 0) {
             LOG_ERROR("network_rx_queue_init failed\n");
@@ -206,8 +211,8 @@ static int common_thread(void *arg) {
         }
         LOG_IMPT("[%u] Entering eth_rx loop...\n", eth_rx_ctx->core_id);
 
-    } else if (id < global->eth_rx_cores + global->eth_tx_cores) {
-        struct eth_tx_ctx *eth_tx_ctx = eth_tx_ctxs[id - global->eth_rx_cores];
+    } else if (id <= global->eth_rx_cores + global->eth_tx_cores) {
+        struct eth_tx_ctx *eth_tx_ctx = eth_tx_ctxs[id - global->eth_rx_cores - 1];
         eth_tx_ctx->core_id = id;
         if (network_tx_queue_init(eth_tx_ctx) != 0) {
             LOG_ERROR("network_tx_queue_init failed\n");
@@ -215,14 +220,14 @@ static int common_thread(void *arg) {
         }
         LOG_IMPT("[%u] Entering eth_tx loop...\n", eth_tx_ctx->core_id);
 
-    } else if (id < global->eth_rx_cores + global->eth_tx_cores + global->vhost_rx_cores) {
-        struct vhost_rx_ctx *vhost_rx_ctx = vhost_rx_ctxs[id - global->eth_rx_cores - global->eth_tx_cores];
+    } else if (id <= global->eth_rx_cores + global->eth_tx_cores + global->vhost_rx_cores) {
+        struct vhost_rx_ctx *vhost_rx_ctx = vhost_rx_ctxs[id - global->eth_rx_cores - global->eth_tx_cores - 1];
         vhost_rx_ctx->core_id = id;
         vhost_rx_loop(vhost_rx_ctx);
 
-    } else if (id < global->eth_rx_cores + global->eth_tx_cores + global->vhost_rx_cores + global->vhost_tx_cores) {
+    } else if (id <= global->eth_rx_cores + global->eth_tx_cores + global->vhost_rx_cores + global->vhost_tx_cores) {
         struct vhost_tx_ctx *vhost_tx_ctx =
-            vhost_tx_ctxs[id - global->eth_rx_cores - global->eth_tx_cores - global->vhost_rx_cores];
+            vhost_tx_ctxs[id - global->eth_rx_cores - global->eth_tx_cores - global->vhost_rx_cores - 1];
         vhost_tx_ctx->core_id = id;
         LOG_IMPT("[%u] Entering vhost_tx loop...\n", vhost_tx_ctx->core_id);
 
@@ -252,7 +257,7 @@ static int start_threads(void) {
     uint16_t threads_launched = 0;
     RTE_LCORE_FOREACH_WORKER(core) {
         if (threads_launched < global->fp_cores) {
-            arg = (void *)(uintptr_t)threads_launched;
+            arg = (void *)(uintptr_t)(threads_launched + 1);
             if (rte_eal_remote_launch(common_thread, arg, core) != 0) {
                 LOG_ERROR("ERROR\n");
                 return -1;

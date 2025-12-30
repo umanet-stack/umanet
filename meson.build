@@ -34,6 +34,7 @@ sources = files(
 	# 'src/vhost/queues.c',
 	'src/main.c',
 	'src/slow/arp.c',
+	'src/slow/slowpath.c',
 	'src/dataplane.c',
 	'src/ring.c',
 )
