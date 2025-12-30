@@ -12,15 +12,18 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
         sleep(1);
 #endif
 
-        struct vdev_list *vdevs = atomic_load(&vdev_list);
-        for (int i = ctx->vhost_rx_core_id; i < vdevs->num; i++)
-            rte_vhost_dequeue_burst(snap->vids[i], ...);
+        struct vhost_rx_plan *plan = atomic_load(&vhost_rx_plans[ctx->vhost_rx_core_id]);
+        for (int i = 0; i < plan->num; i++) {
+            struct rte_mbuf *pkts[MAX_PKT_BURST];
+            uint16_t num = MAX_PKT_BURST;
 
-        struct rte_mbuf *pkts[MAX_PKT_BURST];
-        uint16_t num = MAX_PKT_BURST;
+            vhost_poll(ctx, num, plan->vids[i], pkts);
 
-        vhost_poll(ctx, num, pkts);
-        rte_ring_enqueue_burst(global->vhost_tx_rings[ctx->], (void **)pkts, num, NULL);
+            int enq_num = rte_ring_enqueue_burst(global->vhost_tx_rings[plan->vids[i]], (void **)pkts, num, NULL);
+            if (enq_num < num) {
+                STATS_ADD(ctx->vdev_stats[plan->vids[i]], ring_enq_fail_count, num - enq_num);
+            }
+        }
     }
 }
 

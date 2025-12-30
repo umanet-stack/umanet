@@ -27,7 +27,9 @@ struct dataplane_topology {
     uint16_t eth_port_id;
     struct rte_ether_addr eth_addr;
 
+    // indexed by eth_queue_id
     struct rte_ring *eth_tx_rings[ETH_TX_CORES];
+    // indexed by vid
     struct rte_ring *vhost_tx_rings[MAX_VHOSTS];
 
     uint16_t eth_tx_cores;
