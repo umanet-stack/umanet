@@ -201,14 +201,15 @@ int network_tx_queue_init(struct eth_tx_ctx *ctx) {
         return -1;
     }
 
+    /* barrier to make sure tx queues are initialized first */
+    __sync_add_and_fetch(&tx_init_done, 1);
+
     LOG_IMPT("[%d] NIC TX queue %d initialized\n", ctx->id, ctx->eth_queue_id);
     return ret;
 }
 
 int network_rx_queue_init(struct eth_rx_ctx *ctx) {
-    /* barrier to make sure tx queues are initialized first */
-    __sync_add_and_fetch(&tx_init_done, 1);
-    while (tx_init_done < global->eth_rx_cores)
+    while (tx_init_done < global->eth_tx_cores)
         ;
 
     int ret;
@@ -221,13 +222,14 @@ int network_rx_queue_init(struct eth_rx_ctx *ctx) {
         return -1;
     }
 
+    /* barrier to make sure rx queues are initialized first */
+    __sync_add_and_fetch(&rx_init_done, 1);
+
     LOG_IMPT("[%d] NIC RX queue %d initialized\n", ctx->id, ctx->eth_queue_id);
     return ret;
 }
 
 int network_start_eth() {
-    /* barrier to make sure rx queues are initialized first */
-    __sync_add_and_fetch(&rx_init_done, 1);
     while (rx_init_done < global->eth_rx_cores)
         ;
 

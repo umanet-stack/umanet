@@ -192,28 +192,32 @@ static int common_thread(void *arg) {
 
     if (id < global->eth_rx_cores) {
         struct eth_rx_ctx *eth_rx_ctx = eth_rx_ctxs[id];
+        eth_rx_ctx->id = id;
         if (network_rx_queue_init(eth_rx_ctx) != 0) {
             LOG_ERROR("network_rx_queue_init failed\n");
             return -1;
         }
-        LOG_IMPT("[%u] Entering eth_rx loop...\n", id);
+        LOG_IMPT("[%u] Entering eth_rx loop...\n", eth_rx_ctx->id);
 
     } else if (id < global->eth_rx_cores + global->eth_tx_cores) {
         struct eth_tx_ctx *eth_tx_ctx = eth_tx_ctxs[id - global->eth_rx_cores];
+        eth_tx_ctx->id = id;
         if (network_tx_queue_init(eth_tx_ctx) != 0) {
             LOG_ERROR("network_tx_queue_init failed\n");
             return -1;
         }
-        LOG_IMPT("[%u] Entering eth_tx loop...\n", id);
+        LOG_IMPT("[%u] Entering eth_tx loop...\n", eth_tx_ctx->id);
 
     } else if (id < global->eth_rx_cores + global->eth_tx_cores + global->vhost_rx_cores) {
         struct vhost_rx_ctx *vhost_rx_ctx = vhost_rx_ctxs[id - global->eth_rx_cores - global->eth_tx_cores];
-        LOG_IMPT("[%u] Entering vhost_rx loop...\n", id);
+        vhost_rx_ctx->id = id;
+        LOG_IMPT("[%u] Entering vhost_rx loop...\n", vhost_rx_ctx->id);
 
     } else if (id < global->eth_rx_cores + global->eth_tx_cores + global->vhost_rx_cores + global->vhost_tx_cores) {
         struct vhost_tx_ctx *vhost_tx_ctx =
             vhost_tx_ctxs[id - global->eth_rx_cores - global->eth_tx_cores - global->vhost_rx_cores];
-        LOG_IMPT("[%u] Entering vhost_tx loop...\n", id);
+        vhost_tx_ctx->id = id;
+        LOG_IMPT("[%u] Entering vhost_tx loop...\n", vhost_tx_ctx->id);
 
     } else {
         LOG_ERROR("Invalid core ID: %u\n", id);
@@ -230,7 +234,7 @@ static int start_threads(void) {
 
     cores_avail = rte_lcore_count();
     // 8 fast path cores + 1 slow path core
-    // -l 0-8 = 1 master core (core 0) + 8 slave cores (core 1-8)
+    // -l 0-8 = 1 master core (core 0) + 8 slave cores (core 1-8, tho id will be 0-7)
     cores_needed = FP_CORES + 1;
 
     if (cores_avail < cores_needed) {
@@ -240,7 +244,6 @@ static int start_threads(void) {
 
     uint16_t threads_launched = 0;
     RTE_LCORE_FOREACH_WORKER(core) {
-        LOG_IMPT("Launching worker thread on core %u\n", core);
         if (threads_launched < global->fp_cores) {
             arg = (void *)(uintptr_t)threads_launched;
             if (rte_eal_remote_launch(common_thread, arg, core) != 0) {
