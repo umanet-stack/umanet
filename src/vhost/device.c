@@ -15,10 +15,6 @@
 #include "src/include/state.h"
 #include "src/vhost/vhost.h"
 
-// Global hash table for MAC address to vhost_dev lookup
-struct rte_hash *mac_lookup_table = NULL;
-#define MAC_LOOKUP_TABLE_SIZE 256 // Support up to 256 devices
-
 int check_device_state(struct vhost_dev *vdev, const char *func) {
     if (unlikely(vdev == NULL)) {
         LOG_ERROR("Error: NULL vdev in %s\n", func);
@@ -288,32 +284,7 @@ void unregister_vhost_drivers(int socket_num, const char *path) {
             LOG_ERROR("Fail to unregister vhost driver for %s.\n", path + i * PATH_MAX);
     }
 
-    // Cleanup MAC lookup hash table
-    if (mac_lookup_table != NULL) {
-        rte_hash_free(mac_lookup_table);
-        mac_lookup_table = NULL;
-        LOG_INFO("MAC lookup hash table destroyed\n");
-    }
-}
-
-static int init_mac_lookup_table(void) {
-    struct rte_hash_parameters hash_params = {
-        .name = "mac_lookup_table",
-        .entries = MAC_LOOKUP_TABLE_SIZE,
-        .key_len = sizeof(struct rte_ether_addr),
-        .hash_func = rte_jhash,
-        .hash_func_init_val = 0,
-        .socket_id = rte_socket_id(),
-    };
-
-    mac_lookup_table = rte_hash_create(&hash_params);
-    if (mac_lookup_table == NULL) {
-        LOG_ERROR("Failed to create MAC lookup hash table\n");
-        return -1;
-    }
-
-    LOG_INFO("MAC lookup hash table initialized (size=%d)\n", MAC_LOOKUP_TABLE_SIZE);
-    return 0;
+    destroy_mac_2_vid();
 }
 
 int register_vhost_drivers() {
@@ -327,7 +298,7 @@ int register_vhost_drivers() {
     vdev_list->num = 0;
     memset(vdev_list->vdevs, 0, sizeof(vdev_list->vdevs));
 
-    if (init_mac_lookup_table() != 0) {
+    if (init_mac_2_vid() != 0) {
         LOG_ERROR("Failed to initialize MAC lookup table\n");
         return -1;
     }

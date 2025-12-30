@@ -100,6 +100,9 @@ int init_vhost_rx_plans();
 int vhost_rx_plan_add(int vid);
 int vhost_rx_plan_remove(int vid);
 
+int init_mac_2_vid();
+int destroy_mac_2_vid();
+
 // static inline unsigned vhost_send(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts)
 // {
 //     num = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
