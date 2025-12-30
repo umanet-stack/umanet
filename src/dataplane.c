@@ -64,6 +64,7 @@ int init_dataplane_ctxs() {
             LOG_ERROR("init_vhost_rx_ctxs: failed to allocate vhost_rx_ctxs[%d]\n", i);
             return -1;
         }
+        vhost_rx_ctxs[i]->vhost_rx_core_id = i;
         vhost_rx_ctxs[i]->mempool = NULL;
 
         if ((vhost_rx_ctxs[i]->mempool = vhost_mempool_alloc()) == NULL) {
@@ -78,6 +79,7 @@ int init_dataplane_ctxs() {
             LOG_ERROR("init_vhost_tx_ctxs: failed to allocate vhost_tx_ctxs[%d]\n", i);
             return -1;
         }
+        vhost_tx_ctxs[i]->vhost_tx_core_id = i;
     }
     // vhost module takes care of vdev_ids
 

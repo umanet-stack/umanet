@@ -37,19 +37,20 @@ struct dataplane_topology {
 };
 
 struct eth_rx_ctx {
-    uint16_t id;
+    uint16_t core_id;
     uint16_t eth_queue_id; // same as id
     struct rte_mempool *mempool;
     // struct route_table *rt; // read-only snapshot
 };
 
 struct eth_tx_ctx {
-    uint16_t id;
+    uint16_t core_id;
     uint16_t eth_queue_id; // same as id
 };
 
 struct vhost_rx_ctx {
-    uint16_t id;
+    uint16_t core_id;
+    uint16_t vhost_rx_core_id;
     struct rte_mempool *mempool;
     /* Flag to synchronize device removal. */
     volatile uint8_t dev_removal_flag;
@@ -58,11 +59,12 @@ struct vhost_rx_ctx {
     // Counter for checking inactive devices
     uint16_t inactive_check_counter;
 
-    struct vdev_runtime vdev_rt[MAX_VHOSTS];
+    struct vdev_rx_stats *vdev_stats[MAX_VHOSTS];
 };
 
 struct vhost_tx_ctx {
-    uint16_t id;
+    uint16_t core_id;
+    uint16_t vhost_tx_core_id;
     /* Flag to synchronize device removal. */
     volatile uint8_t dev_removal_flag;
     // Round-robin index for polling devices

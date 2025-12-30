@@ -192,32 +192,32 @@ static int common_thread(void *arg) {
 
     if (id < global->eth_rx_cores) {
         struct eth_rx_ctx *eth_rx_ctx = eth_rx_ctxs[id];
-        eth_rx_ctx->id = id;
+        eth_rx_ctx->core_id = id;
         if (network_rx_queue_init(eth_rx_ctx) != 0) {
             LOG_ERROR("network_rx_queue_init failed\n");
             return -1;
         }
-        LOG_IMPT("[%u] Entering eth_rx loop...\n", eth_rx_ctx->id);
+        LOG_IMPT("[%u] Entering eth_rx loop...\n", eth_rx_ctx->core_id);
 
     } else if (id < global->eth_rx_cores + global->eth_tx_cores) {
         struct eth_tx_ctx *eth_tx_ctx = eth_tx_ctxs[id - global->eth_rx_cores];
-        eth_tx_ctx->id = id;
+        eth_tx_ctx->core_id = id;
         if (network_tx_queue_init(eth_tx_ctx) != 0) {
             LOG_ERROR("network_tx_queue_init failed\n");
             return -1;
         }
-        LOG_IMPT("[%u] Entering eth_tx loop...\n", eth_tx_ctx->id);
+        LOG_IMPT("[%u] Entering eth_tx loop...\n", eth_tx_ctx->core_id);
 
     } else if (id < global->eth_rx_cores + global->eth_tx_cores + global->vhost_rx_cores) {
         struct vhost_rx_ctx *vhost_rx_ctx = vhost_rx_ctxs[id - global->eth_rx_cores - global->eth_tx_cores];
-        vhost_rx_ctx->id = id;
-        LOG_IMPT("[%u] Entering vhost_rx loop...\n", vhost_rx_ctx->id);
+        vhost_rx_ctx->core_id = id;
+        LOG_IMPT("[%u] Entering vhost_rx loop...\n", vhost_rx_ctx->core_id);
 
     } else if (id < global->eth_rx_cores + global->eth_tx_cores + global->vhost_rx_cores + global->vhost_tx_cores) {
         struct vhost_tx_ctx *vhost_tx_ctx =
             vhost_tx_ctxs[id - global->eth_rx_cores - global->eth_tx_cores - global->vhost_rx_cores];
-        vhost_tx_ctx->id = id;
-        LOG_IMPT("[%u] Entering vhost_tx loop...\n", vhost_tx_ctx->id);
+        vhost_tx_ctx->core_id = id;
+        LOG_IMPT("[%u] Entering vhost_tx loop...\n", vhost_tx_ctx->core_id);
 
     } else {
         LOG_ERROR("Invalid core ID: %u\n", id);
