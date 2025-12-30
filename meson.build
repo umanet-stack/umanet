@@ -32,7 +32,7 @@ sources = files(
 	'src/vhost/device.c',
 	'src/vhost/plan.c',
 	'src/vhost/route.c',
-	# 'src/vhost/queues.c',
+	'src/vhost/vmdq.c',
 	'src/main.c',
 	'src/slow/arp.c',
 	'src/slow/slowpath.c',
