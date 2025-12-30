@@ -36,6 +36,7 @@ int init_rings();
 void destroy_rings();
 
 void vhost_rx_loop(struct vhost_rx_ctx *ctx);
+void vhost_tx_loop(struct vhost_tx_ctx *ctx);
 
 int slowpath_main();
 

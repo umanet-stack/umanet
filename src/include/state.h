@@ -77,6 +77,8 @@ struct vhost_tx_ctx {
     uint16_t next_device;
     // Counter for checking inactive devices
     uint16_t inactive_check_counter;
+
+    struct vdev_tx_stats *vdev_stats[MAX_VHOSTS];
 };
 
 // Published via atomic pointer swap, Never mutated, RX/TX cores only read

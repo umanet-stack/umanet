@@ -21,6 +21,7 @@ sources = files(
 	'lib/utils/utils.c',
 	'src/config/config.c',
 	'src/fast/vhost_rx.c',
+	'src/fast/vhost_tx.c',
 	# 'src/fast/fastpath.c',
 	# 'src/fast/flow.c',
 	# 'src/fast/from_eth.c',

@@ -31,8 +31,6 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             struct vhost_dev *vdev = vdev_list->vdevs[plan->vids[i]];
 
             int poll_num = vhost_poll(ctx, num, plan->vids[i], pkts);
-            LOG_INFO("[%d](%d) polled %d packets from vhost_rx_plan[%d]\n", ctx->core_id, plan->vids[i], poll_num,
-                     ctx->vhost_rx_core_id);
 
             struct rte_mbuf *eth_pkts[num];
             struct slow_msg *slow_msgs[num];

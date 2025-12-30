@@ -78,11 +78,6 @@ int init_dataplane_ctxs() {
                 rte_zmalloc("vhost_rx_ctxs[%d]->vdev_stats[%d]", sizeof(struct vdev_rx_stats), RTE_CACHE_LINE_SIZE);
             if (vhost_rx_ctxs[i]->vdev_stats[j] == NULL) {
                 LOG_ERROR("init_vhost_rx_ctxs: failed to allocate vhost_rx_ctxs[%d]->vdev_stats[%d]\n", i, j);
-                for (int k = 0; k < j; k++) {
-                    rte_free(vhost_rx_ctxs[i]->vdev_stats[k]);
-                }
-                rte_free(vhost_rx_ctxs[i]->mempool);
-                rte_free(vhost_rx_ctxs[i]);
                 return -1;
             }
         }
@@ -94,6 +89,15 @@ int init_dataplane_ctxs() {
             return -1;
         }
         vhost_tx_ctxs[i]->vhost_tx_core_id = i;
+
+        for (int j = 0; j < MAX_VHOSTS; j++) {
+            vhost_tx_ctxs[i]->vdev_stats[j] =
+                rte_zmalloc("vhost_tx_ctxs[%d]->vdev_stats[%d]", sizeof(struct vdev_tx_stats), RTE_CACHE_LINE_SIZE);
+            if (vhost_tx_ctxs[i]->vdev_stats[j] == NULL) {
+                LOG_ERROR("init_vhost_tx_ctxs: failed to allocate vhost_tx_ctxs[%d]->vdev_stats[%d]\n", i, j);
+                return -1;
+            }
+        }
     }
     // vhost module takes care of vdev_ids
 
