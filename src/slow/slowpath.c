@@ -8,5 +8,9 @@ void slowpath_loop(void) {
 #ifdef DEBUG
         sleep(1);
 #endif
+
+        struct vdev_list *vdevs = atomic_load(&vdev_list);
+        for (int i = 0; i < vdevs->num; i++) {
+        }
     }
 }

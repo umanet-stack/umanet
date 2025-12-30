@@ -195,8 +195,6 @@ static int new_device(int vid) {
         return -1;
     }
     vdev->vid = vid;
-
-    /*reset ready flag*/
     vdev->ready = DEVICE_MAC_LEARNING;
     vdev->remove = 0;
 
@@ -242,15 +240,23 @@ static int new_device(int vid) {
     rte_vhost_enable_guest_notification(vid, VIRTIO_TXQ, 0);
 
     // Check negotiated protocol features after device connection
-    uint64_t proto_features;
-    if (rte_vhost_get_negotiated_protocol_features(vid, &proto_features) == 0) {
-        LOG_INFO("(%d) Negotiated protocol features: 0x%lx\n", vid, proto_features);
-        if (proto_features & (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD)) {
-            LOG_INFO("(%d) Zero-copy enabled: INFLIGHT_SHMFD protocol feature negotiated\n", vid);
-        } else {
-            LOG_WARN("(%d) Zero-copy NOT possible: missing INFLIGHT_SHMFD (protocol features: 0x%lx)\n", vid,
-                     proto_features);
-        }
+    // uint64_t proto_features;
+    // if (rte_vhost_get_negotiated_protocol_features(vid, &proto_features) == 0) {
+    //     LOG_INFO("(%d) Negotiated protocol features: 0x%lx\n", vid, proto_features);
+    //     if (proto_features & (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD)) {
+    //         LOG_INFO("(%d) Zero-copy enabled: INFLIGHT_SHMFD protocol feature negotiated\n", vid);
+    //     } else {
+    //         LOG_WARN("(%d) Zero-copy NOT possible: missing INFLIGHT_SHMFD (protocol features: 0x%lx)\n", vid,
+    //                  proto_features);
+    //     }
+    // }
+
+    // update vhost_rx_plan
+    int res = vhost_rx_plan_add(vid);
+    if (res != 0) {
+        LOG_ERROR("Failed to add device vid=%d to vhost_rx_plan\n", vid);
+        rte_free(vdev);
+        return -1;
     }
 
     // Note: MAC address will be added to lookup table when learned in link_vmdq()
@@ -284,7 +290,6 @@ void unregister_vhost_drivers(int socket_num, const char *path) {
     }
 }
 
-// Initialize MAC lookup hash table
 static int init_mac_lookup_table(void) {
     struct rte_hash_parameters hash_params = {
         .name = "mac_lookup_table",

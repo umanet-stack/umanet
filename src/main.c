@@ -31,6 +31,7 @@ struct eth_rx_ctx **eth_rx_ctxs = NULL;
 struct vhost_tx_ctx **vhost_tx_ctxs = NULL;
 struct vhost_rx_ctx **vhost_rx_ctxs = NULL;
 _Atomic(struct vdev_list *) vdev_list = NULL;
+_Atomic(struct vhost_rx_plan *) *vhost_rx_plans = NULL;
 
 static int start_threads(void);
 static void thread_error(void);

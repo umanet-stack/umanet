@@ -21,6 +21,7 @@ extern struct eth_tx_ctx **eth_tx_ctxs;
 extern struct vhost_rx_ctx **vhost_rx_ctxs;
 extern struct vhost_tx_ctx **vhost_tx_ctxs;
 extern _Atomic(struct vdev_list *) vdev_list;
+extern _Atomic(struct vhost_rx_plan *) *vhost_rx_plans;
 
 struct dataplane_topology {
     uint16_t eth_port_id;
@@ -76,7 +77,13 @@ struct vhost_tx_ctx {
 // Published via atomic pointer swap, Never mutated, RX/TX cores only read
 struct vdev_list {
     uint16_t num;
-    struct vdev_fp vdevs[MAX_VHOSTS];
+    struct vhost_dev vdevs[MAX_VHOSTS];
+} __rte_cache_aligned;
+
+// Poll plan generated from vdev_list, read by vhost RX cores
+struct vhost_rx_plan {
+    uint16_t num;
+    uint16_t vids[MAX_VHOSTS];
 } __rte_cache_aligned;
 
 struct control_ctx {

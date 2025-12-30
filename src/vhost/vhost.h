@@ -13,8 +13,6 @@
 #include <stdint.h>
 #include <sys/queue.h>
 
-// #include "src/include/state.h"
-
 enum { VIRTIO_RXQ, VIRTIO_TXQ };
 
 #define REQUEST_DEV_REMOVAL 1
@@ -43,11 +41,17 @@ struct vhost_ctrl {
     bool attached;
 };
 
-struct vdev_fp {
+struct vhost_dev {
     int vid;
     struct rte_ether_addr mac;
     uint32_t ip;
-};
+    // uint16_t rx_core_id;
+    // uint16_t tx_core_id;
+
+    // ready if the MAC address has been set
+    volatile uint8_t ready;
+    volatile uint8_t remove;
+} __rte_cache_aligned;
 
 // Per-core runtime state (NO sharing)
 struct vdev_rx_stats {
@@ -57,28 +61,28 @@ struct vdev_rx_stats {
     uint32_t max_poll_count;
 };
 
-struct vhost_dev { // vhost device
-    // Device MAC address (Obtained on first TX packet).
-    struct rte_ether_addr mac_address;
-    uint32_t vm_ip_address;
-    /**< A device is set as ready if the MAC address has been set. */
-    volatile uint8_t ready;
-    /**< Device is marked for removal from the data core. */
-    volatile uint8_t remove;
+// struct vhost_dev { // vhost device
+//     // Device MAC address (Obtained on first TX packet).
+//     struct rte_ether_addr mac_address;
+//     uint32_t vm_ip_address;
+//     /**< A device is set as ready if the MAC address has been set. */
+//     volatile uint8_t ready;
+//     /**< Device is marked for removal from the data core. */
+//     volatile uint8_t remove;
 
-    int vid;                      // vhost device ID, assigned by dpdk
-    uint64_t features;            // Virtio feature flags
-    size_t hdr_len;               // Header length
-    struct rte_vhost_memory *mem; // Guest memory mapping
+//     int vid;                      // vhost device ID, assigned by dpdk
+//     uint64_t features;            // Virtio feature flags
+//     size_t hdr_len;               // Header length
+//     struct rte_vhost_memory *mem; // Guest memory mapping
 
-    // Rate-limited logging for failed enqueue attempts
-    uint64_t last_failed_log_ts; // TSC timestamp of last log
-    uint64_t failed_pkts_count;  // Cumulative failed packets since last log
+//     // Rate-limited logging for failed enqueue attempts
+//     uint64_t last_failed_log_ts; // TSC timestamp of last log
+//     uint64_t failed_pkts_count;  // Cumulative failed packets since last log
 
-    // Track consecutive empty polls before marking device inactive
-    uint8_t empty_poll_count;
-    uint8_t is_active;
-} __rte_cache_aligned;
+//     // Track consecutive empty polls before marking device inactive
+//     uint8_t empty_poll_count;
+//     uint8_t is_active;
+// } __rte_cache_aligned;
 
 int check_device_state(struct vhost_dev *vdev, const char *func);
 struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac);
@@ -90,6 +94,9 @@ int register_vhost_drivers();
 
 int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m);
 void unlink_vmdq(struct vhost_dev *vdev);
+
+int vhost_rx_plan_add(int vid);
+int vhost_rx_plan_remove(int vid);
 
 // static inline unsigned vhost_send(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts)
 // {
