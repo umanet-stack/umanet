@@ -27,10 +27,11 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
         struct vhost_rx_plan *plan = atomic_load(&vhost_rx_plans[ctx->vhost_rx_core_id]);
         for (int i = 0; i < plan->num; i++) {
             uint16_t num = MAX_PKT_BURST;
+            uint16_t vid = plan->vids[i];
             struct rte_mbuf *pkts[num];
-            struct vhost_dev *vdev = vdev_list->vdevs[plan->vids[i]];
+            struct vhost_dev *vdev = vdev_list->vdevs[vid];
 
-            int poll_num = vhost_poll(ctx, num, plan->vids[i], pkts);
+            int poll_num = vhost_poll(ctx, num, vid, pkts);
 
             struct rte_mbuf *eth_pkts[num];
             struct slow_msg *slow_msgs[num];
@@ -48,7 +49,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                 struct slow_msg *slow_msg = (struct slow_msg *)malloc(sizeof(struct slow_msg));
                 slow_msg->reason = SLOW_MAC_LEARNING;
                 slow_msg->src = SLOW_SRC_VHOST;
-                slow_msg->vid = plan->vids[i];
+                slow_msg->vid = vid;
                 slow_msg->mbuf = pkts[0];
                 slow_msgs[slow_cnt++] = slow_msg;
             }
@@ -63,7 +64,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                         struct slow_msg *slow_msg = (struct slow_msg *)malloc(sizeof(struct slow_msg));
                         slow_msg->reason = SLOW_ARP_REQ;
                         slow_msg->src = SLOW_SRC_VHOST;
-                        slow_msg->vid = plan->vids[i];
+                        slow_msg->vid = vid;
                         slow_msg->mbuf = m;
                         slow_msgs[slow_cnt++] = slow_msg;
                     }
@@ -82,7 +83,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             if (eth_cnt) {
                 int enq_num = rte_ring_enqueue_burst(global->eth_tx_rings[ctx->vhost_rx_core_id], (void **)eth_pkts,
                                                      eth_cnt, NULL);
-                LOG_INFO("[%d](%d) enqueued %d packets to eth_tx_ring[%d]\n", ctx->core_id, plan->vids[i], enq_num,
+                LOG_INFO("[%d](%d) enqueued %d packets to eth_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
                          ctx->vhost_rx_core_id);
                 if (enq_num < eth_cnt) {
                     STATS_ADD(ctx->vdev_stats[ctx->vhost_rx_core_id], ring_enq_fail_count, eth_cnt - enq_num);
@@ -95,7 +96,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
 
                 int enq_num = rte_ring_enqueue_burst(global->vhost_tx_rings[dst_vids[j]], (void **)vm_pkts[dst_vids[j]],
                                                      vm_cnt[dst_vids[j]], NULL);
-                LOG_INFO("[%d](%d) enqueued %d packets to vhost_tx_ring[%d]\n", ctx->core_id, plan->vids[i], enq_num,
+                LOG_INFO("[%d](%d) enqueued %d packets to vhost_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
                          dst_vids[j]);
                 if (enq_num < vm_cnt[j]) {
                     STATS_ADD(ctx->vdev_stats[dst_vids[j]], ring_enq_fail_count, vm_cnt[j] - enq_num);
@@ -104,15 +105,15 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
 
             if (slow_cnt) {
                 int enq_num = rte_ring_enqueue_burst(global->slowpath_ring, (void **)slow_msgs, slow_cnt, NULL);
-                LOG_INFO("[%d](%d) enqueued %d packets to slowpath_ring\n", ctx->core_id, plan->vids[i], enq_num);
+                LOG_INFO("[%d](%d) enqueued %d packets to slowpath_ring\n", ctx->core_id, vid, enq_num);
                 if (enq_num < slow_cnt) {
                     STATS_ADD(ctx->vdev_stats[ctx->vhost_rx_core_id], ring_enq_fail_count, slow_cnt - enq_num);
                 }
             }
 
-            int enq_num = rte_ring_enqueue_burst(global->vhost_tx_rings[plan->vids[i]], (void **)pkts, poll_num, NULL);
+            int enq_num = rte_ring_enqueue_burst(global->vhost_tx_rings[vid], (void **)pkts, poll_num, NULL);
             if (enq_num < num) {
-                STATS_ADD(ctx->vdev_stats[plan->vids[i]], ring_enq_fail_count, num - enq_num);
+                STATS_ADD(ctx->vdev_stats[vid], ring_enq_fail_count, num - enq_num);
             }
         }
     }

@@ -229,7 +229,7 @@ static int common_thread(void *arg) {
         struct vhost_tx_ctx *vhost_tx_ctx =
             vhost_tx_ctxs[id - global->eth_rx_cores - global->eth_tx_cores - global->vhost_rx_cores - 1];
         vhost_tx_ctx->core_id = id;
-        LOG_IMPT("[%u] Entering vhost_tx loop...\n", vhost_tx_ctx->core_id);
+        vhost_tx_loop(vhost_tx_ctx);
 
     } else {
         LOG_ERROR("Invalid core ID: %u\n", id);
