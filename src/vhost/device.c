@@ -112,13 +112,13 @@ static void destroy_device(int vid) {
     LOG_IMPT("destroy_device called for vid=%d\n", vid);
 
     struct vdev_list *old, *new;
-    for (;;) {
+    while (1) {
         old = atomic_load_explicit(&vdev_list, memory_order_acquire);
 
         new = rte_malloc(NULL, sizeof(*new), RTE_CACHE_LINE_SIZE);
         if (!new) {
             LOG_ERROR("allocation failed\n");
-            continue;
+            return;
         }
         memcpy(new, old, sizeof(*new));
 
