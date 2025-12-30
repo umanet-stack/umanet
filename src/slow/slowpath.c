@@ -3,6 +3,8 @@
 #include <unistd.h>
 
 void slowpath_loop(void) {
+    LOG_IMPT("Entering slowpath loop...\n");
+
     while (1) {
         STATS_TS(start);
 #ifdef DEBUG

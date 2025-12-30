@@ -284,7 +284,7 @@ void unregister_vhost_drivers(int socket_num, const char *path) {
             LOG_ERROR("Fail to unregister vhost driver for %s.\n", path + i * PATH_MAX);
     }
 
-    destroy_mac_2_vid();
+    cleanup_route_table();
 }
 
 int register_vhost_drivers() {
@@ -298,7 +298,7 @@ int register_vhost_drivers() {
     vdev_list->num = 0;
     memset(vdev_list->vdevs, 0, sizeof(vdev_list->vdevs));
 
-    if (init_mac_2_vid() != 0) {
+    if (init_route_table() != 0) {
         LOG_ERROR("Failed to initialize MAC lookup table\n");
         return -1;
     }

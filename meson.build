@@ -30,9 +30,10 @@ sources = files(
 	# 'src/network/tap.c',
 	'src/vhost/device.c',
 	'src/vhost/plan.c',
+	'src/vhost/cache.c',
 	# 'src/vhost/queues.c',
 	'src/main.c',
-	# 'src/shm.c',
+	'src/slow/arp.c',
 	'src/dataplane.c',
 	'src/ring.c',
 )

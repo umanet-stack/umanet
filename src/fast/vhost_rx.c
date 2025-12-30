@@ -34,6 +34,10 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                      ctx->vhost_rx_core_id);
 
             struct rte_mbuf *eth_pkts[MAX_PKT_BURST];
+            struct {
+                struct rte_mbuf *pkts[MAX_PKT_BURST];
+                uint16_t cnt;
+            } vm_bucket[MAX_VHOSTS];
             struct rte_mbuf *vm_pkts[MAX_VHOSTS][MAX_PKT_BURST];
             struct rte_mbuf *slow_pkts[MAX_PKT_BURST];
             int eth_cnt = 0, slow_cnt = 0;

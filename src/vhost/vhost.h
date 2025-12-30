@@ -26,6 +26,7 @@ enum { VIRTIO_RXQ, VIRTIO_TXQ };
 #define MBUF_TABLE_DRAIN_TSC ((rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US)
 
 extern const struct rte_vhost_device_ops virtio_net_device_ops;
+extern struct route_table route_table;
 
 // SP, mutated freely, not cached aligned
 struct vhost_ctrl {
@@ -60,6 +61,11 @@ struct vdev_rx_stats {
     uint32_t empty_poll_count;
     uint32_t max_poll_count;
     uint32_t ring_enq_fail_count;
+};
+
+struct route_table {
+    struct rte_hash *mac_2_vid;
+    struct rte_hash *ip_2_vid;
 };
 
 // struct vhost_dev { // vhost device
@@ -100,8 +106,8 @@ int init_vhost_rx_plans();
 int vhost_rx_plan_add(int vid);
 int vhost_rx_plan_remove(int vid);
 
-int init_mac_2_vid();
-int destroy_mac_2_vid();
+int init_route_table();
+int cleanup_route_table();
 
 // static inline unsigned vhost_send(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts)
 // {

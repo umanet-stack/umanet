@@ -3,6 +3,7 @@
 
 #include "src/vhost/vhost.h"
 #include <rte_ether.h>
+#include <rte_hash.h>
 #include <rte_ring.h>
 #include <stdatomic.h>
 
@@ -91,7 +92,9 @@ struct vhost_rx_plan {
 
 struct control_ctx {
     struct arp_table *arp;
-    struct route_table *rt;
+    struct route_table *route_table;
     struct vhost_map *vmap;
 };
+
+
 #endif /* STATE_H_ */
