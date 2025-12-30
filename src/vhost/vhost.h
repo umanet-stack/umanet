@@ -62,6 +62,14 @@ struct vdev_rx_stats {
     uint32_t ring_enq_fail_count;
 };
 
+struct vdev_tx_stats {
+    uint32_t call_count;
+    uint32_t pkt_count;
+    uint32_t max_send_count;
+    uint32_t send_fail_count;
+    uint32_t ring_deq_max_count;
+};
+
 struct route_table {
     struct rte_hash *mac_2_vid;
     struct rte_hash *ip_2_vid;
