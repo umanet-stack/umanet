@@ -237,6 +237,7 @@ static int new_device(int vid) {
         // CAS failed — someone updated concurrently
         rte_free(new);
     }
+    LOG_INFO("(%d) device added to vdev_list (total vdev now=%d)\n", vid, vdev_list->num);
 
     /* Disable notifications. */
     // Normally, guest would send interrupt when it adds packets to TX queue or consumes packets from RX queue

@@ -19,9 +19,12 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             struct rte_mbuf *pkts[MAX_PKT_BURST];
             uint16_t num = MAX_PKT_BURST;
 
-            vhost_poll(ctx, num, plan->vids[i], pkts);
+            int poll_num = vhost_poll(ctx, num, plan->vids[i], pkts);
+            LOG_INFO("(%d) polled %d packets from vhost_rx_plan[%d] vdev[%d]\n", ctx->core_id, poll_num,
+                     ctx->vhost_rx_core_id, plan->vids[i]);
 
-            int enq_num = rte_ring_enqueue_burst(global->vhost_tx_rings[plan->vids[i]], (void **)pkts, num, NULL);
+            int enq_num = rte_ring_enqueue_burst(global->vhost_tx_rings[plan->vids[i]], (void **)pkts, poll_num, NULL);
+            LOG_INFO("(%d) enqueued %d packets to vhost_tx_ring[%d]\n", ctx->core_id, enq_num, plan->vids[i]);
             if (enq_num < num) {
                 STATS_ADD(ctx->vdev_stats[plan->vids[i]], ring_enq_fail_count, num - enq_num);
             }

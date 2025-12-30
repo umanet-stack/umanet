@@ -69,6 +69,8 @@ int vhost_rx_plan_add(int vid) {
         rte_free(new);
     }
 
+    LOG_INFO("(%d) device added to vhost_rx_plan[%d] (total vdev now=%d)\n", vid, min_vhost_rx_core_id, new->num);
+
     return 0;
 }
 

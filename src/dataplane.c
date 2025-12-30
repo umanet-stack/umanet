@@ -65,12 +65,26 @@ int init_dataplane_ctxs() {
             return -1;
         }
         vhost_rx_ctxs[i]->vhost_rx_core_id = i;
-        vhost_rx_ctxs[i]->mempool = NULL;
 
         if ((vhost_rx_ctxs[i]->mempool = vhost_mempool_alloc()) == NULL) {
             LOG_ERROR("init_vhost_rx_ctxs: failed to allocate vhost_rx_ctxs[%d]->mempool\n", i);
             rte_free(vhost_rx_ctxs[i]);
             return -1;
+        }
+
+        // Allocate individual vdev_stats structs (vdev_stats is already an array of pointers)
+        for (int j = 0; j < MAX_VHOSTS; j++) {
+            vhost_rx_ctxs[i]->vdev_stats[j] =
+                rte_zmalloc("vhost_rx_ctxs[%d]->vdev_stats[%d]", sizeof(struct vdev_rx_stats), RTE_CACHE_LINE_SIZE);
+            if (vhost_rx_ctxs[i]->vdev_stats[j] == NULL) {
+                LOG_ERROR("init_vhost_rx_ctxs: failed to allocate vhost_rx_ctxs[%d]->vdev_stats[%d]\n", i, j);
+                for (int k = 0; k < j; k++) {
+                    rte_free(vhost_rx_ctxs[i]->vdev_stats[k]);
+                }
+                rte_free(vhost_rx_ctxs[i]->mempool);
+                rte_free(vhost_rx_ctxs[i]);
+                return -1;
+            }
         }
     }
 
