@@ -165,10 +165,12 @@ static inline unsigned vhost_poll(struct vhost_rx_ctx *ctx, unsigned num, unsign
     int16_t ret = rte_vhost_dequeue_burst(vid, VIRTIO_TXQ, ctx->mempool, pkts, num);
     if (ret == 0) {
         STATS_ADD(ctx->vdev_stats[vid], empty_poll_count, 1);
+        STATS_ADD(ctx->vdev_stats[vid], empty_wnd[ctx->vdev_stats[vid]->wnd_idx], 1);
         return 0;
     }
 
     STATS_ADD(ctx->vdev_stats[vid], pkt_count, ret);
+    STATS_ADD(ctx->vdev_stats[vid], pkt_wnd[ctx->vdev_stats[vid]->wnd_idx], ret);
     if (ret == num) {
         STATS_ADD(ctx->vdev_stats[vid], max_poll_count, 1);
     }

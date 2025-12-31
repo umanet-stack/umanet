@@ -16,10 +16,10 @@ void slowpath_loop(struct control_ctx *ctx) {
 #ifdef DEBUG
         sleep(1);
 #endif
-
-        if (rte_get_tsc_cycles() - last_update_time > tsc_hz) {
+        uint64_t cur_tsc = rte_get_tsc_cycles();
+        if (cur_tsc - last_update_time > tsc_hz) {
             control_dashboard();
-            last_update_time = rte_get_tsc_cycles();
+            last_update_time = cur_tsc;
         }
 
         struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
