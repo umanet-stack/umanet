@@ -53,28 +53,19 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
         uint16_t dst_vids[MAX_VHOSTS] = {0};
         uint16_t dst_cnt = 0;
 
-        if (unlikely(vdev->ready == DEVICE_MAC_LEARNING && poll_num > 0)) {
-            struct slow_msg *slow_msg = (struct slow_msg *)malloc(sizeof(struct slow_msg));
-            slow_msg->reason = SLOW_MAC_LEARNING;
-            slow_msg->src = SLOW_SRC_VHOST;
-            slow_msg->vid = vid;
-            slow_msg->mbuf = pkts[0];
-            slow_msgs[slow_cnt++] = slow_msg;
-        }
-
         for (int j = 0; j < poll_num; j++) {
             struct rte_mbuf *m = pkts[j];
             struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
             if (unlikely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP))) {
                 struct rte_arp_hdr *arp_hdr = (struct rte_arp_hdr *)(eth_hdr + 1);
-                // only ARP req for dataplance, VM ARPs go stright to vhost_tx_loop
+                // only ARP req for dataplane, VM ARPs go stright to vhost_tx_loop
                 if (arp_hdr->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST) &&
                     rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip) == config.ip) {
                     struct slow_msg *slow_msg = (struct slow_msg *)malloc(sizeof(struct slow_msg));
                     slow_msg->reason = SLOW_ARP_REQ;
-                    slow_msg->src = SLOW_SRC_VHOST;
-                    slow_msg->vid = vid;
+                    slow_msg->src = SLOW_SRC_ETH;
+                    slow_msg->eth_queue_id = ctx->eth_queue_id;
                     slow_msg->mbuf = m;
                     slow_msgs[slow_cnt++] = slow_msg;
                     continue;
