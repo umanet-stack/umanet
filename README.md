@@ -60,6 +60,9 @@ sudo rm -f /dev/hugepages/tas_memory
 ```bash
 # debug
 sudo ./build_and_run.sh debug 8 32
+# terminal 2
+tail -f switch.log
+
 # test
 sudo ./build_and_run.sh test 8 32
 
