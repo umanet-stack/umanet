@@ -103,11 +103,19 @@ int remove_route_entry(int vid, struct rte_ether_addr *mac, uint32_t ip) {
 }
 
 int find_vid_by_mac(struct rte_ether_addr *mac) {
-    int vid;
-    return rte_hash_lookup_data(route_table.mac_2_vid, mac, (void **)&vid);
+    void *data;
+    int ret = rte_hash_lookup_data(route_table.mac_2_vid, mac, &data);
+    if (ret >= 0) {
+        return (int)(uintptr_t)data; // Cast pointer back to int (vid was stored as (void *)(uintptr_t)vid)
+    }
+    return -1;
 }
 
 int find_vid_by_ip(uint32_t ip) {
-    int vid;
-    return rte_hash_lookup_data(route_table.ip_2_vid, &ip, (void **)&vid);
+    void *data;
+    int ret = rte_hash_lookup_data(route_table.ip_2_vid, &ip, &data);
+    if (ret >= 0) {
+        return (int)(uintptr_t)data; // Cast pointer back to int (vid was stored as (void *)(uintptr_t)vid)
+    }
+    return -1;
 }
