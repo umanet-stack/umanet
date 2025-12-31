@@ -1,17 +1,29 @@
 #include "src/include/fastpath.h"
+#include "src/include/main.h"
 #include "src/include/state.h"
 #include "src/slow/slowpath.h"
+#include <rte_ip.h>
 #include <rte_ring.h>
+#include <stdint.h>
 #include <unistd.h>
 
 static inline unsigned vhost_poll(struct vhost_rx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts);
 
-static inline int dst_is_local_subnet(struct rte_mbuf *m) {
-    // if (eth_hdr->dst_addr.addr_bytes[0] == 0x12 && eth_hdr->dst_addr.addr_bytes[1] == 0x34 &&
-    //     eth_hdr->dst_addr.addr_bytes[2] == 0x56 && eth_hdr->dst_addr.addr_bytes[3] == 0x78 &&
-    //     eth_hdr->dst_addr.addr_bytes[4] == 0x90) {
-    //     return 1;
-    // }
+// returns dst_ip if dst_ip is in the local subnet, else 0
+static inline int dst_is_local_subnet(struct rte_ether_hdr *eth_hdr) {
+    uint32_t subnet = (config.ip & 0xFFFFFF00);
+    if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
+        struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
+        uint32_t dst_ip = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
+        if ((dst_ip & 0xFFFFFF00) == subnet)
+            return dst_ip;
+    } else if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)) {
+        struct rte_arp_hdr *arp_hdr = (struct rte_arp_hdr *)(eth_hdr + 1);
+        uint32_t dst_ip = rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip);
+        if ((dst_ip & 0xFFFFFF00) == subnet)
+            return dst_ip;
+    }
+
     return 0;
 }
 
@@ -36,12 +48,12 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             struct rte_mbuf *eth_pkts[num];
             struct slow_msg *slow_msgs[num];
             int eth_cnt = 0, slow_cnt = 0;
-            // struct {
-            //     struct rte_mbuf *pkts[num];
-            //     uint16_t cnt;
-            // } vm_bucket[MAX_VHOSTS];
-            struct rte_mbuf *vm_pkts[MAX_VHOSTS][num];
-            uint16_t vm_cnt[MAX_VHOSTS] = {0};
+
+            struct {
+                struct rte_mbuf *pkts[MAX_PKT_BURST];
+                uint16_t cnt;
+            } vm_bucket[MAX_VHOSTS];
+            uint8_t vid_seen[MAX_VHOSTS] = {0};
             uint16_t dst_vids[MAX_VHOSTS] = {0};
             uint16_t dst_cnt = 0;
 
@@ -72,10 +84,19 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                     // ARP response: forward to vhost/eth
                 }
 
-                if (dst_is_local_subnet(m)) {
-                    // use ip to vid table
-                    // vm_pkts[vm_cnt++] = m;
-                    // dst_vids[dst_cnt++] = ...;
+                int local_dst_ip = dst_is_local_subnet(eth_hdr);
+                if (local_dst_ip) {
+                    uint16_t dst_vid = find_vid_by_ip(local_dst_ip);
+                    if (dst_vid < 0) // invalid dst_vid
+                        continue;
+
+                    vm_bucket[dst_vid].pkts[vm_bucket[dst_vid].cnt++] = m;
+                    if (vid_seen[dst_vid])
+                        continue;
+
+                    vid_seen[dst_vid] = 1;
+                    dst_vids[dst_cnt++] = dst_vid;
+
                 } else {
                     eth_pkts[eth_cnt++] = m;
                 }
@@ -91,18 +112,20 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                 }
             }
 
-            for (int j = 0; j < MAX_VHOSTS; j++) {
-                if (vm_cnt[dst_vids[j]] == 0)
-                    break;
+            // for (int j = 0; j < dst_cnt; j++) {
+            //     if (vm_bucket[dst_vids[j]].cnt == 0)
+            //         break;
 
-                int enq_num = rte_ring_enqueue_burst(global->vhost_tx_rings[dst_vids[j]], (void **)vm_pkts[dst_vids[j]],
-                                                     vm_cnt[dst_vids[j]], NULL);
-                LOG_INFO("[%d](%d) enqueued %d packets to vhost_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
-                         dst_vids[j]);
-                if (enq_num < vm_cnt[j]) {
-                    STATS_ADD(ctx->vdev_stats[dst_vids[j]], ring_enq_fail_count, vm_cnt[j] - enq_num);
-                }
-            }
+            //     int enq_num =
+            //         rte_ring_enqueue_burst(global->vhost_tx_rings[dst_vids[j]], (void **)vm_bucket[dst_vids[j]].pkts,
+            //                                vm_bucket[dst_vids[j]].cnt, NULL);
+            //     LOG_INFO("[%d](%d) enqueued %d packets to vhost_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
+            //              dst_vids[j]);
+            //     if (enq_num < vm_bucket[dst_vids[j]].cnt) {
+            //         STATS_ADD(ctx->vdev_stats[dst_vids[j]], ring_enq_fail_count, vm_bucket[dst_vids[j]].cnt -
+            //         enq_num);
+            //     }
+            // }
 
             if (slow_cnt) {
                 int enq_num = rte_ring_enqueue_burst(global->slowpath_ring, (void **)slow_msgs, slow_cnt, NULL);
