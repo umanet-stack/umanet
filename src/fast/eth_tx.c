@@ -23,8 +23,8 @@ void eth_tx_loop(struct eth_tx_ctx *ctx) {
         if (deq_num == num) {
             STATS_ADD(ctx->stats, ring_deq_max_count, 1);
         }
-        LOG_INFO("[%d] Dequeued %d packets from eth_tx_ring[%d] to eth_tx_loop\n", ctx->core_id, deq_num,
-                 ctx->eth_queue_id);
+        // LOG_INFO("[%d] Dequeued %d packets from eth_tx_ring[%d] to eth_tx_loop\n", ctx->core_id, deq_num,
+        //  ctx->eth_queue_id);
 
         if (deq_num > 0)
             network_send(ctx, deq_num, pkts);

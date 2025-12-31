@@ -102,7 +102,7 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
             int enq_num =
                 rte_ring_enqueue_burst(global->vhost_tx_rings[dst_vids[j]], (void **)vm_bucket[dst_vids[j]].pkts,
                                        vm_bucket[dst_vids[j]].cnt, NULL);
-            LOG_INFO("[%d] enqueued %d packets to vhost_tx_ring[%d]\n", ctx->core_id, enq_num, dst_vids[j]);
+            // LOG_INFO("[%d] enqueued %d packets to vhost_tx_ring[%d]\n", ctx->core_id, enq_num, dst_vids[j]);
             if (enq_num < vm_bucket[dst_vids[j]].cnt) {
                 STATS_ADD(ctx->stats, ring_enq_fail_count, vm_bucket[dst_vids[j]].cnt - enq_num);
             }
@@ -110,7 +110,7 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
 
         if (slow_cnt) {
             int enq_num = rte_ring_enqueue_burst(global->slowpath_ring, (void **)slow_msgs, slow_cnt, NULL);
-            LOG_INFO("[%d] enqueued %d packets to slowpath_ring\n", ctx->core_id, enq_num);
+            // LOG_INFO("[%d] enqueued %d packets to slowpath_ring\n", ctx->core_id, enq_num);
             if (enq_num < slow_cnt) {
                 STATS_ADD(ctx->stats, ring_enq_fail_count, slow_cnt - enq_num);
             }
