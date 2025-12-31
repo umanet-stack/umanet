@@ -35,6 +35,7 @@ sources = files(
 	'src/vhost/vmdq.c',
 	'src/main.c',
 	'src/slow/arp.c',
+	'src/slow/dashboard.c',
 	'src/slow/slowpath.c',
 	'src/dataplane.c',
 	'src/ring.c',

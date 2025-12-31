@@ -6,6 +6,7 @@
 
 void slowpath_loop(struct control_ctx *ctx) {
     LOG_IMPT("[%u] Entering slowpath loop...\n", ctx->core_id);
+    control_tty_init();
 
     while (1) {
         STATS_TS(start);
@@ -13,6 +14,7 @@ void slowpath_loop(struct control_ctx *ctx) {
         sleep(1);
 #endif
 
+        control_dashboard(1, 1, 1, 1);
         struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
         uint16_t num = MAX_PKT_BURST;
         struct slow_msg *slow_msgs[num];
