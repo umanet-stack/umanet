@@ -86,7 +86,8 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
 
                 int local_dst_ip = dst_is_local_subnet(eth_hdr);
                 if (local_dst_ip) {
-                    // dpdk's ip (192.168.100.1) won't be found in ip_2_vid table
+                    // dpdk's ip (192.168.100.1) and ips not belonging to any vms (e.g. 192.168.100.99)
+                    // won't be found in ip_2_vid table
                     int dst_vid = find_vid_by_ip(local_dst_ip);
                     if (dst_vid < 0) // invalid dst_vid
                         continue;
