@@ -86,7 +86,8 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
 
                 int local_dst_ip = dst_is_local_subnet(eth_hdr);
                 if (local_dst_ip) {
-                    uint16_t dst_vid = find_vid_by_ip(local_dst_ip);
+                    // dpdk's ip (192.168.100.1) won't be found in ip_2_vid table
+                    int dst_vid = find_vid_by_ip(local_dst_ip);
                     if (dst_vid < 0) // invalid dst_vid
                         continue;
 
@@ -112,20 +113,19 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                 }
             }
 
-            // for (int j = 0; j < dst_cnt; j++) {
-            //     if (vm_bucket[dst_vids[j]].cnt == 0)
-            //         break;
+            for (int j = 0; j < dst_cnt; j++) {
+                if (vm_bucket[dst_vids[j]].cnt == 0)
+                    break;
 
-            //     int enq_num =
-            //         rte_ring_enqueue_burst(global->vhost_tx_rings[dst_vids[j]], (void **)vm_bucket[dst_vids[j]].pkts,
-            //                                vm_bucket[dst_vids[j]].cnt, NULL);
-            //     LOG_INFO("[%d](%d) enqueued %d packets to vhost_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
-            //              dst_vids[j]);
-            //     if (enq_num < vm_bucket[dst_vids[j]].cnt) {
-            //         STATS_ADD(ctx->vdev_stats[dst_vids[j]], ring_enq_fail_count, vm_bucket[dst_vids[j]].cnt -
-            //         enq_num);
-            //     }
-            // }
+                int enq_num =
+                    rte_ring_enqueue_burst(global->vhost_tx_rings[dst_vids[j]], (void **)vm_bucket[dst_vids[j]].pkts,
+                                           vm_bucket[dst_vids[j]].cnt, NULL);
+                LOG_INFO("[%d](%d) enqueued %d packets to vhost_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
+                         dst_vids[j]);
+                if (enq_num < vm_bucket[dst_vids[j]].cnt) {
+                    STATS_ADD(ctx->vdev_stats[dst_vids[j]], ring_enq_fail_count, vm_bucket[dst_vids[j]].cnt - enq_num);
+                }
+            }
 
             if (slow_cnt) {
                 int enq_num = rte_ring_enqueue_burst(global->slowpath_ring, (void **)slow_msgs, slow_cnt, NULL);
