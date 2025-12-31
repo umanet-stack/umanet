@@ -40,8 +40,18 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
         for (int i = 0; i < plan->num; i++) {
             uint16_t num = MAX_PKT_BURST;
             uint16_t vid = plan->vids[i];
+            if (vid >= MAX_VHOSTS) {
+                LOG_ERROR("[%d] Invalid vid %d in plan\n", ctx->core_id, vid);
+                continue;
+            }
+
             struct rte_mbuf *pkts[num];
-            struct vhost_dev *vdev = vdev_list->vdevs[vid];
+            struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
+            if (vdev_list_ptr == NULL || vdev_list_ptr->vdevs[vid] == NULL) {
+                LOG_ERROR("[%d] vdev_list or vdevs[%d] is NULL\n", ctx->core_id, vid);
+                continue;
+            }
+            struct vhost_dev *vdev = vdev_list_ptr->vdevs[vid];
 
             int poll_num = vhost_poll(ctx, num, vid, pkts);
 
@@ -72,7 +82,9 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
 
                 if (unlikely(eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP))) {
                     struct rte_arp_hdr *arp_hdr = (struct rte_arp_hdr *)(eth_hdr + 1);
-                    if (arp_hdr->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST)) {
+                    // only ARP req for dataplance, VM ARPs go stright to vhost_tx_loop
+                    if (arp_hdr->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST) &&
+                        rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip) == config.ip) {
                         struct slow_msg *slow_msg = (struct slow_msg *)malloc(sizeof(struct slow_msg));
                         slow_msg->reason = SLOW_ARP_REQ;
                         slow_msg->src = SLOW_SRC_VHOST;
