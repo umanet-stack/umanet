@@ -59,6 +59,7 @@ sudo rm -f /dev/hugepages/tas_memory
 - copy `.env.template` to `.env` and fill in the values
 ```bash
 # debug
+tmux new -s dpdk
 sudo ./build_and_run.sh debug 8 32
 # terminal 2
 tail -f switch.log

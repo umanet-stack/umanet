@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 void slowpath_loop(struct control_ctx *ctx) {
+    int last_update_time = 0;
     LOG_IMPT("[%u] Entering slowpath loop...\n", ctx->core_id);
     control_tty_init();
 
@@ -14,7 +15,11 @@ void slowpath_loop(struct control_ctx *ctx) {
         sleep(1);
 #endif
 
-        control_dashboard(1, 1, 1, 1);
+        if (rte_get_tsc_cycles() - last_update_time > 100000000000) { // 1 second
+            control_dashboard();
+            last_update_time = rte_get_tsc_cycles();
+        }
+
         struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
         uint16_t num = MAX_PKT_BURST;
         struct slow_msg *slow_msgs[num];

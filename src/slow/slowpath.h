@@ -28,7 +28,7 @@ struct slow_msg {
 int process_arp_req(struct control_ctx *ctx, uint16_t vid, struct rte_mbuf *m, enum slow_src src);
 void slowpath_loop(struct control_ctx *ctx);
 
-void control_tty_init(void);
-void control_dashboard(int rx, int tx, int drops, int vms);
+void control_tty_init();
+void control_dashboard();
 
 #endif // SLOWPATH_H_

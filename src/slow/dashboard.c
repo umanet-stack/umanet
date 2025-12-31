@@ -5,7 +5,7 @@
 
 static FILE *tty_fp = NULL;
 
-void control_tty_init(void) {
+void control_tty_init() {
     tty_fp = fopen("/dev/tty", "w");
     if (!tty_fp) {
         perror("fopen(/dev/tty)");
