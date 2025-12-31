@@ -62,7 +62,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             struct {
                 struct rte_mbuf *pkts[MAX_PKT_BURST];
                 uint16_t cnt;
-            } vm_bucket[MAX_VHOSTS];
+            } vm_bucket[MAX_VHOSTS] = {0};
             uint8_t vid_seen[MAX_VHOSTS] = {0};
             uint16_t dst_vids[MAX_VHOSTS] = {0};
             uint16_t dst_cnt = 0;
@@ -101,14 +101,20 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                     // dpdk's ip (192.168.100.1) and ips not belonging to any vms (e.g. 192.168.100.99)
                     // won't be found in ip_2_vid table
                     int dst_vid = find_vid_by_ip(local_dst_ip);
-                    if (dst_vid < 0) // invalid dst_vid
+                    if (dst_vid < 0 || dst_vid >= MAX_VHOSTS) {
+                        // invalid dst_vid or out of bounds
                         continue;
+                    }
 
                     vm_bucket[dst_vid].pkts[vm_bucket[dst_vid].cnt++] = m;
                     if (vid_seen[dst_vid])
                         continue;
 
                     vid_seen[dst_vid] = 1;
+                    if (dst_cnt >= MAX_VHOSTS) {
+                        LOG_ERROR("[%d] dst_vids array full, dropping vid %d\n", ctx->core_id, dst_vid);
+                        continue;
+                    }
                     dst_vids[dst_cnt++] = dst_vid;
 
                 } else {
