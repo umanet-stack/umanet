@@ -46,7 +46,6 @@ struct eth_rx_ctx {
     uint16_t core_id;
     uint16_t eth_queue_id; // same as core_id
     struct rte_mempool *mempool;
-    // struct route_table *rt; // read-only snapshot
     struct eth_rx_stats *stats;
 };
 

@@ -105,6 +105,12 @@ int check_device_state(struct vhost_dev *vdev, const char *func) {
  */
 static void destroy_device(int vid) {
     LOG_IMPT("destroy_device called for vid=%d\n", vid);
+    struct vhost_dev *vdev = vdev_list->vdevs[vid];
+    if (vdev == NULL) {
+        LOG_ERROR("(%d) device not found during destroy\n", vid);
+        return;
+    }
+    unlink_vmdq(vdev);
 
     struct vdev_list *old, *new;
     while (1) {

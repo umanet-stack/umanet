@@ -49,6 +49,12 @@ int init_dataplane_ctxs() {
             rte_free(eth_rx_ctxs[i]);
             return -1;
         }
+
+        if ((eth_rx_ctxs[i]->stats = rte_calloc("eth_rx_ctxs[%d]->stats", 1, sizeof(*eth_rx_ctxs[i]->stats), 0)) ==
+            NULL) {
+            LOG_ERROR("init_eth_rx_ctxs: failed to allocate eth_rx_ctxs[%d]->stats\n", i);
+            return -1;
+        }
     }
 
     for (int i = 0; i < global->eth_tx_cores; i++) {
@@ -57,6 +63,11 @@ int init_dataplane_ctxs() {
             return -1;
         }
         eth_tx_ctxs[i]->eth_queue_id = i;
+        if ((eth_tx_ctxs[i]->stats = rte_calloc("eth_tx_ctxs[%d]->stats", 1, sizeof(*eth_tx_ctxs[i]->stats), 0)) ==
+            NULL) {
+            LOG_ERROR("init_eth_tx_ctxs: failed to allocate eth_tx_ctxs[%d]->stats\n", i);
+            return -1;
+        }
     }
 
     for (int i = 0; i < global->vhost_rx_cores; i++) {
