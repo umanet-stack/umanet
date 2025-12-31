@@ -69,7 +69,7 @@ void unlink_vmdq(struct vhost_dev *vdev) {
         if (ret)
             LOG_ERROR("(%d) failed to remove MAC address\n", vdev->vid);
 
-        ret = remove_route_entry(&vdev->mac, vdev->ip);
+        ret = remove_route_entry(vdev->vid, &vdev->mac, vdev->ip);
         if (ret)
             LOG_ERROR("(%d) failed to remove route entry\n", vdev->vid);
 

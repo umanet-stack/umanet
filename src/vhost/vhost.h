@@ -112,7 +112,7 @@ int vhost_rx_plan_remove(int vid);
 int init_route_table();
 int cleanup_route_table();
 int add_route_entry(int vid, struct rte_ether_addr *mac, uint32_t ip);
-int remove_route_entry(struct rte_ether_addr *mac, uint32_t ip);
+int remove_route_entry(int vid, struct rte_ether_addr *mac, uint32_t ip);
 // use vid to get vdev by indexing the vdev_list global variable
 int find_vid_by_mac(struct rte_ether_addr *mac);
 int find_vid_by_ip(uint32_t ip);

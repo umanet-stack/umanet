@@ -75,10 +75,14 @@ int add_route_entry(int vid, struct rte_ether_addr *mac, uint32_t ip) {
                   (ip >> 8) & 0xff, ip & 0xff);
         return -1;
     }
+
+    LOG_INFO("(%d) Added route entry for MAC %02x:%02x:%02x:%02x:%02x:%02x and IP %u.%u.%u.%u\n", vid,
+             mac->addr_bytes[0], mac->addr_bytes[1], mac->addr_bytes[2], mac->addr_bytes[3], mac->addr_bytes[4],
+             mac->addr_bytes[5], (ip >> 24) & 0xff, (ip >> 16) & 0xff, (ip >> 8) & 0xff, ip & 0xff);
     return 0;
 }
 
-int remove_route_entry(struct rte_ether_addr *mac, uint32_t ip) {
+int remove_route_entry(int vid, struct rte_ether_addr *mac, uint32_t ip) {
     int ret = rte_hash_del_key(route_table.mac_2_vid, mac);
     if (ret < 0 && ret != -ENOENT) {
         LOG_ERROR("Failed to remove route entry for MAC %02x:%02x:%02x:%02x:%02x:%02x\n", mac->addr_bytes[0],
@@ -91,6 +95,10 @@ int remove_route_entry(struct rte_ether_addr *mac, uint32_t ip) {
                   (ip >> 8) & 0xff, ip & 0xff);
         return -1;
     }
+
+    LOG_INFO("(%d) Removed route entry for MAC %02x:%02x:%02x:%02x:%02x:%02x and IP %u.%u.%u.%u\n", vid,
+             mac->addr_bytes[0], mac->addr_bytes[1], mac->addr_bytes[2], mac->addr_bytes[3], mac->addr_bytes[4],
+             mac->addr_bytes[5], (ip >> 24) & 0xff, (ip >> 16) & 0xff, (ip >> 8) & 0xff, ip & 0xff);
     return 0;
 }
 
