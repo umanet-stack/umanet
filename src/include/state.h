@@ -44,14 +44,33 @@ struct dataplane_topology {
 
 struct eth_rx_ctx {
     uint16_t core_id;
-    uint16_t eth_queue_id; // same as id
+    uint16_t eth_queue_id; // same as core_id
     struct rte_mempool *mempool;
     // struct route_table *rt; // read-only snapshot
+    struct eth_rx_stats *stats;
 };
 
 struct eth_tx_ctx {
     uint16_t core_id;
-    uint16_t eth_queue_id; // same as id
+    uint16_t eth_queue_id; // same as core_id
+    struct eth_tx_stats *stats;
+};
+
+// Per-core runtime state (NO sharing)
+struct eth_rx_stats {
+    uint32_t call_count;
+    uint32_t pkt_count;
+    uint32_t empty_poll_count;
+    uint32_t max_poll_count;
+    uint32_t ring_enq_fail_count;
+};
+
+struct eth_tx_stats {
+    uint32_t call_count;
+    uint32_t pkt_count;
+    uint32_t max_send_count;
+    uint32_t send_fail_count;
+    uint32_t ring_deq_max_count;
 };
 
 struct vhost_rx_ctx {

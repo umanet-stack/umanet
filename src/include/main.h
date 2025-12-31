@@ -35,6 +35,8 @@ int init_dataplane_ctxs();
 int init_rings();
 void destroy_rings();
 
+void eth_rx_loop(struct eth_rx_ctx *ctx);
+void eth_tx_loop(struct eth_tx_ctx *ctx);
 void vhost_rx_loop(struct vhost_rx_ctx *ctx);
 void vhost_tx_loop(struct vhost_tx_ctx *ctx);
 

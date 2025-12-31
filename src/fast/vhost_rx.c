@@ -105,6 +105,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             }
 
             if (eth_cnt) {
+                // rx core i sends to eth tx core i
                 int enq_num = rte_ring_enqueue_burst(global->eth_tx_rings[ctx->vhost_rx_core_id], (void **)eth_pkts,
                                                      eth_cnt, NULL);
                 LOG_INFO("[%d](%d) enqueued %d packets to eth_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
