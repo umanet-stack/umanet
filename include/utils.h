@@ -86,4 +86,6 @@ static inline void util_prefetch0(const volatile void *p) {
     __asm__ volatile("prefetcht0 %[p]" : : [p] "m"(*(const volatile char *)p));
 }
 
+char *display_number(uint64_t number);
+
 #endif /* ndef UTILS_H_ */

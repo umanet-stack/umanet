@@ -2,10 +2,12 @@
 #include "src/include/fastpath.h"
 #include "src/include/state.h"
 #include "src/vhost/vhost.h"
+#include <generic/rte_cycles.h>
 #include <unistd.h>
 
 void slowpath_loop(struct control_ctx *ctx) {
-    int last_update_time = 0;
+    uint64_t last_update_time = rte_get_tsc_cycles();
+    uint64_t tsc_hz = rte_get_tsc_hz();
     LOG_IMPT("[%u] Entering slowpath loop...\n", ctx->core_id);
     control_tty_init();
 
@@ -15,7 +17,7 @@ void slowpath_loop(struct control_ctx *ctx) {
         sleep(1);
 #endif
 
-        if (rte_get_tsc_cycles() - last_update_time > 100000000000) { // 1 second
+        if (rte_get_tsc_cycles() - last_update_time > tsc_hz) {
             control_dashboard();
             last_update_time = rte_get_tsc_cycles();
         }

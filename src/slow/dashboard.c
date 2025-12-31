@@ -1,4 +1,5 @@
 #include "src/include/state.h"
+#include "utils.h"
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -55,11 +56,11 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         }
         fprintf(tty_fp, "\n");
 
-        fprintf(tty_fp, "pkt: %lu\t", pkt_count);
-        fprintf(tty_fp, "call: %lu\t", call_count);
-        fprintf(tty_fp, "empty_poll: %lu\t", empty_poll_count);
-        fprintf(tty_fp, "max_poll: %lu\t", max_poll_count);
-        fprintf(tty_fp, "ring_enq_fail: %lu\n", ring_enq_fail_count);
+        fprintf(tty_fp, "pkt: %s\t", display_number(pkt_count));
+        fprintf(tty_fp, "call: %s\t", display_number(call_count));
+        fprintf(tty_fp, "empty_poll: %s\t", display_number(empty_poll_count));
+        fprintf(tty_fp, "max_poll: %s\t", display_number(max_poll_count));
+        fprintf(tty_fp, "ring_enq_fail: %s\n", display_number(ring_enq_fail_count));
     }
     for (int i = 0; i < global->vhost_tx_cores; i++) {
         fprintf(tty_fp, "\nVHOST TX CORE %d: ", i);
@@ -81,11 +82,11 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         }
         fprintf(tty_fp, "\n");
 
-        fprintf(tty_fp, "pkt: %lu\t", pkt_count);
-        fprintf(tty_fp, "call: %lu\t", call_count);
-        fprintf(tty_fp, "max_send: %lu\t", max_send_count);
-        fprintf(tty_fp, "send_fail: %lu\t", send_fail_count);
-        fprintf(tty_fp, "ring_deq_max: %lu\n", ring_deq_max_count);
+        fprintf(tty_fp, "pkt: %s\t", display_number(pkt_count));
+        fprintf(tty_fp, "call: %s\t", display_number(call_count));
+        fprintf(tty_fp, "max_send: %s\t", display_number(max_send_count));
+        fprintf(tty_fp, "send_fail: %s\t", display_number(send_fail_count));
+        fprintf(tty_fp, "ring_deq_max: %s\n", display_number(ring_deq_max_count));
     }
 
     fflush(tty_fp);
