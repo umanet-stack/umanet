@@ -47,17 +47,11 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
                  (vdev->ip >> 16) & 0xff, (vdev->ip >> 8) & 0xff, vdev->ip & 0xff);
     }
 
+    ret = add_route_entry(vdev->vid, &vdev->mac, vdev->ip);
+    if (ret)
+        LOG_ERROR("(%d) failed to add route entry\n", vdev->vid);
+
     vdev->ready = DEVICE_RX;
-    // Add to MAC lookup hash table for fast O(1) lookup
-    // if (mac_lookup_table != NULL) {
-    //     ret = rte_hash_add_key_data(mac_lookup_table, &vdev->mac, vdev);
-    //     if (ret < 0) {
-    //         LOG_WARN("(%d) Failed to add MAC to lookup table (ret=%d)\n", vdev->vid, ret);
-    //         // Continue anyway - fallback to linear search will work
-    //     } else {
-    //         LOG_INFO("(%d) MAC added to lookup table\n", vdev->vid);
-    //     }
-    // }
 
     return 0;
 }
@@ -68,20 +62,20 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
  */
 void unlink_vmdq(struct vhost_dev *vdev) {
     unsigned i = 0;
+    int ret;
 
     if (vdev->ready == DEVICE_RX) {
-        // Remove from MAC lookup hash table before clearing MAC
-        // if (mac_lookup_table != NULL) {
-        //     int ret = rte_hash_del_key(mac_lookup_table, &vdev->mac);
-        //     if (ret < 0 && ret != -ENOENT) {
-        //         LOG_WARN("(%d) Failed to remove MAC from lookup table (ret=%d)\n", vdev->vid, ret);
-        //     }
-        // }
+        ret = rte_eth_dev_mac_addr_remove(global->eth_port_id, &vdev->mac);
+        if (ret)
+            LOG_ERROR("(%d) failed to remove MAC address\n", vdev->vid);
 
-        /*clear MAC and VLAN settings*/
-        rte_eth_dev_mac_addr_remove(global->eth_port_id, &vdev->mac);
+        ret = remove_route_entry(&vdev->mac, vdev->ip);
+        if (ret)
+            LOG_ERROR("(%d) failed to remove route entry\n", vdev->vid);
+
         for (i = 0; i < 6; i++)
             vdev->mac.addr_bytes[i] = 0;
+        vdev->ip = 0;
 
         /*Clear out the receive buffers*/
         // rx_count = network_poll(ctx, MAX_PKT_BURST, pkts_burst);

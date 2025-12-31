@@ -99,10 +99,6 @@ struct route_table {
 // } __rte_cache_aligned;
 
 int check_device_state(struct vhost_dev *vdev, const char *func);
-struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac);
-struct vhost_dev *find_vhost_dev_core_mac(struct dataplane_context *ctx, struct rte_ether_addr *mac);
-struct vhost_dev *find_vhost_dev_core_ip(struct dataplane_context *ctx, uint32_t vm_ip_address);
-struct vhost_dev *find_vhost_dev_ip(uint32_t vm_ip_address);
 void unregister_vhost_drivers(int socket_num, const char *path);
 int register_vhost_drivers();
 
@@ -115,6 +111,11 @@ int vhost_rx_plan_remove(int vid);
 
 int init_route_table();
 int cleanup_route_table();
+int add_route_entry(int vid, struct rte_ether_addr *mac, uint32_t ip);
+int remove_route_entry(struct rte_ether_addr *mac, uint32_t ip);
+// use vid to get vdev by indexing the vdev_list global variable
+int find_vid_by_mac(struct rte_ether_addr *mac);
+int find_vid_by_ip(uint32_t ip);
 
 // static inline unsigned is_route_added()
 
