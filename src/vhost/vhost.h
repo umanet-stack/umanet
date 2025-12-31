@@ -105,7 +105,7 @@ int register_vhost_drivers();
 int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m);
 void unlink_vmdq(struct vhost_dev *vdev);
 
-int init_vhost_rx_plans();
+int init_vhost_plans();
 int vhost_rx_plan_add(int vid);
 int vhost_rx_plan_remove(int vid);
 

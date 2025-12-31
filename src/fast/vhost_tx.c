@@ -16,7 +16,7 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
 #endif
 
         // Use vhost_rx_plan for now (TX cores iterate over same devices as RX cores)
-        struct vhost_rx_plan *plan = atomic_load(&vhost_rx_plans[ctx->vhost_tx_core_id]);
+        struct vhost_plan *plan = atomic_load(&vhost_rx_plans[ctx->vhost_tx_core_id]);
         for (int i = 0; i < plan->num; i++) {
             uint16_t vid = plan->vids[i];
             uint16_t num = MAX_PKT_BURST;

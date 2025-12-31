@@ -36,7 +36,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
         sleep(1);
 #endif
 
-        struct vhost_rx_plan *plan = atomic_load(&vhost_rx_plans[ctx->vhost_rx_core_id]);
+        struct vhost_plan *plan = atomic_load(&vhost_rx_plans[ctx->vhost_rx_core_id]);
         for (int i = 0; i < plan->num; i++) {
             uint16_t num = MAX_PKT_BURST;
             uint16_t vid = plan->vids[i];
@@ -48,7 +48,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             struct rte_mbuf *pkts[num];
             struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
             if (vdev_list_ptr == NULL || vdev_list_ptr->vdevs[vid] == NULL) {
-                LOG_ERROR("[%d] vdev_list or vdevs[%d] is NULL\n", ctx->core_id, vid);
+                LOG_WARN("[%d] vdev_list or vdevs[%d] is NULL\n", ctx->core_id, vid);
                 continue;
             }
             struct vhost_dev *vdev = vdev_list_ptr->vdevs[vid];

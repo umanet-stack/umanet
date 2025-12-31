@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
     }
     LOG_IMPT("✅ Initialized dataplane contexts\n");
 
-    if (init_vhost_rx_plans() != 0) {
+    if (init_vhost_plans() != 0) {
         res = EXIT_FAILURE;
         LOG_ERROR("init_vhost_rx_plans failed\n");
         goto error_exit;

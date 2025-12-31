@@ -23,7 +23,8 @@ extern struct vhost_rx_ctx **vhost_rx_ctxs;
 extern struct vhost_tx_ctx **vhost_tx_ctxs;
 extern struct control_ctx *control_ctx;
 extern _Atomic(struct vdev_list *) vdev_list;
-extern _Atomic(struct vhost_rx_plan *) *vhost_rx_plans;
+extern _Atomic(struct vhost_plan *) *vhost_rx_plans;
+extern _Atomic(struct vhost_plan *) *vhost_tx_plans;
 
 struct dataplane_topology {
     uint16_t eth_port_id;
@@ -106,8 +107,8 @@ struct vdev_list {
     struct vhost_dev *vdevs[MAX_VHOSTS];
 } __rte_cache_aligned;
 
-// Poll plan generated from vdev_list, read by vhost RX cores
-struct vhost_rx_plan {
+// poll/send plan generated from vdev_list, read by vhost RX/TX cores
+struct vhost_plan {
     uint16_t num;
     uint16_t vids[MAX_VHOSTS];
 } __rte_cache_aligned;
