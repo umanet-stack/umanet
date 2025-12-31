@@ -6,6 +6,7 @@
 #include <rte_mbuf_core.h>
 #include <rte_vhost.h>
 
+// only does ARP destined for dataplane, not VMs
 int process_arp_req(struct control_ctx *ctx, uint16_t vid, struct rte_mbuf *m, enum slow_src src) {
     struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
     struct rte_arp_hdr *arp = (struct rte_arp_hdr *)(eth + 1);
@@ -22,8 +23,8 @@ int process_arp_req(struct control_ctx *ctx, uint16_t vid, struct rte_mbuf *m, e
         return -1; // Not for gateway, forward to VMs
     }
 
-    LOG_INFO("[%d] ARP: Request for IP %u.%u.%u.%u, sending reply to VM %d\n", ctx->core_id,
-             (req_ip >> 24) & 0xff, (req_ip >> 16) & 0xff, (req_ip >> 8) & 0xff, req_ip & 0xff, vid);
+    LOG_INFO("[%d] ARP: Request for IP %u.%u.%u.%u, sending reply to VM %d\n", ctx->core_id, (req_ip >> 24) & 0xff,
+             (req_ip >> 16) & 0xff, (req_ip >> 8) & 0xff, req_ip & 0xff, vid);
     rte_ether_addr_copy(&eth->src_addr, &eth->dst_addr); // dst MAC = src MAC
     rte_ether_addr_copy(&config.mac, &eth->src_addr);    // src MAC = our MAC
 
