@@ -41,9 +41,8 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
         struct rte_mbuf *pkts[num];
         int poll_num = network_poll(ctx, num, pkts);
 
-        struct rte_mbuf *eth_pkts[num];
         struct slow_msg *slow_msgs[num];
-        int eth_cnt = 0, slow_cnt = 0;
+        int slow_cnt = 0;
 
         struct {
             struct rte_mbuf *pkts[MAX_PKT_BURST];
@@ -93,20 +92,6 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
                     continue;
                 }
                 dst_vids[dst_cnt++] = dst_vid;
-
-            } else {
-                eth_pkts[eth_cnt++] = m;
-            }
-        }
-
-        if (eth_cnt) {
-            // rx core i sends to eth tx core i
-            int enq_num =
-                rte_ring_enqueue_burst(global->eth_tx_rings[ctx->vhost_rx_core_id], (void **)eth_pkts, eth_cnt, NULL);
-            LOG_INFO("[%d](%d) enqueued %d packets to eth_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
-                     ctx->vhost_rx_core_id);
-            if (enq_num < eth_cnt) {
-                STATS_ADD(ctx->vdev_stats[ctx->vhost_rx_core_id], ring_enq_fail_count, eth_cnt - enq_num);
             }
         }
 
@@ -117,17 +102,17 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
             int enq_num =
                 rte_ring_enqueue_burst(global->vhost_tx_rings[dst_vids[j]], (void **)vm_bucket[dst_vids[j]].pkts,
                                        vm_bucket[dst_vids[j]].cnt, NULL);
-            LOG_INFO("[%d](%d) enqueued %d packets to vhost_tx_ring[%d]\n", ctx->core_id, vid, enq_num, dst_vids[j]);
+            LOG_INFO("[%d] enqueued %d packets to vhost_tx_ring[%d]\n", ctx->core_id, enq_num, dst_vids[j]);
             if (enq_num < vm_bucket[dst_vids[j]].cnt) {
-                STATS_ADD(ctx->vdev_stats[dst_vids[j]], ring_enq_fail_count, vm_bucket[dst_vids[j]].cnt - enq_num);
+                STATS_ADD(ctx->stats, ring_enq_fail_count, vm_bucket[dst_vids[j]].cnt - enq_num);
             }
         }
 
         if (slow_cnt) {
             int enq_num = rte_ring_enqueue_burst(global->slowpath_ring, (void **)slow_msgs, slow_cnt, NULL);
-            LOG_INFO("[%d](%d) enqueued %d packets to slowpath_ring\n", ctx->core_id, vid, enq_num);
+            LOG_INFO("[%d] enqueued %d packets to slowpath_ring\n", ctx->core_id, enq_num);
             if (enq_num < slow_cnt) {
-                STATS_ADD(ctx->vdev_stats[ctx->vhost_rx_core_id], ring_enq_fail_count, slow_cnt - enq_num);
+                STATS_ADD(ctx->stats, ring_enq_fail_count, slow_cnt - enq_num);
             }
         }
     }
