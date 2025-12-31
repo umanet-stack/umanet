@@ -1,5 +1,6 @@
 #include "src/include/fastpath.h"
 #include "src/include/state.h"
+#include "src/network/network.h"
 #include <rte_ring.h>
 #include <unistd.h>
 
@@ -39,6 +40,7 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
     int16_t ret = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
     if (ret == 0) {
         STATS_ADD(ctx->vdev_stats[vid], send_fail_count, 1);
+        free_pkts(pkts, num);
         return 0;
     }
 
@@ -47,6 +49,7 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
         STATS_ADD(ctx->vdev_stats[vid], max_send_count, 1);
     }
 
+    free_pkts(pkts, num);
     LOG_VM_OUT("[%d](%d) Sent %d packets to VM\n", ctx->core_id, vid, ret);
     PRINT_PKTS(pkts, ret, LOG_VM_OUT);
 
