@@ -15,19 +15,18 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
         sleep(1);
 #endif
 
-        // Use vhost_rx_plan for now (TX cores iterate over same devices as RX cores)
-        struct vhost_plan *plan = atomic_load(&vhost_rx_plans[ctx->vhost_tx_core_id]);
+        struct vhost_plan *plan = atomic_load(&vhost_tx_plans[ctx->vhost_tx_core_id]);
         for (int i = 0; i < plan->num; i++) {
             uint16_t vid = plan->vids[i];
             uint16_t num = MAX_PKT_BURST;
             struct rte_mbuf *pkts[num];
-            // struct vhost_dev *vdev = vdev_list->vdevs[plan->vids[i]];
 
             int deq_num = rte_ring_dequeue_burst(global->vhost_tx_rings[plan->vids[i]], (void **)pkts, num, NULL);
             if (deq_num == num) {
                 STATS_ADD(ctx->vdev_stats[plan->vids[i]], ring_deq_max_count, 1);
             }
-            LOG_INFO("[%d] Dequeued %d packets from vhost_tx_ring[%d] to vhost_tx_loop\n", ctx->core_id, deq_num, vid);
+            // LOG_INFO("[%d] Dequeued %d packets from vhost_tx_ring[%d] to vhost_tx_loop\n", ctx->core_id, deq_num,
+            // vid);
 
             if (deq_num > 0)
                 vhost_send(ctx, deq_num, vid, pkts);

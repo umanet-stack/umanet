@@ -108,6 +108,8 @@ void unlink_vmdq(struct vhost_dev *vdev);
 int init_vhost_plans();
 int vhost_rx_plan_add(int vid);
 int vhost_rx_plan_remove(int vid);
+int vhost_tx_plan_add(int vid);
+int vhost_tx_plan_remove(int vid);
 
 int init_route_table();
 int cleanup_route_table();
