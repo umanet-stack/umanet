@@ -28,12 +28,13 @@ void control_log_status(uint16_t num_vms, uint64_t rx, uint64_t tx) {
 }
 
 void control_dashboard(int rx, int tx, int drops, int vms) {
-    fprintf(tty_fp, "\033[s"); // save cursor position
+    // Clear entire terminal
+    fprintf(tty_fp, "\033[2J"); // clear screen
+    fprintf(tty_fp, "\033[H");  // move cursor to top-left (1;1)
 
-    fprintf(tty_fp, "\033[1;1H\033[2KRX: %d packets/sec", rx);
-    fprintf(tty_fp, "\033[2;1H\033[2KTX: %d packets/sec", tx);
-    fprintf(tty_fp, "\033[3;1H\033[2KDrops: %d | VMs: %d", drops, vms);
+    fprintf(tty_fp, "RX: %d packets/sec\n", rx);
+    fprintf(tty_fp, "TX: %d packets/sec\n", tx);
+    fprintf(tty_fp, "Drops: %d | VMs: %d\n", drops, vms);
 
-    fprintf(tty_fp, "\033[u"); // restore cursor
     fflush(tty_fp);
 }
