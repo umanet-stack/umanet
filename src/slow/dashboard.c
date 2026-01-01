@@ -6,27 +6,14 @@
 
 static FILE *tty_fp = NULL;
 
+void print_byte_wnd(struct vhost_plan *plan, struct vdev_rx_stats **stats);
+void print_pkt_wnd(struct vhost_plan *plan, struct vdev_rx_stats **stats);
+
 void control_tty_init() {
     tty_fp = fopen("/dev/tty", "w");
     if (!tty_fp) {
         perror("fopen(/dev/tty)");
     }
-}
-
-void control_log(const char *fmt, ...) {
-    if (!tty_fp)
-        return;
-
-    va_list ap;
-    va_start(ap, fmt);
-    vfprintf(tty_fp, fmt, ap);
-    va_end(ap);
-
-    fflush(tty_fp);
-}
-
-void control_log_status(uint16_t num_vms, uint64_t rx, uint64_t tx) {
-    control_log("\r\033[32mSTATUS\033[0m VMs=%u RX=%lu TX=%lu", num_vms, rx, tx);
 }
 
 void control_dashboard(int rx, int tx, int drops, int vms) {
@@ -61,6 +48,8 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         fprintf(tty_fp, "empty_poll: %s\t", display_number(empty_poll_count));
         fprintf(tty_fp, "max_poll: %s\t", display_number(max_poll_count));
         fprintf(tty_fp, "ring_enq_fail: %s\n", display_number(ring_enq_fail_count));
+        print_byte_wnd(plan, ctx->vdev_stats);
+        print_pkt_wnd(plan, ctx->vdev_stats);
     }
     for (int i = 0; i < global->vhost_tx_cores; i++) {
         struct vhost_tx_ctx *ctx = vhost_tx_ctxs[i];
@@ -90,4 +79,28 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
     }
 
     fflush(tty_fp);
+}
+
+void print_byte_wnd(struct vhost_plan *plan, struct vdev_rx_stats **stats) {
+    for (int i = 0; i < plan->num; i++) {
+        uint16_t vid = plan->vids[i];
+        fprintf(tty_fp, "(%d)[", vid);
+        for (int j = 0; j < WINDOW_SIZE; j++) {
+            fprintf(tty_fp, "%s ", display_number(stats[vid]->byte_wnd[j]));
+        }
+        fprintf(tty_fp, "] ");
+    }
+    fprintf(tty_fp, "\n");
+}
+
+void print_pkt_wnd(struct vhost_plan *plan, struct vdev_rx_stats **stats) {
+    for (int i = 0; i < plan->num; i++) {
+        uint16_t vid = plan->vids[i];
+        fprintf(tty_fp, "(%d)[", vid);
+        for (int j = 0; j < WINDOW_SIZE; j++) {
+            fprintf(tty_fp, "%s ", display_number(stats[vid]->pkt_wnd[j]));
+        }
+        fprintf(tty_fp, "] ");
+    }
+    fprintf(tty_fp, "\n");
 }
