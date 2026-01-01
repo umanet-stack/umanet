@@ -9,7 +9,7 @@
 enum slow_reason {
     SLOW_ARP_REQ,
     SLOW_MAC_LEARNING,
-    SLOW_UNKNOWN_DST,
+    SLOW_ETH_TX_FLOW,
 };
 
 enum slow_src {
