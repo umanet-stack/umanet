@@ -6,7 +6,6 @@
 #include <rte_malloc.h>
 #include <unistd.h>
 
-#define IDLE_THRESHOLD 2
 void calculate_vhost_rx_plan();
 
 void slowpath_loop(struct control_ctx *ctx) {
@@ -64,6 +63,8 @@ void slowpath_loop(struct control_ctx *ctx) {
 }
 
 void calculate_vhost_rx_plan() {
+    struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
+
     for (int i = 0; i < global->vhost_rx_cores; i++) {
         struct vhost_rx_ctx *ctx = vhost_rx_ctxs[i];
         struct vhost_plan *plan = atomic_load(&vhost_rx_plans[i]);
@@ -71,12 +72,15 @@ void calculate_vhost_rx_plan() {
 
         for (int j = 0; j < plan->num; j++) {
             uint16_t vid = plan->vids[j];
-            uint32_t empty_sum = 0;
+            uint32_t pkt_sum = 0;
             for (int k = 0; k < WINDOW_SIZE; k++) {
-                empty_sum += ctx->vdev_stats[vid]->empty_wnd[k];
+                pkt_sum += ctx->vdev_stats[vid]->empty_wnd[k];
             }
 
-            if (empty_sum > IDLE_THRESHOLD) {
+            // count pkt better than count empty polls (bursty = can have many empty polls, few bursts)
+            // avoids flapping
+            // may need higher threshold
+            if (pkt_sum > 0) {
                 is_active[vid] = 0;
             } else {
                 is_active[vid] = 1;
@@ -92,13 +96,23 @@ void calculate_vhost_rx_plan() {
             LOG_ERROR("Failed to allocate memory for new vhost_rx_plan[%d]\n", i);
             return;
         }
-
         new_plan->num = 0;
+
+        // add active vms
         for (int j = 0; j < MAX_VHOSTS; j++) {
             if (is_active[j]) {
                 new_plan->vids[new_plan->num++] = j;
             }
         }
-        atomic_store_explicit(&vhost_rx_plans[i], new_plan, memory_order_release);
+        // add probe vms (check if inactive -> active)
+        for (int j = 0; j < MAX_VHOSTS && new_plan->num < MAX_PKT_BURST; j++) {
+            if (!is_active[j] && vdev_list_ptr->vdevs[j]) {
+                new_plan->vids[new_plan->num++] = j;
+                break; // only 1 vm/s
+            }
+        }
+
+        struct vhost_plan *old = atomic_exchange_explicit(&vhost_rx_plans[i], new_plan, memory_order_release);
+        rte_free(old);
     }
 }
