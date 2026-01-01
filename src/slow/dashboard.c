@@ -37,9 +37,9 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
     struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
     fprintf(tty_fp, "vhosts: %d\n", vdev_list_ptr->num);
     for (int i = 0; i < global->vhost_rx_cores; i++) {
-        fprintf(tty_fp, "\nVHOST RX CORE %d: ", i);
         struct vhost_rx_ctx *ctx = vhost_rx_ctxs[i];
         struct vhost_plan *plan = atomic_load(&vhost_rx_plans[i]);
+        fprintf(tty_fp, "\nVHOST RX CORE %d (%u): ", i, plan->num);
         uint64_t pkt_count = 0;
         uint64_t call_count = 0;
         uint64_t empty_poll_count = 0;
@@ -63,9 +63,9 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         fprintf(tty_fp, "ring_enq_fail: %s\n", display_number(ring_enq_fail_count));
     }
     for (int i = 0; i < global->vhost_tx_cores; i++) {
-        fprintf(tty_fp, "\nVHOST TX CORE %d: ", i);
         struct vhost_tx_ctx *ctx = vhost_tx_ctxs[i];
         struct vhost_plan *plan = atomic_load(&vhost_tx_plans[i]);
+        fprintf(tty_fp, "\nVHOST TX CORE %d (%u): ", i, plan->num);
         uint64_t pkt_count = 0;
         uint64_t call_count = 0;
         uint64_t max_send_count = 0;
