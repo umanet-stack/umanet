@@ -106,7 +106,8 @@ void calculate_vhost_rx_plan() {
         }
         // add probe vms (check if inactive -> active)
         for (int j = 0; j < MAX_VHOSTS && new_plan->num < MAX_PKT_BURST; j++) {
-            if (!is_active[j] && vdev_list_ptr->vdevs[j]) {
+            // inactive, still in vdev_list, and has affinity to this core (was first assigned to this core)
+            if (!is_active[j] && vdev_list_ptr->vdevs[j] && vhost_rx_core[j] == i) {
                 new_plan->vids[new_plan->num++] = j;
                 break; // only 1 vm/s
             }
