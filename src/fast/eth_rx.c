@@ -52,6 +52,7 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
         uint16_t dst_vids[MAX_VHOSTS] = {0};
         uint16_t dst_cnt = 0;
 
+        struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
         for (int j = 0; j < poll_num; j++) {
             struct rte_mbuf *m = pkts[j];
             struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
@@ -81,6 +82,10 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
                     // invalid dst_vid or out of bounds
                     continue;
                 }
+
+                struct vhost_dev *vdev = vdev_list_ptr->vdevs[dst_vid];
+                rte_ether_addr_copy(&vdev->mac, &eth_hdr->dst_addr);  // dst MAC = vm MAC
+                rte_ether_addr_copy(&config.mac, &eth_hdr->src_addr); // src MAC = our MAC
 
                 vm_bucket[dst_vid].pkts[vm_bucket[dst_vid].cnt++] = m;
                 if (vid_seen[dst_vid])
