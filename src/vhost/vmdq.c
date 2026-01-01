@@ -84,7 +84,9 @@ void unlink_vmdq(struct vhost_dev *vdev) {
         //     free_pkts(pkts_burst, rx_count);
         //     rx_count = network_poll(ctx, MAX_PKT_BURST, pkts_burst);
         // }
-
-        vdev->ready = DEVICE_SAFE_REMOVE;
     }
+
+    // Always mark as safe to remove, regardless of previous state
+    // Devices might be in DEVICE_MAC_LEARNING when destroyed (if VM terminates before MAC learning completes)
+    vdev->ready = DEVICE_SAFE_REMOVE;
 }
