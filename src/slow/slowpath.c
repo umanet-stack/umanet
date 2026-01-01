@@ -57,12 +57,6 @@ void slowpath_loop(struct control_ctx *ctx) {
             }
         }
 
-        // for (int i = 0; i < MAX_VHOSTS; i++) {
-        //     if (vdev_list_ptr->vdevs[i] == NULL) {
-        //         continue;
-        //     }
-        // }
-
         // calculate new vhost RX plan
         if (cur_tsc - last_vhost_plan_update > tsc_hz) {
             calculate_vhost_rx_plan();
