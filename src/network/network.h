@@ -43,7 +43,7 @@ static inline void free_pkts(struct rte_mbuf **pkts, uint16_t n) {
         rte_pktmbuf_free(pkts[n]);
 }
 
-#define PERTHREAD_MBUFS 2048
+#define PERTHREAD_MBUFS 8192
 #define BUFFER_SIZE 2048
 #define MBUF_SIZE (BUFFER_SIZE + RTE_PKTMBUF_HEADROOM)
 

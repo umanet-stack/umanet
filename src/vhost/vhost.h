@@ -140,7 +140,7 @@ int find_vid_by_ip(uint32_t ip);
 //     return num;
 // }
 
-#define PERTHREAD_MBUFS 2048
+#define PERTHREAD_MBUFS 8192
 #define BUFFER_SIZE 2048
 #define MBUF_SIZE (BUFFER_SIZE + RTE_PKTMBUF_HEADROOM)
 
