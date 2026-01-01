@@ -6,6 +6,7 @@
 
 static FILE *tty_fp = NULL;
 
+void print_byte_pkt_sum(struct vhost_plan *plan, struct vdev_rx_stats **stats);
 void print_byte_wnd(struct vhost_plan *plan, struct vdev_rx_stats **stats);
 void print_pkt_wnd(struct vhost_plan *plan, struct vdev_rx_stats **stats);
 
@@ -48,8 +49,9 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         fprintf(tty_fp, "empty_poll: %s\t", display_number(empty_poll_count));
         fprintf(tty_fp, "max_poll: %s\t", display_number(max_poll_count));
         fprintf(tty_fp, "ring_enq_fail: %s\n", display_number(ring_enq_fail_count));
-        print_byte_wnd(plan, ctx->vdev_stats);
-        print_pkt_wnd(plan, ctx->vdev_stats);
+        // print_byte_wnd(plan, ctx->vdev_stats);
+        // print_pkt_wnd(plan, ctx->vdev_stats);
+        print_byte_pkt_sum(plan, ctx->vdev_stats);
     }
     for (int i = 0; i < global->vhost_tx_cores; i++) {
         struct vhost_tx_ctx *ctx = vhost_tx_ctxs[i];
@@ -79,6 +81,21 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
     }
 
     fflush(tty_fp);
+}
+
+void print_byte_pkt_sum(struct vhost_plan *plan, struct vdev_rx_stats **stats) {
+    for (int i = 0; i < plan->num; i++) {
+        uint16_t vid = plan->vids[i];
+        uint32_t byte_sum = 0;
+        uint32_t pkt_sum = 0;
+        for (int j = 0; j < WINDOW_SIZE; j++) {
+            byte_sum += stats[vid]->byte_wnd[j];
+            pkt_sum += stats[vid]->pkt_wnd[j];
+        }
+        fprintf(tty_fp, "(%d): %sB, ", vid, display_number(byte_sum));
+        fprintf(tty_fp, "%sP ", display_number(pkt_sum));
+    }
+    fprintf(tty_fp, "\n");
 }
 
 void print_byte_wnd(struct vhost_plan *plan, struct vdev_rx_stats **stats) {
