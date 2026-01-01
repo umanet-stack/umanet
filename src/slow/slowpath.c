@@ -8,10 +8,11 @@
 #include <unistd.h>
 
 void calculate_vhost_rx_plan();
+void calculate_vhost_tx_plan();
 
 void slowpath_loop(struct control_ctx *ctx) {
     uint64_t last_dashboard_update = rte_get_tsc_cycles();
-    uint64_t last_vhost_rx_plan_update = rte_get_tsc_cycles();
+    uint64_t last_vhost_plan_update = rte_get_tsc_cycles();
     uint64_t tsc_hz = rte_get_tsc_hz();
     LOG_IMPT("[%u] Entering slowpath loop...\n", ctx->core_id);
     control_tty_init();
@@ -63,9 +64,10 @@ void slowpath_loop(struct control_ctx *ctx) {
         // }
 
         // calculate new vhost RX plan
-        if (cur_tsc - last_vhost_rx_plan_update > tsc_hz) {
+        if (cur_tsc - last_vhost_plan_update > tsc_hz) {
             calculate_vhost_rx_plan();
-            last_vhost_rx_plan_update = cur_tsc;
+            calculate_vhost_tx_plan();
+            last_vhost_plan_update = cur_tsc;
         }
     }
 }
@@ -84,6 +86,11 @@ void calculate_vhost_rx_plan() {
 
         for (int j = 0; j < plan->num; j++) {
             uint16_t vid = plan->vids[j];
+            if (vdev_list_ptr->vdevs[vid] == NULL) {
+                // vdev removed, remove from plan
+                continue;
+            }
+
             uint32_t pkt_sum = 0;
             uint32_t byte_sum = 0;
             for (int k = 0; k < WINDOW_SIZE; k++) {
@@ -138,6 +145,44 @@ void calculate_vhost_rx_plan() {
         }
 
         struct vhost_plan *old = atomic_exchange_explicit(&vhost_rx_plans[i], new_plan, memory_order_release);
+        rte_free(old);
+    }
+}
+
+void calculate_vhost_tx_plan() {
+    struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
+
+    for (int i = 0; i < global->vhost_tx_cores; i++) {
+        struct vhost_tx_ctx *ctx = vhost_tx_ctxs[i];
+        struct vhost_plan *plan = atomic_load(&vhost_tx_plans[i]);
+        uint8_t is_active[MAX_VHOSTS] = {0};
+
+        for (int j = 0; j < plan->num; j++) {
+            uint16_t vid = plan->vids[j];
+            if (vdev_list_ptr->vdevs[vid] == NULL) {
+                // vdev removed, remove from plan
+                continue;
+            }
+
+            is_active[vid] = 1;
+        }
+
+        struct vhost_plan *new_plan = rte_zmalloc("vhost_tx_plan", sizeof(struct vhost_plan), RTE_CACHE_LINE_SIZE);
+        if (new_plan == NULL) {
+            LOG_ERROR("Failed to allocate memory for new vhost_tx_plan[%d]\n", i);
+            return;
+        }
+        new_plan->num = 0;
+
+        // add active vms
+        for (int j = 0; j < MAX_VHOSTS; j++) {
+            if (is_active[j]) {
+                new_plan->vids[new_plan->num++] = j;
+                LOG_IMPT("[%d](%d) vdev active, add to plan\n", i, j);
+            }
+        }
+
+        struct vhost_plan *old = atomic_exchange_explicit(&vhost_tx_plans[i], new_plan, memory_order_release);
         rte_free(old);
     }
 }
