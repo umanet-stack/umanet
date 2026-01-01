@@ -153,7 +153,6 @@ void calculate_vhost_tx_plan() {
     struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
 
     for (int i = 0; i < global->vhost_tx_cores; i++) {
-        struct vhost_tx_ctx *ctx = vhost_tx_ctxs[i];
         struct vhost_plan *plan = atomic_load(&vhost_tx_plans[i]);
         uint8_t is_active[MAX_VHOSTS] = {0};
 
