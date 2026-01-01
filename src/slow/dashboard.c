@@ -37,7 +37,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
 
         for (int j = 0; j < MAX_VHOSTS; j++) {
             if (j < plan->num) {
-                int vm_id = vdev_list_ptr->vdevs[j]->vm_id;
+                int vm_id = vdev_list_ptr->vdevs[plan->vids[j]]->vm_id;
                 fprintf(tty_fp, "%d ", vm_id);
             }
             if (vhost_rx_core[j] == i) {
@@ -72,7 +72,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
 
         for (int j = 0; j < MAX_VHOSTS; j++) {
             if (j < plan->num) {
-                int vm_id = vdev_list_ptr->vdevs[j]->vm_id;
+                int vm_id = vdev_list_ptr->vdevs[plan->vids[j]]->vm_id;
                 fprintf(tty_fp, "%d ", vm_id);
             }
             if (vhost_tx_core[j] == i) {

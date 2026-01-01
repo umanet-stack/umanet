@@ -88,7 +88,7 @@ int vhost_rx_plan_add(int vid) {
         rte_free(new);
     }
     vhost_rx_core[vid] = min_vhost_rx_core_id;
-    LOG_INFO("(%d) device added to vhost_rx_plan[%d] (total vdev now=%d)\n", vid, min_vhost_rx_core_id, new->num);
+    LOG_IMPT("(%d) device added to vhost_rx_plan[%d] (total vdev now=%d)\n", vid, min_vhost_rx_core_id, new->num);
 
     return 0;
 }
@@ -144,7 +144,7 @@ int vhost_rx_plan_remove(int vid) {
         rte_free(new);
     }
     vhost_rx_core[vid] = 0;
-    LOG_INFO("(%d) device removed from vhost_rx_plan[%d] (total vdev now=%d)\n", vid, vhost_rx_core_id, new->num);
+    LOG_IMPT("(%d) device removed from vhost_rx_plan[%d] (total vdev now=%d)\n", vid, vhost_rx_core_id, new->num);
 
     return 0;
 }
