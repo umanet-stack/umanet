@@ -62,20 +62,4 @@
     } while (0)
 #endif
 
-#define MAX_PKT_BURST 32
-#define FLOW_TABLE_SIZE 1024
-struct flow_key {
-    uint32_t src_ip;
-    uint32_t dst_ip;
-    // uint16_t src_port;
-    // uint16_t dst_port;
-    // uint8_t proto;
-};
-
-struct flow_entry {
-    struct flow_key key;
-    uint16_t eth_tx_core;
-    uint64_t last_seen_tsc;
-};
-
 #endif /* FASTPATH_H_ */
