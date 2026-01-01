@@ -20,10 +20,10 @@
 // #define VHOST_RX_CORES 4
 
 // multinode server
-#define ETH_TX_CORES 2
-#define ETH_RX_CORES 2
-#define VHOST_TX_CORES 4
-#define VHOST_RX_CORES 2
+#define ETH_TX_CORES 1
+#define ETH_RX_CORES 3
+#define VHOST_TX_CORES 5
+#define VHOST_RX_CORES 1
 
 // #define ETH_TX_CORES 3
 // #define ETH_RX_CORES 2
