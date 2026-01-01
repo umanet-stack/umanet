@@ -1,6 +1,7 @@
 #include "src/slow/slowpath.h"
 #include "log.h"
 #include "src/include/fastpath.h"
+#include "src/include/main.h"
 #include "src/include/state.h"
 #include "src/vhost/vhost.h"
 #include <generic/rte_cycles.h>
@@ -76,7 +77,7 @@ void slowpath_loop(struct control_ctx *ctx) {
 void calculate_vhost_rx_plan() {
     struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
 
-    for (int i = 0; i < global->vhost_rx_cores; i++) {
+    for (int i = 0; i < config.vhost_rx_cores; i++) {
         struct vhost_rx_ctx *ctx = vhost_rx_ctxs[i];
         struct vhost_plan *plan = atomic_load(&vhost_rx_plans[i]);
         uint8_t is_active[MAX_VHOSTS] = {0};
@@ -149,7 +150,7 @@ void calculate_vhost_rx_plan() {
 void calculate_vhost_tx_plan() {
     struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
 
-    for (int i = 0; i < global->vhost_tx_cores; i++) {
+    for (int i = 0; i < config.vhost_tx_cores; i++) {
         struct vhost_plan *plan = atomic_load(&vhost_tx_plans[i]);
         uint8_t is_active[MAX_VHOSTS] = {0};
 

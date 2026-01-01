@@ -57,15 +57,16 @@ sudo rm -f /dev/hugepages/tas_memory
 
 ## Running
 - copy `.env.template` to `.env` and fill in the values
+- `ETH_RX_CORES`, `ETH_TX_CORES`, `VHOST_RX_CORES`, `VHOST_TX_CORES` are the number of cores to use for the fast path, configurable in `.env`
 ```bash
 # debug
 tmux new -s dpdk
-sudo ./build_and_run.sh debug 8 32
+sudo ./build_and_run.sh debug 32
 # terminal 2
 tail -f switch.log
 
 # test
-sudo ./build_and_run.sh test 8 32
+sudo ./build_and_run.sh test 32
 
 # kill process
 sudo ps aux | grep vhost-switch | grep -v grep | awk '{print $2}' | xargs kill -9

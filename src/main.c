@@ -128,25 +128,25 @@ int main(int argc, char *argv[]) {
     for (int wait = 0; wait < max_wait && !all_ready; wait++) {
         sleep(1);
         all_ready = 1;
-        for (int i = 0; i < global->eth_rx_cores; i++) {
+        for (int i = 0; i < config.eth_rx_cores; i++) {
             if (eth_rx_ctxs[i] == NULL) {
                 all_ready = 0;
                 break;
             }
         }
-        for (int i = 0; i < global->eth_tx_cores; i++) {
+        for (int i = 0; i < config.eth_tx_cores; i++) {
             if (eth_tx_ctxs[i] == NULL) {
                 all_ready = 0;
                 break;
             }
         }
-        for (int i = 0; i < global->vhost_rx_cores; i++) {
+        for (int i = 0; i < config.vhost_rx_cores; i++) {
             if (vhost_rx_ctxs[i] == NULL) {
                 all_ready = 0;
                 break;
             }
         }
-        for (int i = 0; i < global->vhost_tx_cores; i++) {
+        for (int i = 0; i < config.vhost_tx_cores; i++) {
             if (vhost_tx_ctxs[i] == NULL) {
                 all_ready = 0;
                 break;
@@ -202,7 +202,7 @@ static int common_thread(void *arg) {
     }
 
     // id starts at 1, but arrays are 0-indexed, so subtract 1
-    if (id <= global->eth_rx_cores) {
+    if (id <= config.eth_rx_cores) {
         struct eth_rx_ctx *eth_rx_ctx = eth_rx_ctxs[id - 1];
         eth_rx_ctx->core_id = id;
         if (network_rx_queue_init(eth_rx_ctx) != 0) {
@@ -211,8 +211,8 @@ static int common_thread(void *arg) {
         }
         eth_rx_loop(eth_rx_ctx);
 
-    } else if (id <= global->eth_rx_cores + global->eth_tx_cores) {
-        struct eth_tx_ctx *eth_tx_ctx = eth_tx_ctxs[id - global->eth_rx_cores - 1];
+    } else if (id <= config.eth_rx_cores + config.eth_tx_cores) {
+        struct eth_tx_ctx *eth_tx_ctx = eth_tx_ctxs[id - config.eth_rx_cores - 1];
         eth_tx_ctx->core_id = id;
         if (network_tx_queue_init(eth_tx_ctx) != 0) {
             LOG_ERROR("network_tx_queue_init failed\n");
@@ -220,14 +220,14 @@ static int common_thread(void *arg) {
         }
         eth_tx_loop(eth_tx_ctx);
 
-    } else if (id <= global->eth_rx_cores + global->eth_tx_cores + global->vhost_rx_cores) {
-        struct vhost_rx_ctx *vhost_rx_ctx = vhost_rx_ctxs[id - global->eth_rx_cores - global->eth_tx_cores - 1];
+    } else if (id <= config.eth_rx_cores + config.eth_tx_cores + config.vhost_rx_cores) {
+        struct vhost_rx_ctx *vhost_rx_ctx = vhost_rx_ctxs[id - config.eth_rx_cores - config.eth_tx_cores - 1];
         vhost_rx_ctx->core_id = id;
         vhost_rx_loop(vhost_rx_ctx);
 
-    } else if (id <= global->eth_rx_cores + global->eth_tx_cores + global->vhost_rx_cores + global->vhost_tx_cores) {
+    } else if (id <= config.eth_rx_cores + config.eth_tx_cores + config.vhost_rx_cores + config.vhost_tx_cores) {
         struct vhost_tx_ctx *vhost_tx_ctx =
-            vhost_tx_ctxs[id - global->eth_rx_cores - global->eth_tx_cores - global->vhost_rx_cores - 1];
+            vhost_tx_ctxs[id - config.eth_rx_cores - config.eth_tx_cores - config.vhost_rx_cores - 1];
         vhost_tx_ctx->core_id = id;
         vhost_tx_loop(vhost_tx_ctx);
 

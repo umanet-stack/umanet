@@ -1,3 +1,4 @@
+#include "src/include/main.h"
 #include "src/include/state.h"
 #include "utils.h"
 #include <stdarg.h>
@@ -25,7 +26,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
 
     struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
     fprintf(tty_fp, "vhosts: %d\n", vdev_list_ptr->num);
-    for (int i = 0; i < global->vhost_rx_cores; i++) {
+    for (int i = 0; i < config.vhost_rx_cores; i++) {
         struct vhost_rx_ctx *ctx = vhost_rx_ctxs[i];
         struct vhost_plan *plan = atomic_load(&vhost_rx_plans[i]);
         fprintf(tty_fp, "\nVHOST RX CORE %d (%u): ", i, plan->num);
@@ -60,7 +61,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         // print_byte_pkt_sum(plan, ctx->vdev_stats);
         print_empty_polls(vdev_list_ptr, plan, ctx->vdev_stats);
     }
-    for (int i = 0; i < global->vhost_tx_cores; i++) {
+    for (int i = 0; i < config.vhost_tx_cores; i++) {
         struct vhost_tx_ctx *ctx = vhost_tx_ctxs[i];
         struct vhost_plan *plan = atomic_load(&vhost_tx_plans[i]);
         fprintf(tty_fp, "\nVHOST TX CORE %d (%u): ", i, plan->num);

@@ -113,10 +113,10 @@ int network_init() {
     rte_eth_macaddr_get(global->eth_port_id, &global->eth_addr);
     rte_eth_dev_info_get(global->eth_port_id, &eth_devinfo);
 
-    if (eth_devinfo.max_rx_queues < global->eth_rx_cores || eth_devinfo.max_tx_queues < global->eth_rx_cores) {
+    if (eth_devinfo.max_rx_queues < config.eth_rx_cores || eth_devinfo.max_tx_queues < config.eth_tx_cores) {
         LOG_ERROR("Error: NIC does not support enough hw queues (rx=%u tx=%u)"
                   " for the requested number of cores (%u)\n",
-                  eth_devinfo.max_rx_queues, eth_devinfo.max_tx_queues, global->eth_rx_cores);
+                  eth_devinfo.max_rx_queues, eth_devinfo.max_tx_queues, config.eth_rx_cores);
         goto error_exit;
     }
 
@@ -144,7 +144,7 @@ int network_init() {
         port_conf.intr_conf.rxq = 0;
 
     /* initialize port */
-    ret = rte_eth_dev_configure(global->eth_port_id, global->eth_rx_cores, global->eth_tx_cores, &port_conf);
+    ret = rte_eth_dev_configure(global->eth_port_id, config.eth_rx_cores, config.eth_tx_cores, &port_conf);
     if (ret < 0) {
         LOG_ERROR("rte_eth_dev_configure failed\n");
         goto error_exit;
@@ -209,7 +209,7 @@ int network_tx_queue_init(struct eth_tx_ctx *ctx) {
 }
 
 int network_rx_queue_init(struct eth_rx_ctx *ctx) {
-    while (tx_init_done < global->eth_tx_cores)
+    while (tx_init_done < config.eth_tx_cores)
         ;
 
     int ret;
@@ -230,7 +230,7 @@ int network_rx_queue_init(struct eth_rx_ctx *ctx) {
 }
 
 int network_start_eth() {
-    while (rx_init_done < global->eth_rx_cores)
+    while (rx_init_done < config.eth_rx_cores)
         ;
 
     int ret;
@@ -398,7 +398,7 @@ static int reta_setup() {
         rss_reta[i / RTE_ETH_RETA_GROUP_SIZE].reta[i % RTE_ETH_RETA_GROUP_SIZE] = c;
         // fp_state->flow_group_steering[i] = c;
         // c = (c + 1) % fp_cores_cur;
-        c = (c + 1) % global->eth_rx_cores;
+        c = (c + 1) % config.eth_rx_cores;
     }
 
     if (rte_eth_dev_rss_reta_update(global->eth_port_id, rss_reta, rss_reta_size) != 0) {

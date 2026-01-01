@@ -50,18 +50,13 @@ extern uint16_t vhost_tx_core[MAX_VHOSTS];
 struct dataplane_topology {
     uint16_t eth_port_id;
     struct rte_ether_addr eth_addr;
+    uint16_t fp_cores;
 
     // indexed by eth_queue_id
     struct rte_ring *eth_tx_rings[ETH_TX_CORES];
     // indexed by vid
     struct rte_ring *vhost_tx_rings[MAX_VHOSTS];
     struct rte_ring *slowpath_ring;
-
-    uint16_t eth_tx_cores;
-    uint16_t eth_rx_cores;
-    uint16_t vhost_tx_cores;
-    uint16_t vhost_rx_cores;
-    uint16_t fp_cores;
 };
 
 struct eth_rx_ctx {
