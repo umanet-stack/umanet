@@ -56,16 +56,23 @@ void slowpath_loop(struct control_ctx *ctx) {
             }
         }
 
+        // for (int i = 0; i < MAX_VHOSTS; i++) {
+        //     if (vdev_list_ptr->vdevs[i] == NULL) {
+        //         continue;
+        //     }
+        // }
+
         // calculate new vhost RX plan
         if (cur_tsc - last_vhost_rx_plan_update > tsc_hz) {
-            calculate_vhost_rx_plan();
+            // calculate_vhost_rx_plan();
             last_vhost_rx_plan_update = cur_tsc;
         }
     }
 }
 
 #define BYTE_ACTIVE_THRESHOLD (64 * 1024) // 64 KB per window, filters out noise pkts (ARP, DNS)
-#define PKT_ACTIVE_THRESHOLD 10
+#define PKT_ACTIVE_THRESHOLD 3
+#define PROBE_THRESHOLD 3
 void calculate_vhost_rx_plan() {
     struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
 
@@ -93,6 +100,7 @@ void calculate_vhost_rx_plan() {
             }
 
             ctx->vdev_stats[vid]->wnd_idx = (ctx->vdev_stats[vid]->wnd_idx + 1) % WINDOW_SIZE;
+            ctx->vdev_stats[vid]->byte_wnd[ctx->vdev_stats[vid]->wnd_idx] = 0;
             ctx->vdev_stats[vid]->pkt_wnd[ctx->vdev_stats[vid]->wnd_idx] = 0;
             ctx->vdev_stats[vid]->empty_wnd[ctx->vdev_stats[vid]->wnd_idx] = 0;
         }
@@ -115,12 +123,16 @@ void calculate_vhost_rx_plan() {
             // }
         }
         // add probe vms (check if inactive -> active)
+        uint8_t probe_count = 0;
         for (int j = 0; j < MAX_VHOSTS && new_plan->num < MAX_PKT_BURST; j++) {
             // inactive, still in vdev_list, and has affinity to this core (was first assigned to this core)
             if (!is_active[j] && vdev_list_ptr->vdevs[j] && vhost_rx_core[j] == i) {
                 new_plan->vids[new_plan->num++] = j;
                 LOG_IMPT("[%d](%d) probe vdev inactive -> active, add to plan\n", i, j);
-                break; // only 1 vm/s
+                probe_count++;
+                if (probe_count >= PROBE_THRESHOLD) {
+                    break;
+                }
             }
         }
 
