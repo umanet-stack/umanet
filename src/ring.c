@@ -3,6 +3,12 @@
 #include <rte_ring.h>
 
 int init_rings() {
+    global->eth_tx_rings = (struct rte_ring **)malloc(config.eth_tx_cores * sizeof(struct rte_ring *));
+    if (global->eth_tx_rings == NULL) {
+        LOG_ERROR("init_rings: failed to allocate eth_tx_rings\n");
+        return -1;
+    }
+
     for (int i = 0; i < config.eth_tx_cores; i++) {
         char *name = malloc(sizeof(char) * 100);
         sprintf(name, "eth_tx_ring_%d", i);

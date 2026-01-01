@@ -7,32 +7,7 @@
 #include <rte_ring.h>
 #include <stdatomic.h>
 
-// same node
-// #define ETH_TX_CORES 1
-// #define ETH_RX_CORES 1
-// #define VHOST_TX_CORES 4
-// #define VHOST_RX_CORES 4
-
-// multinode client
-#define ETH_TX_CORES 4
-#define ETH_RX_CORES 1
-#define VHOST_TX_CORES 1
-#define VHOST_RX_CORES 4
-
-// multinode server
-// #define ETH_TX_CORES 2
-// #define ETH_RX_CORES 2
-// #define VHOST_TX_CORES 4
-// #define VHOST_RX_CORES 2
-
-// #define ETH_TX_CORES 3
-// #define ETH_RX_CORES 2
-// #define VHOST_TX_CORES 2
-// #define VHOST_RX_CORES 3
-
-#define FP_CORES ETH_TX_CORES + ETH_RX_CORES + VHOST_TX_CORES + VHOST_RX_CORES
 #define MAX_VHOSTS 64
-
 #define RING_SIZE 4096
 
 extern struct dataplane_topology *global;
@@ -53,7 +28,7 @@ struct dataplane_topology {
     uint16_t fp_cores;
 
     // indexed by eth_queue_id
-    struct rte_ring *eth_tx_rings[ETH_TX_CORES];
+    struct rte_ring **eth_tx_rings;
     // indexed by vid
     struct rte_ring *vhost_tx_rings[MAX_VHOSTS];
     struct rte_ring *slowpath_ring;

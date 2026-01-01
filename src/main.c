@@ -247,7 +247,7 @@ static int start_threads(void) {
     cores_avail = rte_lcore_count();
     // 8 fast path cores + 1 slow path core
     // -l 0-8 = 1 master core (core 0) + 8 slave cores (core 1-8, tho id will be 0-7)
-    cores_needed = FP_CORES + 1;
+    cores_needed = global->fp_cores + 1;
 
     if (cores_avail < cores_needed) {
         LOG_ERROR("Not enough cores: got %u, need %u\n", cores_avail, cores_needed);

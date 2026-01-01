@@ -52,10 +52,4 @@ void fastpath_from_eth(struct dataplane_context *ctx);
 
 struct rte_ether_addr *install_mac_flow(uint16_t port_id, uint32_t dst_ip, uint16_t queue_id);
 
-static inline void enqueue_eth_tx(struct rte_mbuf *m) {
-    uint32_t hash = m->hash.rss;
-    uint16_t tx_core = hash & (ETH_TX_CORES - 1);
-    rte_ring_enqueue(global->eth_tx_rings[tx_core], m);
-}
-
 #endif /* ndef INTERNAL_H_ */
