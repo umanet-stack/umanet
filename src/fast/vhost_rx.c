@@ -77,6 +77,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             }
 
             for (int j = 0; j < poll_num; j++) {
+                STATS_ADD(ctx->vdev_stats[vid], byte_wnd[ctx->vdev_stats[vid]->wnd_idx], rte_pktmbuf_pkt_len(pkts[j]));
                 struct rte_mbuf *m = pkts[j];
                 struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 

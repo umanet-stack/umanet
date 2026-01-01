@@ -59,6 +59,7 @@ struct vdev_rx_stats {
     uint32_t empty_poll_count;
     uint32_t max_poll_count;
     uint32_t ring_enq_fail_count;
+    uint32_t byte_wnd[WINDOW_SIZE];
     uint32_t pkt_wnd[WINDOW_SIZE];
     uint32_t empty_wnd[WINDOW_SIZE];
     int wnd_idx; // current window idx
