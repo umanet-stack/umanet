@@ -1,5 +1,6 @@
 #include "log.h"
 #include "src/include/fastpath.h"
+#include "src/include/main.h"
 #include "src/include/state.h"
 #include <rte_ethdev.h>
 #include <rte_ring.h>
@@ -25,6 +26,23 @@ void eth_tx_loop(struct eth_tx_ctx *ctx) {
         }
         // LOG_INFO("[%d] Dequeued %d packets from eth_tx_ring[%d] to eth_tx_loop\n", ctx->core_id, deq_num,
         //  ctx->eth_queue_id);
+
+        // VMs sent to dataplane MAC 02:00:00:00:00:fe, we forward to physical gateway
+        struct rte_ether_hdr *eth_hdr;
+
+        for (int i = 0; i < deq_num; i++) {
+            eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
+            rte_ether_addr_copy(&global->eth_addr, &eth_hdr->src_addr); // Src: NIC's MAC
+
+            // Preserve broadcast/multicast MACs (for ARP requests, etc.)
+            if (rte_is_broadcast_ether_addr(&eth_hdr->dst_addr) || rte_is_multicast_ether_addr(&eth_hdr->dst_addr)) {
+                // Keep broadcast/multicast - don't change
+            } else if (rte_is_same_ether_addr(&eth_hdr->dst_addr, &config.mac)) {
+                // VM sent to other node NIC's MAC
+                rte_ether_addr_copy(&config.other_node_mac, &eth_hdr->dst_addr);
+            }
+            // Otherwise, keep the original destination MAC (for direct communication)
+        }
 
         if (deq_num > 0)
             network_send(ctx, deq_num, pkts);
