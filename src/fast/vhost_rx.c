@@ -134,7 +134,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                 }
 
                 uint32_t src_ip = 0, dst_ip = 0;
-                if (!dst_is_local_subnet(eth_hdr, &src_ip, &dst_ip)) {
+                if (dst_is_local_subnet(eth_hdr, &src_ip, &dst_ip)) {
                     // dpdk's ip (192.168.100.1) and ips not belonging to any vms (e.g. 192.168.100.99)
                     // won't be found in ip_2_vid table
                     int dst_vid = find_vid_by_ip(dst_ip);
@@ -172,17 +172,16 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                 }
             }
 
-            for (int i = 0; i < config.eth_tx_cores; i++) {
-                if (eth_bucket[i].cnt == 0)
+            for (int j = 0; j < config.eth_tx_cores; j++) {
+                if (eth_bucket[j].cnt == 0)
                     continue;
-                // rx core i sends to eth tx core i
-                int enq_num = rte_ring_enqueue_burst(global->eth_tx_rings[i], (void **)eth_bucket[i].pkts,
-                                                     eth_bucket[i].cnt, NULL);
+                int enq_num = rte_ring_enqueue_burst(global->eth_tx_rings[j], (void **)eth_bucket[j].pkts,
+                                                     eth_bucket[j].cnt, NULL);
                 // LOG_INFO("[%d](%d) enqueued %d packets to eth_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
-                //  ctx->vhost_rx_core_id);
-                if (enq_num < eth_bucket[i].cnt) {
+                //          ctx->vhost_rx_core_id);
+                if (enq_num < eth_bucket[j].cnt) {
                     LOG_WARN("[%d](%d) failed to enqueue %d packets to eth_tx_ring[%d]\n", ctx->core_id, vid,
-                             eth_bucket[i].cnt - enq_num, i);
+                             eth_bucket[j].cnt - enq_num, j);
                 }
             }
 
