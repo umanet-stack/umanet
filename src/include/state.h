@@ -1,6 +1,7 @@
 #ifndef STATE_H_
 #define STATE_H_
 
+#include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 #include <rte_ether.h>
 #include <rte_hash.h>
@@ -80,6 +81,7 @@ struct vhost_rx_ctx {
     uint64_t iteration_counter;
 
     struct vdev_rx_stats *vdev_stats[MAX_VHOSTS];
+    struct flow_entry flow_table[FLOW_TABLE_SIZE];
 };
 
 struct vhost_tx_ctx {

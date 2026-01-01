@@ -3,6 +3,7 @@
 #include "src/include/state.h"
 #include "src/slow/slowpath.h"
 #include <rte_ip.h>
+#include <rte_jhash.h>
 #include <rte_ring.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -25,6 +26,23 @@ static inline int dst_is_local_subnet(struct rte_ether_hdr *eth_hdr) {
     }
 
     return 0;
+}
+
+static inline int flow_pick_tx(struct vhost_rx_ctx *ctx, struct flow_key *key, uint64_t now) {
+    uint32_t h = rte_jhash(key, sizeof(struct flow_key), 0);
+    uint32_t idx = h & (FLOW_TABLE_SIZE - 1);
+
+    struct flow_entry *entry = &ctx->flow_table[idx];
+
+    if (likely(entry->key.src_ip == key->src_ip && entry->key.dst_ip == key->dst_ip &&
+               entry->key.src_port == key->src_port && entry->key.dst_port == key->dst_port &&
+               entry->key.proto == key->proto)) {
+        entry->last_seen_tsc = now;
+        return entry->eth_tx_core;
+    }
+
+    // miss -> slow path
+    return -1;
 }
 
 void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
