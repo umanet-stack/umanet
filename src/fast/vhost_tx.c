@@ -44,7 +44,7 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
     }
 
     STATS_ADD(ctx->vdev_stats[vid], pkt_count, ret);
-    if (ret == num) {
+    if (ret == MAX_PKT_BURST) {
         STATS_ADD(ctx->vdev_stats[vid], max_send_count, 1);
     }
 

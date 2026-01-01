@@ -171,7 +171,7 @@ static inline unsigned vhost_poll(struct vhost_rx_ctx *ctx, unsigned num, unsign
 
     STATS_ADD(ctx->vdev_stats[vid], pkt_count, ret);
     STATS_ADD(ctx->vdev_stats[vid], pkt_wnd[ctx->vdev_stats[vid]->wnd_idx], ret);
-    if (ret == num) {
+    if (ret == MAX_PKT_BURST) {
         STATS_ADD(ctx->vdev_stats[vid], max_poll_count, 1);
     }
 
