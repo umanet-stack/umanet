@@ -44,6 +44,8 @@ struct vhost_ctrl {
 
 struct vhost_dev {
     int vid;
+    // vid != vm_id as vid is FIFO order and server vms are spawned first
+    int vm_id;
     struct rte_ether_addr mac;
     uint32_t ip;
 

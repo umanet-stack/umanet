@@ -201,6 +201,7 @@ static int new_device(int vid) {
         return -1;
     }
     vdev->vid = vid;
+    vdev->vm_id = -1;
     vdev->ready = DEVICE_MAC_LEARNING;
     vdev->mac = (struct rte_ether_addr){0};
     vdev->ip = 0;

@@ -37,12 +37,14 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
     if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
         struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
         vdev->ip = rte_be_to_cpu_32(ipv4_hdr->src_addr);
+        vdev->vm_id = (vdev->ip & 0xff) - 2;
         LOG_IMPT("(%d) IP address %u.%u.%u.%u registered from IP packet\n", vdev->vid, (vdev->ip >> 24) & 0xff,
                  (vdev->ip >> 16) & 0xff, (vdev->ip >> 8) & 0xff, vdev->ip & 0xff);
     } else if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)) {
         struct rte_arp_hdr *arp_hdr = (struct rte_arp_hdr *)(eth_hdr + 1);
         // source IP (arp_sip) = VM's IP
         vdev->ip = rte_be_to_cpu_32(arp_hdr->arp_data.arp_sip);
+        vdev->vm_id = (vdev->ip & 0xff) - 2;
         LOG_IMPT("(%d) IP address %u.%u.%u.%u registered from ARP packet\n", vdev->vid, (vdev->ip >> 24) & 0xff,
                  (vdev->ip >> 16) & 0xff, (vdev->ip >> 8) & 0xff, vdev->ip & 0xff);
     }
