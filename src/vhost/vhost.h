@@ -51,7 +51,7 @@ struct vhost_dev {
     volatile uint8_t ready;
 } __rte_cache_aligned;
 
-#define WINDOW_SIZE 5 // number of intervals (~seconds)
+#define WINDOW_SIZE 10 // number of intervals (~seconds)
 // Per-core runtime state (NO sharing)
 struct vdev_rx_stats {
     uint32_t call_count;

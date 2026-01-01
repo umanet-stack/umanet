@@ -66,9 +66,9 @@ void slowpath_loop(struct control_ctx *ctx) {
     }
 }
 
-#define BYTE_ACTIVE_THRESHOLD (64 * 1024) // 64 KB per window, filters out noise pkts (ARP, DNS)
-// #define BYTE_ACTIVE_THRESHOLD 64 // 64 B per window, filters out noise pkts (ARP, DNS)
-#define PKT_ACTIVE_THRESHOLD 10
+// #define BYTE_ACTIVE_THRESHOLD (64 * 1024) // 64 KB per window, filters out noise pkts (ARP, DNS)
+#define BYTE_ACTIVE_THRESHOLD 64 // 64 B per window, filters out noise pkts (ARP, DNS)
+#define PKT_ACTIVE_THRESHOLD 3
 #define PROBE_THRESHOLD 3
 void calculate_vhost_rx_plan() {
     struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
