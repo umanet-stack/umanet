@@ -19,10 +19,16 @@
 // #define VHOST_TX_CORES 1
 // #define VHOST_RX_CORES 4
 
-#define ETH_TX_CORES 3
+// multinode server
+#define ETH_TX_CORES 2
 #define ETH_RX_CORES 2
-#define VHOST_TX_CORES 2
-#define VHOST_RX_CORES 3
+#define VHOST_TX_CORES 4
+#define VHOST_RX_CORES 2
+
+// #define ETH_TX_CORES 3
+// #define ETH_RX_CORES 2
+// #define VHOST_TX_CORES 2
+// #define VHOST_RX_CORES 3
 
 #define FP_CORES ETH_TX_CORES + ETH_RX_CORES + VHOST_TX_CORES + VHOST_RX_CORES
 #define MAX_VHOSTS 64
