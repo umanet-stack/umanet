@@ -20,6 +20,7 @@ sources = files(
 	'lib/utils/rng.c',
 	'lib/utils/utils.c',
 	'src/config/config.c',
+	'src/fast/eth_rx.c',
 	'src/fast/eth_tx.c',
 	'src/fast/vhost_rx.c',
 	'src/fast/vhost_tx.c',

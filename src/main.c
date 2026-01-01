@@ -209,7 +209,7 @@ static int common_thread(void *arg) {
             LOG_ERROR("network_rx_queue_init failed\n");
             return -1;
         }
-        LOG_IMPT("[%u] Entering eth_rx loop...\n", eth_rx_ctx->core_id);
+        eth_rx_loop(eth_rx_ctx);
 
     } else if (id <= global->eth_rx_cores + global->eth_tx_cores) {
         struct eth_tx_ctx *eth_tx_ctx = eth_tx_ctxs[id - global->eth_rx_cores - 1];
