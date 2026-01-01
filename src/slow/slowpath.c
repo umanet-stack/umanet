@@ -63,6 +63,7 @@ void slowpath_loop(struct control_ctx *ctx) {
     }
 }
 
+#define BYTE_ACTIVE_THRESHOLD (64 * 1024) // 64 KB per window, filters out noise pkts (ARP, DNS)
 void calculate_vhost_rx_plan() {
     struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
 
@@ -73,15 +74,17 @@ void calculate_vhost_rx_plan() {
 
         for (int j = 0; j < plan->num; j++) {
             uint16_t vid = plan->vids[j];
-            uint32_t pkt_sum = 0;
+            // uint32_t pkt_sum = 0;
+            uint32_t byte_sum = 0;
             for (int k = 0; k < WINDOW_SIZE; k++) {
-                pkt_sum += ctx->vdev_stats[vid]->empty_wnd[k];
+                // pkt_sum += ctx->vdev_stats[vid]->empty_wnd[k];
+                byte_sum += ctx->vdev_stats[vid]->byte_wnd[k];
             }
 
             // count pkt better than count empty polls (bursty = can have many empty polls, few bursts)
             // avoids flapping
             // may need higher threshold
-            if (pkt_sum > 0) {
+            if (byte_sum > BYTE_ACTIVE_THRESHOLD) {
                 is_active[vid] = 0;
             } else {
                 is_active[vid] = 1;
