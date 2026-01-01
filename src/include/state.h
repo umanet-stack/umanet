@@ -31,6 +31,7 @@ struct dataplane_topology {
     // vhost_rx_core i => eth_tx_rings[i] => eth_tx_core i (1:1 mapping)
     struct rte_ring **eth_tx_rings;
     // indexed by vid
+    // vhost/eth_rx_core i => vhost_tx_rings[j] => vhost_tx_core k (i:j:k mapping)
     struct rte_ring *vhost_tx_rings[MAX_VHOSTS];
     struct rte_ring *slowpath_ring;
 };
