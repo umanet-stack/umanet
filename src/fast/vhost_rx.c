@@ -145,7 +145,8 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                 // LOG_INFO("[%d](%d) enqueued %d packets to eth_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
                 //  ctx->vhost_rx_core_id);
                 if (enq_num < eth_cnt) {
-                    STATS_ADD(ctx->vdev_stats[ctx->vhost_rx_core_id], ring_enq_fail_count, eth_cnt - enq_num);
+                    LOG_WARN("[%d](%d) failed to enqueue %d packets to eth_tx_ring[%d]\n", ctx->core_id, vid,
+                             eth_cnt - enq_num, ctx->vhost_rx_core_id);
                 }
             }
 
@@ -167,7 +168,8 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                 int enq_num = rte_ring_enqueue_burst(global->slowpath_ring, (void **)slow_msgs, slow_cnt, NULL);
                 // LOG_INFO("[%d](%d) enqueued %d packets to slowpath_ring\n", ctx->core_id, vid, enq_num);
                 if (enq_num < slow_cnt) {
-                    STATS_ADD(ctx->vdev_stats[ctx->vhost_rx_core_id], ring_enq_fail_count, slow_cnt - enq_num);
+                    LOG_WARN("[%d](%d) failed to enqueue %d packets to slowpath_ring\n", ctx->core_id, vid,
+                             slow_cnt - enq_num);
                 }
             }
         }
