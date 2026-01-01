@@ -7,10 +7,23 @@
 #include <rte_ring.h>
 #include <stdatomic.h>
 
-#define ETH_TX_CORES 1
-#define ETH_RX_CORES 1
-#define VHOST_TX_CORES 4 // Increased: 4 cores for 32 VMs = 8 VMs per core
-#define VHOST_RX_CORES 4 // Increased: 4 cores for 32 VMs = 8 VMs per core
+// same node
+// #define ETH_TX_CORES 1
+// #define ETH_RX_CORES 1
+// #define VHOST_TX_CORES 4
+// #define VHOST_RX_CORES 4
+
+// multinode client
+// #define ETH_TX_CORES 4
+// #define ETH_RX_CORES 1
+// #define VHOST_TX_CORES 1
+// #define VHOST_RX_CORES 4
+
+#define ETH_TX_CORES 3
+#define ETH_RX_CORES 2
+#define VHOST_TX_CORES 2
+#define VHOST_RX_CORES 3
+
 #define FP_CORES ETH_TX_CORES + ETH_RX_CORES + VHOST_TX_CORES + VHOST_RX_CORES
 #define MAX_VHOSTS 64
 
