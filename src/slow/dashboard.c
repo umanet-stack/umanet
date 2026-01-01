@@ -34,13 +34,17 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         uint64_t max_poll_count = 0;
         uint64_t ring_enq_fail_count = 0;
 
-        for (int j = 0; j < plan->num; j++) {
-            fprintf(tty_fp, "%d ", plan->vids[j]);
-            pkt_count += ctx->vdev_stats[plan->vids[j]]->pkt_count;
-            call_count += ctx->vdev_stats[plan->vids[j]]->call_count;
-            empty_poll_count += ctx->vdev_stats[plan->vids[j]]->empty_poll_count;
-            max_poll_count += ctx->vdev_stats[plan->vids[j]]->max_poll_count;
-            ring_enq_fail_count += ctx->vdev_stats[plan->vids[j]]->ring_enq_fail_count;
+        for (int j = 0; j < MAX_VHOSTS; j++) {
+            if (j < plan->num) {
+                fprintf(tty_fp, "%d ", plan->vids[j]);
+            }
+            if (vhost_rx_core[j] == i) {
+                pkt_count += ctx->vdev_stats[j]->pkt_count;
+                call_count += ctx->vdev_stats[j]->call_count;
+                empty_poll_count += ctx->vdev_stats[j]->empty_poll_count;
+                max_poll_count += ctx->vdev_stats[j]->max_poll_count;
+                ring_enq_fail_count += ctx->vdev_stats[j]->ring_enq_fail_count;
+            }
         }
         fprintf(tty_fp, "\n");
 
@@ -63,13 +67,17 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         uint64_t send_fail_count = 0;
         uint64_t ring_deq_max_count = 0;
 
-        for (int j = 0; j < plan->num; j++) {
-            fprintf(tty_fp, "%d ", plan->vids[j]);
-            pkt_count += ctx->vdev_stats[plan->vids[j]]->pkt_count;
-            call_count += ctx->vdev_stats[plan->vids[j]]->call_count;
-            max_send_count += ctx->vdev_stats[plan->vids[j]]->max_send_count;
-            send_fail_count += ctx->vdev_stats[plan->vids[j]]->send_fail_count;
-            ring_deq_max_count += ctx->vdev_stats[plan->vids[j]]->ring_deq_max_count;
+        for (int j = 0; j < MAX_VHOSTS; j++) {
+            if (j < plan->num) {
+                fprintf(tty_fp, "%d ", plan->vids[j]);
+            }
+            if (vhost_tx_core[j] == i) {
+                pkt_count += ctx->vdev_stats[j]->pkt_count;
+                call_count += ctx->vdev_stats[j]->call_count;
+                max_send_count += ctx->vdev_stats[j]->max_send_count;
+                send_fail_count += ctx->vdev_stats[j]->send_fail_count;
+                ring_deq_max_count += ctx->vdev_stats[j]->ring_deq_max_count;
+            }
         }
         fprintf(tty_fp, "\n");
 
