@@ -66,10 +66,13 @@ void slowpath_loop(struct control_ctx *ctx) {
     }
 }
 
-// #define BYTE_ACTIVE_THRESHOLD (64 * 1024) // 64 KB per window, filters out noise pkts (ARP, DNS)
-#define BYTE_ACTIVE_THRESHOLD 64 // 64 B per window, filters out noise pkts (ARP, DNS)
-#define PKT_ACTIVE_THRESHOLD 3
-#define PROBE_THRESHOLD 3
+// Thresholds for marking a VM as "active" (worth polling constantly)
+// These are PER WINDOW (1 second). A VM needs to exceed these thresholds in the sliding window.
+// Set high enough to filter out iperf SERVERS (which only send ACKs), but low enough to catch CLIENTS.
+// Typical iperf client: ~100K+ packets/sec, Server: <100 packets/sec (just ACKs)
+#define BYTE_ACTIVE_THRESHOLD (10 * 1024) // 10 KB per second - more than just ACKs
+#define PKT_ACTIVE_THRESHOLD 100          // 100 packets per second - filters out servers
+#define PROBE_THRESHOLD 6                 // Probe 6 inactive VMs per core to detect new activity
 void calculate_vhost_rx_plan() {
     struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
 
@@ -125,16 +128,16 @@ void calculate_vhost_rx_plan() {
             // }
         }
         // add probe vms (check if inactive -> active)
-        uint8_t probe_count = 0;
+        // Probe ALL inactive VMs that belong to this core to:
+        // 1. Detect when they start sending (e.g., iperf client starts)
+        // 2. Allow initial connection setup (ARP, DNS, TCP handshake)
+        // This is critical for workloads where VMs alternate between active/inactive
         for (int j = 0; j < MAX_VHOSTS && new_plan->num < MAX_PKT_BURST; j++) {
             // inactive, still in vdev_list, and has affinity to this core (was first assigned to this core)
             if (!is_active[j] && vdev_list_ptr->vdevs[j] && vhost_rx_core[j] == i) {
                 new_plan->vids[new_plan->num++] = j;
-                LOG_IMPT("[%d](%d) probe vdev inactive -> active, add to plan\n", i, j);
-                probe_count++;
-                if (probe_count >= PROBE_THRESHOLD) {
-                    break;
-                }
+                // Don't log every probe to avoid spam
+                // LOG_IMPT("[%d](%d) probe vdev inactive -> active, add to plan\n", i, j);
             }
         }
 
