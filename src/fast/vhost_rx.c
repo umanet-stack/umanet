@@ -11,18 +11,18 @@
 static inline unsigned vhost_poll(struct vhost_rx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts);
 
 // returns dst_ip if dst_ip is in the local subnet, else 0
-static inline int dst_is_local_subnet(struct rte_ether_hdr *eth_hdr) {
+static inline int dst_is_local_subnet(struct rte_ether_hdr *eth_hdr, uint32_t *src_ip, uint32_t *dst_ip) {
     uint32_t subnet = (config.ip & 0xFFFFFF00);
     if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
         struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
-        uint32_t dst_ip = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
-        if ((dst_ip & 0xFFFFFF00) == subnet)
-            return dst_ip;
+        *src_ip = rte_be_to_cpu_32(ipv4_hdr->src_addr);
+        *dst_ip = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
+        return (*dst_ip & 0xFFFFFF00) == subnet;
     } else if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)) {
         struct rte_arp_hdr *arp_hdr = (struct rte_arp_hdr *)(eth_hdr + 1);
-        uint32_t dst_ip = rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip);
-        if ((dst_ip & 0xFFFFFF00) == subnet)
-            return dst_ip;
+        *src_ip = rte_be_to_cpu_32(arp_hdr->arp_data.arp_sip);
+        *dst_ip = rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip);
+        return (*dst_ip & 0xFFFFFF00) == subnet;
     }
 
     return 0;
@@ -30,19 +30,18 @@ static inline int dst_is_local_subnet(struct rte_ether_hdr *eth_hdr) {
 
 static inline int flow_pick_tx(struct vhost_rx_ctx *ctx, struct flow_key *key, uint64_t now) {
     uint32_t h = rte_jhash(key, sizeof(struct flow_key), 0);
-    uint32_t idx = h & (FLOW_TABLE_SIZE - 1);
+    return h % config.eth_tx_cores;
+    // uint32_t idx = h & (FLOW_TABLE_SIZE - 1);
 
-    struct flow_entry *entry = &ctx->flow_table[idx];
+    // struct flow_entry *entry = &ctx->flow_table[idx];
 
-    if (likely(entry->key.src_ip == key->src_ip && entry->key.dst_ip == key->dst_ip &&
-               entry->key.src_port == key->src_port && entry->key.dst_port == key->dst_port &&
-               entry->key.proto == key->proto)) {
-        entry->last_seen_tsc = now;
-        return entry->eth_tx_core;
-    }
+    // if (likely(entry->key.src_ip == key->src_ip && entry->key.dst_ip == key->dst_ip)) {
+    //     entry->last_seen_tsc = now;
+    //     return entry->eth_tx_core;
+    // }
 
-    // miss -> slow path
-    return -1;
+    // // miss -> slow path
+    // return -1;
 }
 
 void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
@@ -88,14 +87,13 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
 
             int poll_num = vhost_poll(ctx, num, vid, pkts);
 
-            struct rte_mbuf *eth_pkts[num];
             struct slow_msg *slow_msgs[num];
-            int eth_cnt = 0, slow_cnt = 0;
+            int slow_cnt = 0;
 
             struct {
                 struct rte_mbuf *pkts[MAX_PKT_BURST];
                 uint16_t cnt;
-            } eth_bucket[config.] = {0};
+            } eth_bucket[MAX_ETH_TX_CORES] = {0};
 
             struct {
                 struct rte_mbuf *pkts[MAX_PKT_BURST];
@@ -135,11 +133,11 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                     // ARP response: forward to vhost/eth
                 }
 
-                int local_dst_ip = dst_is_local_subnet(eth_hdr);
-                if (local_dst_ip) {
+                uint32_t src_ip = 0, dst_ip = 0;
+                if (!dst_is_local_subnet(eth_hdr, &src_ip, &dst_ip)) {
                     // dpdk's ip (192.168.100.1) and ips not belonging to any vms (e.g. 192.168.100.99)
                     // won't be found in ip_2_vid table
-                    int dst_vid = find_vid_by_ip(local_dst_ip);
+                    int dst_vid = find_vid_by_ip(dst_ip);
                     if (dst_vid < 0 || dst_vid >= MAX_VHOSTS) {
                         // invalid dst_vid or out of bounds
                         continue;
@@ -157,19 +155,34 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                     dst_vids[dst_cnt++] = dst_vid;
 
                 } else {
-                    eth_pkts[eth_cnt++] = m;
+                    struct flow_key eth_key = {
+                        .src_ip = src_ip,
+                        .dst_ip = dst_ip,
+                    };
+                    int eth_tx_core = flow_pick_tx(ctx, &eth_key, rte_rdtsc());
+                    // if (eth_tx_core < 0 || eth_tx_core >= MAX_ETH_TX_CORES) {
+                    //     struct slow_msg *slow_msg = (struct slow_msg *)malloc(sizeof(struct slow_msg));
+                    //     slow_msg->reason = SLOW_ETH_TX_FLOW;
+                    //     slow_msg->src = SLOW_SRC_VHOST;
+                    //     slow_msg->mbuf = m;
+                    //     slow_msgs[slow_cnt++] = slow_msg;
+                    //     continue;
+                    // }
+                    eth_bucket[eth_tx_core].pkts[eth_bucket[eth_tx_core].cnt++] = m;
                 }
             }
 
-            if (eth_cnt) {
+            for (int i = 0; i < config.eth_tx_cores; i++) {
+                if (eth_bucket[i].cnt == 0)
+                    continue;
                 // rx core i sends to eth tx core i
-                int enq_num = rte_ring_enqueue_burst(global->eth_tx_rings[ctx->vhost_rx_core_id], (void **)eth_pkts,
-                                                     eth_cnt, NULL);
+                int enq_num = rte_ring_enqueue_burst(global->eth_tx_rings[i], (void **)eth_bucket[i].pkts,
+                                                     eth_bucket[i].cnt, NULL);
                 // LOG_INFO("[%d](%d) enqueued %d packets to eth_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
                 //  ctx->vhost_rx_core_id);
-                if (enq_num < eth_cnt) {
+                if (enq_num < eth_bucket[i].cnt) {
                     LOG_WARN("[%d](%d) failed to enqueue %d packets to eth_tx_ring[%d]\n", ctx->core_id, vid,
-                             eth_cnt - enq_num, ctx->vhost_rx_core_id);
+                             eth_bucket[i].cnt - enq_num, i);
                 }
             }
 
