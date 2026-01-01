@@ -23,6 +23,8 @@ extern _Atomic(struct vhost_plan *) *vhost_tx_plans;
 extern uint16_t vhost_rx_core[MAX_VHOSTS];
 extern uint16_t vhost_tx_core[MAX_VHOSTS];
 
+#define MAX_ETH_TX_CORES 4
+
 struct dataplane_topology {
     uint16_t eth_port_id;
     struct rte_ether_addr eth_addr;

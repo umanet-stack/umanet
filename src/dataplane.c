@@ -10,6 +10,11 @@ int init_dataplane_topology() {
         LOG_ERROR("dataplane_init: failed to allocate global\n");
         return -1;
     }
+    if (config.eth_tx_cores > MAX_ETH_TX_CORES) {
+        LOG_ERROR("init_dataplane_topology: eth_tx_cores (%d) > MAX_ETH_TX_CORES (%d)\n", config.eth_tx_cores,
+                  MAX_ETH_TX_CORES);
+        return -1;
+    }
     global->fp_cores = config.eth_rx_cores + config.eth_tx_cores + config.vhost_rx_cores + config.vhost_tx_cores;
 
     return 0;

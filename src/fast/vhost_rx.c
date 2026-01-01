@@ -95,6 +95,11 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             struct {
                 struct rte_mbuf *pkts[MAX_PKT_BURST];
                 uint16_t cnt;
+            } eth_bucket[config.] = {0};
+
+            struct {
+                struct rte_mbuf *pkts[MAX_PKT_BURST];
+                uint16_t cnt;
             } vm_bucket[MAX_VHOSTS] = {0};
             uint8_t vid_seen[MAX_VHOSTS] = {0};
             uint16_t dst_vids[MAX_VHOSTS] = {0};
