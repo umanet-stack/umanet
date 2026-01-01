@@ -64,14 +64,15 @@ void slowpath_loop(struct control_ctx *ctx) {
 
         // calculate new vhost RX plan
         if (cur_tsc - last_vhost_rx_plan_update > tsc_hz) {
-            // calculate_vhost_rx_plan();
+            calculate_vhost_rx_plan();
             last_vhost_rx_plan_update = cur_tsc;
         }
     }
 }
 
 #define BYTE_ACTIVE_THRESHOLD (64 * 1024) // 64 KB per window, filters out noise pkts (ARP, DNS)
-#define PKT_ACTIVE_THRESHOLD 3
+// #define BYTE_ACTIVE_THRESHOLD 64 // 64 B per window, filters out noise pkts (ARP, DNS)
+#define PKT_ACTIVE_THRESHOLD 10
 #define PROBE_THRESHOLD 3
 void calculate_vhost_rx_plan() {
     struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
@@ -86,17 +87,16 @@ void calculate_vhost_rx_plan() {
             uint32_t pkt_sum = 0;
             uint32_t byte_sum = 0;
             for (int k = 0; k < WINDOW_SIZE; k++) {
-                pkt_sum += ctx->vdev_stats[vid]->empty_wnd[k];
+                pkt_sum += ctx->vdev_stats[vid]->pkt_wnd[k];
                 byte_sum += ctx->vdev_stats[vid]->byte_wnd[k];
             }
 
             // count pkt better than count empty polls (bursty = can have many empty polls, few bursts)
             // avoids flapping
-            // may need higher threshold
             if (byte_sum > BYTE_ACTIVE_THRESHOLD || pkt_sum > PKT_ACTIVE_THRESHOLD) {
-                is_active[vid] = 0;
-            } else {
                 is_active[vid] = 1;
+            } else {
+                is_active[vid] = 0;
             }
 
             // update FP core stats in slowpath (don't care atomic/correctness much here)
