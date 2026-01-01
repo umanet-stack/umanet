@@ -51,6 +51,7 @@ python testing/process_results.py dpdk vm-client
 ```bash
 # kill all vms to end/reset experiment
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
+sudo bash -c "ps aux | grep vhost-switch | grep -v grep | awk '{print \$2}' | xargs kill -9"
 ```
 
 # OVS DPDK
