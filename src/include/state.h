@@ -25,6 +25,8 @@ extern struct control_ctx *control_ctx;
 extern _Atomic(struct vdev_list *) vdev_list;
 extern _Atomic(struct vhost_plan *) *vhost_rx_plans;
 extern _Atomic(struct vhost_plan *) *vhost_tx_plans;
+extern uint16_t vhost_rx_core[MAX_VHOSTS];
+extern uint16_t vhost_tx_core[MAX_VHOSTS];
 
 struct dataplane_topology {
     uint16_t eth_port_id;

@@ -7,6 +7,9 @@
 _Atomic(struct vhost_plan *) *vhost_rx_plans = NULL;
 _Atomic(struct vhost_plan *) *vhost_tx_plans = NULL;
 
+uint16_t vhost_rx_core[MAX_VHOSTS] = {0};
+uint16_t vhost_tx_core[MAX_VHOSTS] = {0};
+
 int init_vhost_plans() {
     vhost_rx_plans = rte_calloc("vhost_rx_plans", global->vhost_rx_cores, sizeof(_Atomic(struct vhost_plan *)), 0);
     if (vhost_rx_plans == NULL) {
@@ -84,6 +87,7 @@ int vhost_rx_plan_add(int vid) {
         // CAS failed — someone updated concurrently
         rte_free(new);
     }
+    vhost_rx_core[vid] = min_vhost_rx_core_id;
     LOG_INFO("(%d) device added to vhost_rx_plan[%d] (total vdev now=%d)\n", vid, min_vhost_rx_core_id, new->num);
 
     return 0;
@@ -139,6 +143,7 @@ int vhost_rx_plan_remove(int vid) {
         // CAS failed — someone updated concurrently
         rte_free(new);
     }
+    vhost_rx_core[vid] = 0;
     LOG_INFO("(%d) device removed from vhost_rx_plan[%d] (total vdev now=%d)\n", vid, vhost_rx_core_id, new->num);
 
     return 0;
@@ -187,6 +192,7 @@ int vhost_tx_plan_add(int vid) {
         // CAS failed — someone updated concurrently
         rte_free(new);
     }
+    vhost_tx_core[vid] = min_vhost_tx_core_id;
     LOG_INFO("(%d) device added to vhost_tx_plan[%d] (total vdev now=%d)\n", vid, min_vhost_tx_core_id, new->num);
 
     return 0;
@@ -242,6 +248,7 @@ int vhost_tx_plan_remove(int vid) {
         // CAS failed — someone updated concurrently
         rte_free(new);
     }
+    vhost_tx_core[vid] = 0;
     LOG_INFO("(%d) device removed from vhost_tx_plan[%d] (total vdev now=%d)\n", vid, vhost_tx_core_id, new->num);
 
     return 0;

@@ -46,8 +46,6 @@ struct vhost_dev {
     int vid;
     struct rte_ether_addr mac;
     uint32_t ip;
-    // uint16_t rx_core_id;
-    // uint16_t tx_core_id;
 
     // ready if the MAC address has been set
     volatile uint8_t ready;
