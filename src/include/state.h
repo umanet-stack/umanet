@@ -28,6 +28,7 @@ struct dataplane_topology {
     uint16_t fp_cores;
 
     // indexed by eth_queue_id
+    // vhost_rx_core i => eth_tx_rings[i] => eth_tx_core i (1:1 mapping)
     struct rte_ring **eth_tx_rings;
     // indexed by vid
     struct rte_ring *vhost_tx_rings[MAX_VHOSTS];
