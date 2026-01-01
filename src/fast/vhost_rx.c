@@ -29,12 +29,14 @@ static inline int dst_is_local_subnet(struct rte_ether_hdr *eth_hdr) {
 
 void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
     LOG_IMPT("[%u] Entering vhost_rx loop...\n", ctx->core_id);
+    ctx->iteration_counter = 0;
 
     while (1) {
         STATS_TS(start);
 #ifdef DEBUG
         sleep(1);
 #endif
+        ctx->iteration_counter++;
 
         struct vhost_plan *plan = atomic_load(&vhost_rx_plans[ctx->vhost_rx_core_id]);
         for (int i = 0; i < plan->num; i++) {
@@ -52,6 +54,19 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                 continue;
             }
             struct vhost_dev *vdev = vdev_list_ptr->vdevs[vid];
+
+            // Adaptive polling: Skip iperf servers (even vm_id) some of the time
+            // Servers send ACKs/control packets (important for TCP flow control!), clients send bulk data
+            // Poll servers every OTHER iteration to balance efficiency with TCP ACK latency
+            // Skipping too aggressively (e.g., 7/8) delays ACKs and throttles clients
+            if (vdev->vm_id >= 0 && (vdev->vm_id % 2 == 0)) {
+                // This is an iperf server (even vm_id: 0,2,4,6,...)
+                // Skip every other poll (only poll on even iterations)
+                if ((ctx->iteration_counter & 0x3) != 0) {
+                    continue; // Skip this poll
+                }
+            }
+            // Clients (odd vm_id: 1,3,5,7,...) are polled every iteration
 
             int poll_num = vhost_poll(ctx, num, vid, pkts);
 

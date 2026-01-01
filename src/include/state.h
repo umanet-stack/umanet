@@ -85,6 +85,8 @@ struct vhost_rx_ctx {
     uint16_t next_device;
     // Counter for checking inactive devices
     uint16_t inactive_check_counter;
+    // Global iteration counter for adaptive polling
+    uint64_t iteration_counter;
 
     struct vdev_rx_stats *vdev_stats[MAX_VHOSTS];
 };
