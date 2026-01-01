@@ -99,6 +99,7 @@ void calculate_vhost_rx_plan() {
                 is_active[vid] = 1;
             }
 
+            // update FP core stats in slowpath (don't care atomic/correctness much here)
             ctx->vdev_stats[vid]->wnd_idx = (ctx->vdev_stats[vid]->wnd_idx + 1) % WINDOW_SIZE;
             ctx->vdev_stats[vid]->byte_wnd[ctx->vdev_stats[vid]->wnd_idx] = 0;
             ctx->vdev_stats[vid]->pkt_wnd[ctx->vdev_stats[vid]->wnd_idx] = 0;
