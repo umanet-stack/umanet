@@ -59,14 +59,14 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             // Servers send ACKs/control packets (important for TCP flow control!), clients send bulk data
             // Poll servers every OTHER iteration to balance efficiency with TCP ACK latency
             // Skipping too aggressively (e.g., 7/8) delays ACKs and throttles clients
-            if (vdev->vm_id >= 0 && (vdev->vm_id % 2 == 0)) {
-                // This is an iperf server (even vm_id: 0,2,4,6,...)
-                // Skip every other poll (only poll on even iterations)
-                if ((ctx->iteration_counter & 0x3) != 0) {
-                    continue; // Skip this poll
-                }
-            }
-            // Clients (odd vm_id: 1,3,5,7,...) are polled every iteration
+            // if (vdev->vm_id >= 0 && (vdev->vm_id % 2 == 0)) {
+            //     // This is an iperf server (even vm_id: 0,2,4,6,...)
+            //     // Skip every other poll (only poll on even iterations)
+            //     if ((ctx->iteration_counter & 0x3) != 0) {
+            //         continue; // Skip this poll
+            //     }
+            // }
+            // // Clients (odd vm_id: 1,3,5,7,...) are polled every iteration
 
             int poll_num = vhost_poll(ctx, num, vid, pkts);
 
