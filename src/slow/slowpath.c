@@ -9,7 +9,8 @@
 void calculate_vhost_rx_plan();
 
 void slowpath_loop(struct control_ctx *ctx) {
-    uint64_t last_update_time = rte_get_tsc_cycles();
+    uint64_t last_dashboard_update = rte_get_tsc_cycles();
+    uint64_t last_vhost_rx_plan_update = rte_get_tsc_cycles();
     uint64_t tsc_hz = rte_get_tsc_hz();
     LOG_IMPT("[%u] Entering slowpath loop...\n", ctx->core_id);
     control_tty_init();
@@ -20,9 +21,9 @@ void slowpath_loop(struct control_ctx *ctx) {
         sleep(1);
 #endif
         uint64_t cur_tsc = rte_get_tsc_cycles();
-        if (cur_tsc - last_update_time > tsc_hz) {
+        if (cur_tsc - last_dashboard_update > tsc_hz) {
             control_dashboard();
-            last_update_time = cur_tsc;
+            last_dashboard_update = cur_tsc;
         }
 
         struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
@@ -55,10 +56,10 @@ void slowpath_loop(struct control_ctx *ctx) {
         }
 
         // calculate new vhost RX plan
-        // if (cur_tsc - last_update_time > tsc_hz) {
-        //     calculate_vhost_rx_plan();
-        //     last_update_time = cur_tsc;
-        // }
+        if (cur_tsc - last_vhost_rx_plan_update > tsc_hz) {
+            calculate_vhost_rx_plan();
+            last_vhost_rx_plan_update = cur_tsc;
+        }
     }
 }
 
