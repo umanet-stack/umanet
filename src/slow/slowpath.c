@@ -1,6 +1,5 @@
 #include "src/slow/slowpath.h"
 #include "log.h"
-#include "src/include/fastpath.h"
 #include "src/include/main.h"
 #include "src/include/state.h"
 #include "src/vhost/vhost.h"
@@ -19,7 +18,7 @@ void slowpath_loop(struct control_ctx *ctx) {
     control_tty_init();
 
     while (1) {
-        STATS_TS(start);
+        // STATS_TS(start);
 #ifdef DEBUG
         sleep(1);
 #endif

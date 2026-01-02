@@ -40,27 +40,6 @@ typedef struct {
     uint16_t eth_tx_cores;
     uint16_t vhost_rx_cores;
     uint16_t vhost_tx_cores;
-
-    /* ===== TAS ===== */
-    /* shared memory size */
-    uint64_t shm_len;
-
-    /** FP: maximal number of cores used */
-    uint32_t fp_cores_max;
-    /** FP: interrupts (blocking) enabled */
-    uint32_t fp_interrupts;
-    /** FP: tcp checksum offload enabled */
-    uint32_t fp_xsumoffload;
-    /** FP: auto scaling enabled */
-    uint32_t fp_autoscale;
-    /** FP: use huge pages for internal and buffer memory */
-    uint32_t fp_hugepages;
-    /** FP: enable vlan stripping */
-    uint32_t fp_vlan_strip;
-    /** FP: polling interval for TAS */
-    uint32_t fp_poll_interval_tas;
-    /** FP: polling interval for app */
-    uint32_t fp_poll_interval_app;
 } config_t;
 
 void init_config(config_t *c);
