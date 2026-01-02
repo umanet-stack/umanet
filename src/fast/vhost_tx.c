@@ -45,11 +45,19 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
         // pkts[ret .. num-1]   -> STILL OWNED BY YOU -> send back to ring (do not free)
         int enq_num = rte_ring_enqueue_burst(global->vhost_tx_rings[vid], (void **)(pkts + ret), num - ret, NULL);
         if (enq_num < num - ret) {
-            LOG_WARN("[%d](%d) failed to requeue %d packets to vhost_tx_ring[%d]\n", ctx->core_id, vid,
-                     num - ret - enq_num, vid);
+            // LOG_WARN("[%d](%d) failed to requeue %d packets to vhost_tx_ring[%d]\n", ctx->core_id, vid,
+            //          num - ret - enq_num, vid);
             free_pkts(pkts + ret + enq_num, num - ret - enq_num);
         }
         // free_pkts(pkts + ret, num - ret); // if no requeue, free packets
+
+        // requeue only ONCE
+        // int16_t ret2 = rte_vhost_enqueue_burst(vid, VIRTIO_TXQ, pkts + ret, num - ret);
+        // if (ret2 < num - ret) {
+        //     LOG_WARN("[%d](%d) failed to requeue %d packets to vhost_tx_ring[%d]\n", ctx->core_id, vid,
+        //              num - ret - ret2, vid);
+        //     free_pkts(pkts + ret + ret2, num - ret - ret2);
+        // }
         STATS_ADD(ctx->vdev_stats[vid], requeue_count, 1);
     }
 
