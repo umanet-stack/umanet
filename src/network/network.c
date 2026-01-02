@@ -63,14 +63,12 @@ static struct rte_eth_conf port_conf = {
         {
             .rss_conf =
                 {
-                    // Include both TCP and UDP for proper RSS distribution
-                    // This ensures both TCP and UDP packets are distributed across queues
-                    .rss_hf = RTE_ETH_FLOW_NONFRAG_IPV4_TCP | RTE_ETH_FLOW_NONFRAG_IPV4_UDP,
+                    .rss_hf = RTE_ETH_RSS_IP | RTE_ETH_RSS_TCP | RTE_ETH_RSS_UDP,
                 },
         },
     .intr_conf =
         {
-            .rxq = 1,
+            .rxq = 0,
         },
 };
 
