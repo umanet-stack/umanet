@@ -11,7 +11,8 @@ void print_byte_pkt_sum(struct vhost_plan *plan, struct vdev_rx_stats **stats);
 void print_byte_wnd(struct vhost_plan *plan, struct vdev_rx_stats **stats);
 void print_pkt_wnd(struct vhost_plan *plan, struct vdev_rx_stats **stats);
 void print_empty_polls(struct vdev_list *vdev_list_ptr, struct vhost_plan *plan, struct vdev_rx_stats **stats);
-void print_pkts_by_vdev(struct vdev_list *vdev_list_ptr, struct vhost_plan *plan, struct vdev_rx_stats **stats);
+void print_pkts_by_rx_vdev(struct vdev_list *vdev_list_ptr, struct vhost_plan *plan, struct vdev_rx_stats **stats);
+void print_pkts_by_tx_vdev(struct vdev_list *vdev_list_ptr, struct vhost_plan *plan, struct vdev_tx_stats **stats);
 
 void control_tty_init() {
     tty_fp = fopen("/dev/tty", "w");
@@ -78,7 +79,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         // print_pkt_wnd(plan, ctx->vdev_stats);
         // print_byte_pkt_sum(plan, ctx->vdev_stats);
         // print_empty_polls(vdev_list_ptr, plan, ctx->vdev_stats);
-        print_pkts_by_vdev(vdev_list_ptr, plan, ctx->vdev_stats);
+        print_pkts_by_rx_vdev(vdev_list_ptr, plan, ctx->vdev_stats);
     }
     for (int i = 0; i < config.vhost_tx_cores; i++) {
         struct vhost_tx_ctx *ctx = vhost_tx_ctxs[i];
@@ -110,6 +111,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         fprintf(tty_fp, "max_send: %s\t", display_number(max_send_count));
         fprintf(tty_fp, "send_fail: %s\t", display_number(send_fail_count));
         fprintf(tty_fp, "ring_deq_max: %s\n", display_number(ring_deq_max_count));
+        print_pkts_by_tx_vdev(vdev_list_ptr, plan, ctx->vdev_stats);
     }
 
     fflush(tty_fp);
@@ -164,7 +166,17 @@ void print_empty_polls(struct vdev_list *vdev_list_ptr, struct vhost_plan *plan,
     fprintf(tty_fp, "\n");
 }
 
-void print_pkts_by_vdev(struct vdev_list *vdev_list_ptr, struct vhost_plan *plan, struct vdev_rx_stats **stats) {
+void print_pkts_by_rx_vdev(struct vdev_list *vdev_list_ptr, struct vhost_plan *plan, struct vdev_rx_stats **stats) {
+    fprintf(tty_fp, "pkts_by_vm: ");
+    for (int i = 0; i < plan->num; i++) {
+        uint16_t vid = plan->vids[i];
+        int vm_id = vdev_list_ptr->vdevs[vid]->vm_id;
+        fprintf(tty_fp, "(%d):%s ", vm_id, display_number(stats[vid]->pkt_count));
+    }
+    fprintf(tty_fp, "\n");
+}
+
+void print_pkts_by_tx_vdev(struct vdev_list *vdev_list_ptr, struct vhost_plan *plan, struct vdev_tx_stats **stats) {
     fprintf(tty_fp, "pkts_by_vm: ");
     for (int i = 0; i < plan->num; i++) {
         uint16_t vid = plan->vids[i];
