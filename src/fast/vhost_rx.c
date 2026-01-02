@@ -5,8 +5,14 @@
 #include <rte_ip.h>
 #include <rte_jhash.h>
 #include <rte_ring.h>
+#include <rte_thash.h>
 #include <stdint.h>
 #include <unistd.h>
+
+static const uint8_t default_rss_key[40] = {0x6d, 0x5a, 0x56, 0xda, 0x25, 0x5b, 0x0e, 0xc2, 0x41, 0x67,
+                                            0x25, 0x3d, 0x43, 0xa3, 0x8f, 0xb0, 0xd0, 0xca, 0x2b, 0xcb,
+                                            0xae, 0x7b, 0x30, 0xb4, 0x77, 0xcb, 0x2d, 0xa3, 0x80, 0x30,
+                                            0xf2, 0x0c, 0x6a, 0x42, 0xb7, 0x3b, 0xbe, 0xac, 0x01, 0xfa};
 
 static inline unsigned vhost_poll(struct vhost_rx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts);
 
@@ -28,8 +34,13 @@ static inline int dst_is_local_subnet(struct rte_ether_hdr *eth_hdr, uint32_t *s
     return 0;
 }
 
-static inline int flow_pick_tx(struct vhost_rx_ctx *ctx, struct flow_key *key, uint64_t now) {
-    uint32_t h = rte_jhash(key, sizeof(struct flow_key), 0);
+// static inline int flow_pick_tx(struct vhost_rx_ctx *ctx, struct flow_key *key, uint64_t now) {
+static inline int flow_pick_tx(uint32_t src_ip, uint32_t dst_ip) {
+    uint32_t tuple[2];
+    tuple[0] = src_ip;
+    tuple[1] = dst_ip;
+
+    uint32_t h = rte_softrss_be(tuple, 2, default_rss_key);
     return h % config.eth_tx_cores;
     // uint32_t idx = h & (FLOW_TABLE_SIZE - 1);
 
@@ -155,11 +166,12 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                     dst_vids[dst_cnt++] = dst_vid;
 
                 } else {
-                    struct flow_key eth_key = {
-                        .src_ip = src_ip,
-                        .dst_ip = dst_ip,
-                    };
-                    int eth_tx_core = flow_pick_tx(ctx, &eth_key, rte_rdtsc());
+                    // struct flow_key eth_key = {
+                    //     .src_ip = src_ip,
+                    //     .dst_ip = dst_ip,
+                    // };
+                    // int eth_tx_core = flow_pick_tx(ctx, &eth_key, rte_rdtsc());
+                    int eth_tx_core = flow_pick_tx(src_ip, dst_ip);
                     // if (eth_tx_core < 0 || eth_tx_core >= MAX_ETH_TX_CORES) {
                     //     struct slow_msg *slow_msg = (struct slow_msg *)malloc(sizeof(struct slow_msg));
                     //     slow_msg->reason = SLOW_ETH_TX_FLOW;
