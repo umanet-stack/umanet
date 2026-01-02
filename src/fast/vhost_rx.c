@@ -99,16 +99,16 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
         // ctx->iteration_counter++;
 
         struct vhost_plan *plan = atomic_load_explicit(&vhost_rx_plans[ctx->vhost_rx_core_id], memory_order_relaxed);
+        struct vdev_list *vdev_list_ptr = atomic_load_explicit(&vdev_list, memory_order_relaxed);
+        if (vdev_list_ptr == NULL) {
+            LOG_ERROR("[%d] vdev_list is NULL\n", ctx->core_id);
+            continue;
+        }
+
         for (int i = 0; i < plan->num; i++) {
             uint16_t vid = plan->vids[i];
-            if (vid >= MAX_VHOSTS) {
-                LOG_ERROR("[%d] Invalid vid %d in plan\n", ctx->core_id, vid);
-                continue;
-            }
-
-            struct vdev_list *vdev_list_ptr = atomic_load_explicit(&vdev_list, memory_order_relaxed);
-            if (vdev_list_ptr == NULL || vdev_list_ptr->vdevs[vid] == NULL) {
-                LOG_WARN("[%d] vdev_list or vdevs[%d] is NULL\n", ctx->core_id, vid);
+            if (vid >= MAX_VHOSTS || vdev_list_ptr->vdevs[vid] == NULL) {
+                LOG_WARN("[%d]  Invalid vid %d or vdevs[%d] is NULL\n", ctx->core_id, vid);
                 continue;
             }
             struct vhost_dev *vdev = vdev_list_ptr->vdevs[vid];
