@@ -5,7 +5,7 @@ source env.sh
 
 if [ "$#" -ne 3 ]; then
     echo "Usage: $0 <network> <num_vms> <test_mode>"
-    echo "  network: network type (tap, dpdk)"
+    echo "  network: network type (tap, dpdk-tap, dpdk, ovs_dpdk)"
     echo "  num_vms: number of VMs to spawn"
     echo "  test_mode: test mode (vm-vm-internal, vm-client, vm-server)"
     exit 1
@@ -29,7 +29,7 @@ spawn_vm() {
 
     if [ "$NETWORK" = "tap" ]; then
         $SCRIPT_DIR/spawn_tap_vm.sh "$i" "$VM_ROLE" "$IPERF_COMMAND"
-    elif [ "$NETWORK" = "dpdk" ]; then
+    elif [ "$NETWORK" = "dpdk" ] || [ "$NETWORK" = "dpdk-tap" ]; then
         $SCRIPT_DIR/spawn_dpdk_vm.sh "$i" "$VM_ROLE" "$IPERF_COMMAND"
     elif [ "$NETWORK" = "ovs_dpdk" ]; then
         $SCRIPT_DIR/spawn_ovs_dpdk_vm.sh "$i" "$VM_ROLE" "$IPERF_COMMAND"
@@ -57,6 +57,8 @@ if [ "$TEST_MODE" = "vm-vm-internal" ]; then
             if [ "$NETWORK" = "tap" ]; then
                 spawn_vm "$i" "client" "iperf3 -c 192.168.10${NODE_ID}.$((i+1)) -P 4 -t 30 -J"
             elif [ "$NETWORK" = "dpdk" ]; then
+                spawn_vm "$i" "client" "iperf3 -c 192.168.10${NODE_ID}.$((i+1)) -P 4 -t 30 -J"
+            elif [ "$NETWORK" = "dpdk-tap" ]; then
                 spawn_vm "$i" "client" "iperf3 -c 10.10.${NODE_ID+1}.$((i+1)) -P 4 -t 30 -J"
             elif [ "$NETWORK" = "ovs_dpdk" ]; then
                 spawn_vm "$i" "client" "iperf3 -c 10.10.1.$((i+9)) -P 4 -t 30 -J"

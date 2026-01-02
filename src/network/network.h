@@ -25,6 +25,8 @@
 #ifndef NETWORK_H_
 #define NETWORK_H_
 
+#include "log.h"
+#include "src/include/state.h"
 #include <rte_config.h>
 #include <rte_ethdev.h>
 #include <rte_ether.h>
@@ -32,61 +34,40 @@
 #include <rte_mbuf.h>
 #include <rte_memcpy.h>
 
-#include "../include/fastpath.h"
-#include "log.h"
-
-struct network_buf_handle;
-
-extern uint8_t net_port_id;
-extern uint16_t rss_reta_size;
-
-int network_thread_init(struct dataplane_context *ctx);
-int network_rx_interrupt_ctl(struct network_thread *t, int turnon);
+int network_init();
+void network_cleanup(void);
+void network_dump_stats(void);
 
 static inline void free_pkts(struct rte_mbuf **pkts, uint16_t n) {
     while (n--)
         rte_pktmbuf_free(pkts[n]);
 }
 
-static inline int network_poll(struct dataplane_context *ctx, unsigned num, struct rte_mbuf **pkts) {
-    num = rte_eth_rx_burst(net_port_id, ctx->net.queue_id, pkts, num);
-    if (num == 0)
-        return 0;
+#define PERTHREAD_MBUFS 8192
+#define BUFFER_SIZE 2048
+#define MBUF_SIZE (BUFFER_SIZE + RTE_PKTMBUF_HEADROOM)
 
-    STATS_ADD(ctx, pkt_eth_rx, num);
-    STATS_ADD(ctx, call_eth_rx, 1);
-    LOG_ETH_IN("[%d] Received %d packets from physical NIC\n", ctx->id, num);
-    PRINT_PKTS(pkts, num, LOG_ETH_IN);
+static inline struct rte_mempool *network_mempool_alloc() {
+    static _Atomic unsigned pool_id;
+    unsigned n = atomic_fetch_add(&pool_id, 1);
 
-    return num;
-}
+    char name[32];
+    snprintf(name, sizeof(name), "mempool_eth_%u", n);
 
-static inline int network_send(struct dataplane_context *ctx, unsigned num, struct rte_mbuf **pkts) {
-    uint16_t queued = rte_eth_tx_burst(net_port_id, ctx->net.queue_id, pkts, num);
-    if (queued == 0) {
-        // TX queue might be full - this could indicate transmission issues
-        LOG_WARN("[%d] TX queue full: 0/%u packets queued\n", ctx->id, num);
-        return 0;
+    struct rte_mempool *mp =
+        rte_mempool_create(name, PERTHREAD_MBUFS, MBUF_SIZE, 32, sizeof(struct rte_pktmbuf_pool_private),
+                           rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, rte_socket_id(), 0);
+
+    if (mp == NULL) {
+        LOG_ERROR("Failed to create mempool %s: %s\n", name, rte_strerror(rte_errno));
+        return NULL;
     }
 
-    if (queued < num) {
-        LOG_WARN("[%d] TX queue partial: %u/%u packets queued\n", ctx->id, queued, num);
-        STATS_ADD(ctx, eth_tx_partial, 1); // Track partial sends
-    }
-
-    STATS_ADD(ctx, pkt_eth_tx, queued);
-    STATS_ADD(ctx, call_eth_tx, 1);
-    LOG_ETH_OUT("[%d] Sent %d packets to physical NIC\n", ctx->id, queued);
-    PRINT_PKTS(pkts, queued, LOG_ETH_OUT);
-
-    return queued;
+    return mp;
 }
 
-#ifdef FLEXNIC_TRACE_TX
-unsigned i;
-for (i = 0; i < num; i++) {
-    trace_event(FLEXNIC_TRACE_EV_RXPKT, network_buf_len(bhs[i]), network_buf_bufoff(bhs[i]));
-}
-#endif
+int network_tx_queue_init(struct eth_tx_ctx *ctx);
+int network_rx_queue_init(struct eth_rx_ctx *ctx);
+int network_start_eth();
 
 #endif /* ndef NETWORK_H_ */

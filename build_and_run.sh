@@ -2,17 +2,15 @@
 set -eu
 source env.sh
 
-if [ "$#" -ne 3 ]; then
-    echo "Usage: $0 <build-mode> <fp-cores-max> <num-vms>"
+if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 <build-mode> <num-vms>"
     echo "  build-mode: debug or test"
-    echo "  fp-cores-max: number of cores to use for the fast path"
     echo "  num-vms: number of VMs to use"
     exit 1
 fi
 
 BUILD_MODE="$1"
-FP_CORES_MAX="$2"
-NUM_VMS="$3"
+NUM_VMS="$2"
 
 # The executable will be at `build/vhost-switch`.
 rm -rf build
@@ -112,7 +110,7 @@ fi
 # For Intel NICs, device must be bound to vfio-pci (done above).
 # Intel ice driver requires DDP package - install it to avoid safe mode limitations
 FIRST_CORE=0
-LAST_CORE=$((FIRST_CORE + FP_CORES_MAX))
+LAST_CORE=$((FIRST_CORE + ETH_RX_CORES + ETH_TX_CORES + VHOST_RX_CORES + VHOST_TX_CORES))
 echo "✅ Running DPDK on cores $FIRST_CORE-$LAST_CORE, num_vms: $NUM_VMS"
 
 DPDK_DEV_ARG="-a $NIC_PCI"
@@ -126,4 +124,6 @@ sudo ./build/vhost-switch \
   --iova-mode=pa \
   --no-hpet \
   --no-telemetry \
-  -- --fp-cores-max $FP_CORES_MAX --ip-addr 192.168.10${NODE_ID}.1/24 --socket-dir /mnt/huge --nb-sockets $NUM_VMS --other-node-mac $OTHER_NODE_MAC
+  -- --ip-addr 192.168.10${NODE_ID}.1/24 --socket-dir /mnt/huge --nb-sockets $NUM_VMS --other-node-mac $OTHER_NODE_MAC \
+  --eth-rx-cores $ETH_RX_CORES --eth-tx-cores $ETH_TX_CORES --vhost-rx-cores $VHOST_RX_CORES --vhost-tx-cores $VHOST_TX_CORES \
+  > switch.log 2>&1

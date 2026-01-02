@@ -5,24 +5,15 @@
 #ifndef VHOST_H_
 #define VHOST_H_
 
+#include "log.h"
+#include <rte_errno.h>
 #include <rte_ether.h>
 #include <rte_vhost.h>
+#include <stdatomic.h>
+#include <stdint.h>
 #include <sys/queue.h>
 
-#include "log.h"
-#include "src/include/fastpath.h"
-
-// rte = runtime env (dpdk)
-// queue type identifiers: receive, transmit, total count
-enum { VIRTIO_RXQ, VIRTIO_TXQ, VIRTIO_QNUM };
-
-// https://www.redhat.com/en/blog/journey-vhost-users-realm
-// https://www.redhat.com/en/blog/virtqueues-and-virtio-ring-how-data-travels
-// struct vhost_queue {
-//     struct rte_vhost_vring vr; // DPDK vhost vring
-//     uint16_t last_avail_idx;   // last processed available descriptor index
-//     uint16_t last_used_idx;    // last processed used descriptor index
-// };
+enum { VIRTIO_RXQ, VIRTIO_TXQ };
 
 #define REQUEST_DEV_REMOVAL 1
 #define ACK_DEV_REMOVAL 0
@@ -35,47 +26,141 @@ enum { VIRTIO_RXQ, VIRTIO_TXQ, VIRTIO_QNUM };
 #define MBUF_TABLE_DRAIN_TSC ((rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US)
 
 extern const struct rte_vhost_device_ops virtio_net_device_ops;
+extern struct route_table route_table;
+
+// SP, mutated freely, not cached aligned
+struct vhost_ctrl {
+    int vid;
+    uint64_t features;
+    size_t hdr_len;
+    struct rte_vhost_memory *mem;
+
+    struct rte_ether_addr mac;
+    uint32_t ip;
+
+    // lifecycle
+    bool attached;
+};
+
+struct vhost_dev {
+    int vid;
+    // vid != vm_id as vid is FIFO order and server vms are spawned first
+    int vm_id;
+    struct rte_ether_addr mac;
+    uint32_t ip;
+
+    // ready if the MAC address has been set
+    volatile uint8_t ready;
+} __rte_cache_aligned;
+
+#define WINDOW_SIZE 10 // number of intervals (~seconds)
+// Per-core runtime state (NO sharing)
+struct vdev_rx_stats {
+    uint32_t call_count;
+    uint32_t pkt_count;
+    uint32_t empty_poll_count;
+    uint32_t max_poll_count;
+    uint32_t vhost_tx_ring_enq_fail_count;
+    uint32_t eth_tx_ring_enq_fail_count;
+    uint32_t byte_wnd[WINDOW_SIZE];
+    uint32_t pkt_wnd[WINDOW_SIZE];
+    uint32_t empty_wnd[WINDOW_SIZE];
+    int wnd_idx; // current window idx
+};
+
+struct vdev_tx_stats {
+    uint32_t call_count;
+    uint32_t pkt_count;
+    uint32_t max_send_count;
+    uint32_t requeue_count;
+    uint32_t ring_deq_max_count;
+};
+
+struct route_table {
+    struct rte_hash *mac_2_vid;
+    struct rte_hash *ip_2_vid;
+};
+
+// struct vhost_dev { // vhost device
+//     // Device MAC address (Obtained on first TX packet).
+//     struct rte_ether_addr mac_address;
+//     uint32_t vm_ip_address;
+//     /**< A device is set as ready if the MAC address has been set. */
+//     volatile uint8_t ready;
+//     /**< Device is marked for removal from the data core. */
+//     volatile uint8_t remove;
+
+//     int vid;                      // vhost device ID, assigned by dpdk
+//     uint64_t features;            // Virtio feature flags
+//     size_t hdr_len;               // Header length
+//     struct rte_vhost_memory *mem; // Guest memory mapping
+
+//     // Rate-limited logging for failed enqueue attempts
+//     uint64_t last_failed_log_ts; // TSC timestamp of last log
+//     uint64_t failed_pkts_count;  // Cumulative failed packets since last log
+
+//     // Track consecutive empty polls before marking device inactive
+//     uint8_t empty_poll_count;
+//     uint8_t is_active;
+// } __rte_cache_aligned;
 
 int check_device_state(struct vhost_dev *vdev, const char *func);
-struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac);
-struct vhost_dev *find_vhost_dev_core_mac(struct dataplane_context *ctx, struct rte_ether_addr *mac);
-struct vhost_dev *find_vhost_dev_core_ip(struct dataplane_context *ctx, uint32_t vm_ip_address);
-struct vhost_dev *find_vhost_dev_ip(uint32_t vm_ip_address);
 void unregister_vhost_drivers(int socket_num, const char *path);
 int register_vhost_drivers();
 
 int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m);
-void unlink_vmdq(struct dataplane_context *ctx, struct vhost_dev *vdev);
+void unlink_vmdq(struct vhost_dev *vdev);
 
-// copy pkt from guest vring buffer to DPDK mbuf (vm -> dpdk)
-// This can fail if the vhost connection is broken
-static inline unsigned vhost_poll(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
-    int16_t ret = rte_vhost_dequeue_burst(vid, VIRTIO_TXQ, ctx->net.pool, pkts, num);
-    if (ret == 0)
-        return 0;
+int init_vhost_plans();
+int vhost_rx_plan_add(int vid);
+int vhost_rx_plan_remove(int vid);
+int vhost_tx_plan_add(int vid);
+int vhost_tx_plan_remove(int vid);
 
-    STATS_ADD(ctx, pkt_vhost_rx, ret);
-    STATS_ADD(ctx, call_vhost_rx, 1);
-    if (ret == num) {
-        STATS_ADD(ctx, cou_vhost_poll_max, 1);
+int init_route_table();
+int cleanup_route_table();
+int add_route_entry(int vid, struct rte_ether_addr *mac, uint32_t ip);
+int remove_route_entry(int vid, struct rte_ether_addr *mac, uint32_t ip);
+// use vid to get vdev by indexing the vdev_list global variable
+int find_vid_by_mac(struct rte_ether_addr *mac);
+int find_vid_by_ip(uint32_t ip);
+
+// static inline unsigned is_route_added()
+
+// static inline unsigned vhost_send(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts)
+// {
+//     num = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
+//     if (num == 0)
+//         return 0;
+
+//     STATS_ADD(ctx, pkt_vhost_tx, num);
+//     STATS_ADD(ctx, call_vhost_tx, 1);
+//     LOG_VM_OUT("[%d](%d) Sent %d packets to VM\n", ctx->id, vid, num);
+//     PRINT_PKTS(pkts, num, LOG_VM_OUT);
+
+//     return num;
+// }
+
+#define PERTHREAD_MBUFS 8192
+#define BUFFER_SIZE 2048
+#define MBUF_SIZE (BUFFER_SIZE + RTE_PKTMBUF_HEADROOM)
+
+static inline struct rte_mempool *vhost_mempool_alloc() {
+    static _Atomic unsigned pool_id;
+    unsigned n = atomic_fetch_add(&pool_id, 1);
+
+    char name[32];
+    snprintf(name, sizeof(name), "mempool_vhost_%u", n);
+
+    struct rte_mempool *mp =
+        rte_mempool_create(name, PERTHREAD_MBUFS, MBUF_SIZE, 32, sizeof(struct rte_pktmbuf_pool_private),
+                           rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, rte_socket_id(), 0);
+
+    if (mp == NULL) {
+        LOG_ERROR("Failed to create mempool %s: %s\n", name, rte_strerror(rte_errno));
+        return NULL;
     }
-    LOG_VM_IN("[%d](%d) Received %d packets from VM\n", ctx->id, vid, ret);
-    PRINT_PKTS(pkts, ret, LOG_VM_IN);
 
-    return ret;
+    return mp;
 }
-
-static inline unsigned vhost_send(struct dataplane_context *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
-    num = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
-    if (num == 0)
-        return 0;
-
-    STATS_ADD(ctx, pkt_vhost_tx, num);
-    STATS_ADD(ctx, call_vhost_tx, 1);
-    LOG_VM_OUT("[%d](%d) Sent %d packets to VM\n", ctx->id, vid, num);
-    PRINT_PKTS(pkts, num, LOG_VM_OUT);
-
-    return num;
-}
-
 #endif

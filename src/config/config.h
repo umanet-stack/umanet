@@ -36,6 +36,10 @@ typedef struct {
     struct rte_ether_addr mac;
     // mac address of other node nic
     struct rte_ether_addr other_node_mac;
+    uint16_t eth_rx_cores;
+    uint16_t eth_tx_cores;
+    uint16_t vhost_rx_cores;
+    uint16_t vhost_tx_cores;
 
     /* ===== TAS ===== */
     /* shared memory size */

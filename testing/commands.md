@@ -28,18 +28,22 @@ python testing/process_results.py tap vm-client
 ```bash
 # run TAP once before DPDK to make it download iperf
 # no. of vhost must match no. of VMs!
-sudo ./build_and_run.sh test 5 32
+sudo ./build_and_run.sh test 32
+
+# do local networking via dpdk
 ./setup/vm/spawn_vms.sh dpdk 32 vm-vm-internal
+# do local networking via tap
+./setup/vm/spawn_vms.sh dpdk-tap 32 vm-vm-internal
 python testing/process_results.py dpdk vm-vm-internal
 ```
 ## multinode
 - vm user-data has ping service that will ping 3 times to make dpdk app learn IP of vm
 ```bash
 # node 1
-sudo ./build_and_run.sh test 5 32
+sudo ./build_and_run.sh test 32
 ./setup/vm/spawn_vms.sh dpdk 32 vm-server
 # node 0
-sudo ./build_and_run.sh test 5 32
+sudo ./build_and_run.sh test 32
 ./setup/vm/spawn_vms.sh dpdk 32 vm-client
 python testing/process_results.py dpdk vm-client
 ```
@@ -47,6 +51,7 @@ python testing/process_results.py dpdk vm-client
 ```bash
 # kill all vms to end/reset experiment
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
+sudo bash -c "ps aux | grep vhost-switch | grep -v grep | awk '{print \$2}' | xargs kill -9"
 ```
 
 # OVS DPDK

@@ -12,3 +12,4 @@ sbin
 linuxrc
 initramfs-overlay.img
 .env
+switch.log

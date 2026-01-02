@@ -16,26 +16,23 @@
 #include <rte_vhost.h>
 
 #include "./config/config.h"
-#include "./include/tas.h"
-// #include "src/fast/tap.h"
+#include "./include/main.h"
 #include "log.h"
-#include "src/include/fastpath.h"
+#include "src/include/state.h"
+#include "src/network/network.h"
+#include "src/slow/slowpath.h"
 #include "src/vhost/vhost.h"
-
-struct core_load {
-    uint64_t cyc_busy;
-};
+#include <stdatomic.h>
 
 config_t config;
 
-unsigned fp_cores_max;
-volatile unsigned fp_cores_cur = 1;
-volatile unsigned fp_scale_to = 0;
-
-int exited;
-
-struct dataplane_context **ctxs = NULL;
-struct core_load *core_loads = NULL;
+struct dataplane_topology *global = NULL;
+struct eth_tx_ctx **eth_tx_ctxs = NULL;
+struct eth_rx_ctx **eth_rx_ctxs = NULL;
+struct vhost_tx_ctx **vhost_tx_ctxs = NULL;
+struct vhost_rx_ctx **vhost_rx_ctxs = NULL;
+struct control_ctx *control_ctx = NULL;
+_Atomic(struct vdev_list *) vdev_list = NULL;
 
 static int start_threads(void);
 static void thread_error(void);
@@ -43,28 +40,16 @@ static int common_thread(void *arg);
 
 static void sigint_handler(__rte_unused int signum) {
     unregister_vhost_drivers(config.nb_sockets, config.socket_files);
-    dataplane_dump_stats();
-    network_dump_stats(); // Dump hardware TX/RX statistics including errors
+    // dataplane_dump_stats();
+    // network_dump_stats(); // Dump hardware TX/RX statistics including errors
     exit(0);
 }
-
-static unsigned threads_launched = 0;
 
 int main(int argc, char *argv[]) {
     int res = EXIT_SUCCESS;
 
     // Register signal handler for SIGINT (Ctrl+C) (graceful shutdown)
     signal(SIGINT, sigint_handler);
-
-    /* initialize config with defaults before using it */
-    init_config(&config);
-
-    /* allocate shared memory before dpdk grabs all huge pages */
-    if (shm_preinit() != 0) {
-        LOG_ERROR("shm preinit failed\n");
-        res = EXIT_FAILURE;
-        goto error_exit;
-    }
 
     /* init DPDK EAL (Environment Abstraction Layer) */
     rte_log_set_global_level(RTE_LOG_ERR);
@@ -74,74 +59,63 @@ int main(int argc, char *argv[]) {
         res = EXIT_FAILURE;
         goto error_exit;
     }
+    LOG_IMPT("✅ Initialized DPDK EAL\n");
     argc -= dpdk_args; // Update argc to exclude DPDK-specific arguments
     argv += dpdk_args;
 
-    /* parse app arguments */
+    init_config(&config);
     if (parse_config(&config, argc, argv) != 0) {
         LOG_ERROR("invalid argument\n");
         res = EXIT_FAILURE;
         goto error_exit;
     }
-    fp_cores_max = config.fp_cores_max;
+    LOG_IMPT("✅ Parsed config\n");
 
-    if ((core_loads = calloc(fp_cores_max, sizeof(*core_loads))) == NULL) {
+    if (init_dataplane_topology() != 0) {
         res = EXIT_FAILURE;
-        LOG_ERROR("core loads alloc failed\n");
+        LOG_ERROR("init_dataplane_topology failed\n");
         goto error_exit;
     }
+    LOG_IMPT("✅ Initialized dataplane topology\n");
 
-    // Sets up application queues and DMA regions
-    if (shm_init(fp_cores_max) != 0) {
+    if (init_rings() != 0) {
         res = EXIT_FAILURE;
-        LOG_ERROR("dma init failed\n");
+        LOG_ERROR("init_rings failed\n");
         goto error_exit;
     }
+    LOG_IMPT("✅ Initialized rings\n");
 
-    // Sets up RX/TX queues per core, initializes ARP, routing tables
-    LOG_INFO("Initializing network...\n");
-    if (network_init(fp_cores_max) != 0) {
+    if (init_dataplane_ctxs() != 0) {
+        res = EXIT_FAILURE;
+        LOG_ERROR("init_dataplane_ctxs failed\n");
+        goto error_exit;
+    }
+    LOG_IMPT("✅ Initialized dataplane contexts\n");
+
+    if (init_vhost_plans() != 0) {
+        res = EXIT_FAILURE;
+        LOG_ERROR("init_vhost_rx_plans failed\n");
+        goto error_exit;
+    }
+    LOG_IMPT("✅ Initialized vhost RX plans\n");
+
+    // Sets up RX/TX queues per core
+    if (network_init() != 0) {
         res = EXIT_FAILURE;
         LOG_ERROR("network init failed\n");
-        goto error_shm_cleanup;
-    }
-
-    if (init_mac_flow_table() != 0) {
-        res = EXIT_FAILURE;
-        LOG_ERROR("init_mac_flow_table failed\n");
         goto error_network_cleanup;
     }
+    LOG_IMPT("✅ Initialized network\n");
 
-    // LOG_INFO("Initializing TAP interface (vtap0)...\n");
-    // if (tap_init() != 0) {
-    //     LOG_WARN("Failed to initialize TAP interface - packets to gateway IP will be dropped\n");
-    // }
-
-    // Initialize NAT with public IP (128.110.219.130)
-    // Gateway IP (config.ip) is for internal VMs, NAT needs public IP for internet
-    // uint32_t nat_ip = (128 << 24) | (110 << 16) | (219 << 8) | 130; // 128.110.219.130
-    // LOG_INFO("Initializing NAT with public IP %u.%u.%u.%u...\n", (nat_ip >> 24) & 0xff, (nat_ip >> 16) & 0xff,
-    //          (nat_ip >> 8) & 0xff, nat_ip & 0xff);
-    // if (nat_init(nat_ip) != 0) {
+    // if (init_mac_flow_table() != 0) {
     //     res = EXIT_FAILURE;
-    //     LOG_ERROR("NAT init failed\n");
+    //     LOG_ERROR("init_mac_flow_table failed\n");
     //     goto error_network_cleanup;
     // }
-
-    LOG_INFO("Checking dataplane config...\n");
-    if (dataplane_init() != 0) {
-        res = EXIT_FAILURE;
-        LOG_ERROR("dpinit failed\n");
-        goto error_network_cleanup;
-    }
-
-    // Sets flag in shared memory indicating TAS is ready, app waiting to connect can now proceed
-    LOG_INFO("Marking shm ready...\n");
-    shm_set_ready();
+    // LOG_IMPT("✅ Initialized mac flow table\n");
 
     // Start worker threads BEFORE vhost registration
     // This ensures TX queues are initialized before vhost can send packets
-    LOG_INFO("Launching switch workers on cores: ");
     if (start_threads() != 0) {
         res = EXIT_FAILURE;
         LOG_ERROR("start_threads failed\n");
@@ -149,21 +123,43 @@ int main(int argc, char *argv[]) {
     }
 
     LOG_INFO("Waiting for worker threads to initialize TX/RX queues...\n");
-
-    // Wait for all contexts to be initialized
     int max_wait = 10; // 10 seconds max
     int all_ready = 0;
     for (int wait = 0; wait < max_wait && !all_ready; wait++) {
         sleep(1);
         all_ready = 1;
-        for (int i = 0; i < fp_cores_max; i++) {
-            if (ctxs[i] == NULL) {
-                LOG_INFO("Waiting for context %d to initialize...\n", i);
+        for (int i = 0; i < config.eth_rx_cores; i++) {
+            if (eth_rx_ctxs[i] == NULL) {
+                all_ready = 0;
+                break;
+            }
+        }
+        for (int i = 0; i < config.eth_tx_cores; i++) {
+            if (eth_tx_ctxs[i] == NULL) {
+                all_ready = 0;
+                break;
+            }
+        }
+        for (int i = 0; i < config.vhost_rx_cores; i++) {
+            if (vhost_rx_ctxs[i] == NULL) {
+                all_ready = 0;
+                break;
+            }
+        }
+        for (int i = 0; i < config.vhost_tx_cores; i++) {
+            if (vhost_tx_ctxs[i] == NULL) {
                 all_ready = 0;
                 break;
             }
         }
     }
+
+    if (network_start_eth() != 0) {
+        res = EXIT_FAILURE;
+        LOG_ERROR("network_start_eth failed\n");
+        goto error_dataplane_cleanup;
+    }
+    LOG_IMPT("✅ Started network\n");
 
     if (!all_ready) {
         res = EXIT_FAILURE;
@@ -171,7 +167,7 @@ int main(int argc, char *argv[]) {
         goto error_dataplane_cleanup;
     }
 
-    LOG_INFO("All %d dataplane contexts initialized successfully\n", fp_cores_max);
+    LOG_IMPT("✅ All %d dataplane contexts initialized successfully\n", global->fp_cores);
 
     if (register_vhost_drivers() != 0) {
         res = EXIT_FAILURE;
@@ -179,14 +175,12 @@ int main(int argc, char *argv[]) {
         goto error_dataplane_cleanup;
     }
 
+    slowpath_loop(control_ctx);
+
     // Wait for lcores to finish (keeps main alive)
-    unsigned lcore_id;
-    RTE_LCORE_FOREACH_WORKER(lcore_id) { rte_eal_wait_lcore(lcore_id); }
+    // unsigned lcore_id;
+    // RTE_LCORE_FOREACH_WORKER(lcore_id) { rte_eal_wait_lcore(lcore_id); }
 
-    // LOG_INFO("Cleaning up TAP interface...\n");
-    // tap_cleanup();
-
-    /* clean up the EAL */
     rte_eal_cleanup();
 
     return 0;
@@ -194,59 +188,56 @@ int main(int argc, char *argv[]) {
 error_dataplane_cleanup:
 error_network_cleanup:
     network_cleanup();
-error_shm_cleanup:
-    shm_cleanup();
 error_exit:
     return res;
 }
 
 static int common_thread(void *arg) {
     uint16_t id = (uintptr_t)arg;
-    struct dataplane_context *ctx;
 
     {
         char name[17];
-        snprintf(name, sizeof(name), "stcp-fp-%u", id);
+        snprintf(name, sizeof(name), "fp-core-%u", id);
         pthread_setname_np(pthread_self(), name);
     }
 
-    /* Allocate fastpath core context */
-    if ((ctx = rte_zmalloc("fastpath core context", sizeof(*ctx), 0)) == NULL) {
-        LOG_ERROR("Allocating fastpath core context failed\n");
-        goto error_alloc;
+    // id starts at 1, but arrays are 0-indexed, so subtract 1
+    if (id <= config.eth_rx_cores) {
+        struct eth_rx_ctx *eth_rx_ctx = eth_rx_ctxs[id - 1];
+        eth_rx_ctx->core_id = id;
+        if (network_rx_queue_init(eth_rx_ctx) != 0) {
+            LOG_ERROR("network_rx_queue_init failed\n");
+            return -1;
+        }
+        eth_rx_loop(eth_rx_ctx);
+
+    } else if (id <= config.eth_rx_cores + config.eth_tx_cores) {
+        struct eth_tx_ctx *eth_tx_ctx = eth_tx_ctxs[id - config.eth_rx_cores - 1];
+        eth_tx_ctx->core_id = id;
+        if (network_tx_queue_init(eth_tx_ctx) != 0) {
+            LOG_ERROR("network_tx_queue_init failed\n");
+            return -1;
+        }
+        eth_tx_loop(eth_tx_ctx);
+
+    } else if (id <= config.eth_rx_cores + config.eth_tx_cores + config.vhost_rx_cores) {
+        struct vhost_rx_ctx *vhost_rx_ctx = vhost_rx_ctxs[id - config.eth_rx_cores - config.eth_tx_cores - 1];
+        vhost_rx_ctx->core_id = id;
+        vhost_rx_loop(vhost_rx_ctx);
+
+    } else if (id <= config.eth_rx_cores + config.eth_tx_cores + config.vhost_rx_cores + config.vhost_tx_cores) {
+        struct vhost_tx_ctx *vhost_tx_ctx =
+            vhost_tx_ctxs[id - config.eth_rx_cores - config.eth_tx_cores - config.vhost_rx_cores - 1];
+        vhost_tx_ctx->core_id = id;
+        vhost_tx_loop(vhost_tx_ctx);
+
+    } else {
+        LOG_ERROR("Invalid core ID: %u\n", id);
+        thread_error();
+        return -1;
     }
-    ctxs[id] = ctx;
-    ctx->id = id;
 
-    /* initialize trace if enabled */
-#ifdef FLEXNIC_TRACING
-    if (trace_thread_init(id) != 0) {
-        LOG_ERROR("initializing trace failed\n");
-        goto error_trace;
-    }
-#endif
-
-    /* initialize data plane context */
-    if (dataplane_context_init(ctx) != 0) {
-        LOG_ERROR("initializing data plane context\n");
-        goto error_dpctx;
-    }
-
-    /* poll doorbells and network */
-    LOG_INFO("Entering dataplane loop...\n");
-    dataplane_loop(ctx);
-
-    dataplane_context_destroy(ctx);
     return 0;
-
-error_dpctx:
-#ifdef FLEXNIC_TRACING
-error_trace:
-#endif
-    dataplane_context_destroy(ctx);
-error_alloc:
-    thread_error();
-    return -1;
 }
 
 static int start_threads(void) {
@@ -254,25 +245,19 @@ static int start_threads(void) {
     void *arg;
 
     cores_avail = rte_lcore_count();
-    /* fast path cores + one slow path core */
-    cores_needed = fp_cores_max + 1;
+    // 8 fast path cores + 1 slow path core
+    // -l 0-8 = 1 master core (core 0) + 8 slave cores (core 1-8, tho id will be 0-7)
+    cores_needed = global->fp_cores + 1;
 
-    if ((ctxs = rte_calloc("context list", fp_cores_max, sizeof(*ctxs), 64)) == NULL) {
-        perror("datplane_init: calloc failed");
-        return -1;
-    }
-
-    /* check that we have enough cores */
-    // -l 2 = 1 master core (core 0) + 1 slave core (core 1)
     if (cores_avail < cores_needed) {
-        LOG_ERROR("Not enough cores: got %u need %u\n", cores_avail, cores_needed);
+        LOG_ERROR("Not enough cores: got %u, need %u\n", cores_avail, cores_needed);
         return -1;
     }
 
-    /* start common threads */
+    uint16_t threads_launched = 0;
     RTE_LCORE_FOREACH_WORKER(core) {
-        if (threads_launched < fp_cores_max) {
-            arg = (void *)(uintptr_t)threads_launched;
+        if (threads_launched < global->fp_cores) {
+            arg = (void *)(uintptr_t)(threads_launched + 1);
             if (rte_eal_remote_launch(common_thread, arg, core) != 0) {
                 LOG_ERROR("ERROR\n");
                 return -1;

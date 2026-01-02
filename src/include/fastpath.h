@@ -31,12 +31,6 @@
 
 #include <rte_interrupts.h>
 
-#include "../../include/utils_rng.h"
-
-// #define BATCH_SIZE 16
-#define BUFCACHE_SIZE 128
-// #define TXBUF_SIZE (2 * BATCH_SIZE)
-
 #define DATAPLANE_TSCS
 
 #ifdef DATAPLANE_STATS
@@ -46,7 +40,7 @@
 // In a large function, this kills instruction-level parallelism.
 #define STATS_TS(n) uint64_t n = rte_get_tsc_cycles()
 // Use regular addition instead of atomic (stats are per-core, no contention)
-#define STATS_TSADD(c, f, n) (c->stat_##f += (n))
+#define STATS_TSADD(c, f, n) (c->f += (n))
 #else
 #define STATS_TS(n)                                                                                                    \
     do {                                                                                                               \
@@ -55,7 +49,7 @@
     do {                                                                                                               \
     } while (0)
 #endif
-#define STATS_ADD(c, f, n) __sync_fetch_and_add(&c->stat_##f, n)
+#define STATS_ADD(c, f, n) __sync_fetch_and_add(&c->f, n)
 #else
 #define STATS_TS(n)                                                                                                    \
     do {                                                                                                               \
@@ -68,163 +62,4 @@
     } while (0)
 #endif
 
-struct network_thread {
-    struct rte_mempool *pool;
-    // ETH RX/TX queue assigned to core; same value as core id, 1 queue per core
-    // with 3 queues: VM 0,3,6,9 share queue 0; VM 1,4,7,10 share queue 1
-    uint16_t queue_id;
-};
-
-/** Skiplist: #levels */
-#define QMAN_SKIPLIST_LEVELS 4
-
-struct qman_thread {
-    /************************************/
-    /* read-only */
-    struct queue *queues;
-
-    /************************************/
-    /* modified by owner thread */
-    uint32_t head_idx[QMAN_SKIPLIST_LEVELS];
-    uint32_t nolimit_head_idx;
-    uint32_t nolimit_tail_idx;
-    uint32_t ts_real;
-    uint32_t ts_virtual;
-    struct utils_rng rng;
-    bool nolimit_first;
-};
-
-struct device_statistics {
-    uint64_t tx;
-    uint64_t tx_total;
-    rte_atomic64_t rx_atomic;
-    rte_atomic64_t rx_total_atomic;
-};
-
-struct vhost_dev { // vhost device
-    // Device MAC address (Obtained on first TX packet).
-    struct rte_ether_addr mac_address;
-    uint32_t vm_ip_address;
-    /**< Data core that the device is added to. */
-    uint16_t coreid;
-    /**< A device is set as ready if the MAC address has been set. */
-    volatile uint8_t ready;
-    /**< Device is marked for removal from the data core. */
-    volatile uint8_t remove;
-
-    int vid;                      // vhost device ID, assigned by dpdk
-    uint64_t features;            // Virtio feature flags
-    size_t hdr_len;               // Header length
-    struct rte_vhost_memory *mem; // Guest memory mapping
-    struct device_statistics stats;
-
-    // Rate-limited logging for failed enqueue attempts
-    uint64_t last_failed_log_ts; // TSC timestamp of last log
-    uint64_t failed_pkts_count;  // Cumulative failed packets since last log
-
-    // Track consecutive empty polls before marking device inactive
-    uint8_t empty_poll_count;
-    uint8_t is_active;
-} __rte_cache_aligned;
-
-#define MAX_PKT_BURST 32              /* Max packets processed per burst (RX/TX) */
-#define MAX_VHOST_DEVICES_PER_CORE 64 /* Max vhost devices per dataplane core */
-
-/* Used for queueing bursts of TX packets. */
-struct mbuf_table {
-    unsigned len;
-    struct rte_mbuf *m_table[MAX_PKT_BURST];
-};
-
-struct vhost_info {
-    uint32_t device_num;
-
-    /* Flag to synchronize device removal. */
-    volatile uint8_t dev_removal_flag;
-
-    // Array of device pointers for round-robin polling
-    struct vhost_dev *vdev_list[MAX_VHOST_DEVICES_PER_CORE];
-
-    // Round-robin index for polling devices
-    uint32_t poll_next_device;
-
-    uint16_t inactive_check_counter; // Counter for checking inactive devices
-
-    struct mbuf_table tx_q;
-};
-
-struct dataplane_context {
-    struct network_thread net;
-    struct qman_thread qman;
-    struct rte_ring *qman_fwd_ring;
-    uint16_t id;
-    int evfd;
-    struct rte_epoll_event ev;
-
-    // vhost
-    struct vhost_info vhost;
-
-    /********************************************************/
-    /* send buffer */
-    // struct network_buf_handle *tx_handles[TXBUF_SIZE];
-    // uint16_t tx_num;
-
-    /********************************************************/
-    /* polling queues */
-    uint32_t poll_next_ctx;
-    uint64_t prev_tsc;
-
-    /********************************************************/
-    /* pre-allocated buffers for polling doorbells and queue manager */
-    struct network_buf_handle *bufcache_handles[BUFCACHE_SIZE];
-    uint16_t bufcache_num;
-    uint16_t bufcache_head;
-
-    uint64_t loadmon_cyc_busy;
-
-    uint64_t kernel_drop;
-    /********************************************************/
-    /* Stats */
-    uint64_t stat_cyc_loop;
-
-    uint64_t stat_cyc_eth_fp;
-    uint64_t stat_cyc_eth_poll;
-
-    uint64_t stat_cyc_vhost_fp;
-    uint64_t stat_cou_vhost_poll_max;
-    uint64_t stat_cyc_vhost_poll;
-    uint64_t stat_cou_vhost_external;
-    uint64_t stat_cou_vhost_arp;
-    uint64_t stat_cou_vhost_local;
-    uint64_t stat_cou_vhost_broadcast;
-
-    uint64_t stat_pkt_eth_rx;
-    uint64_t stat_call_eth_rx;
-    uint64_t stat_pkt_eth_tx;
-    uint64_t stat_call_eth_tx;
-    uint64_t stat_pkt_eth_tx_fail;
-
-    uint64_t stat_pkt_vhost_rx;
-    uint64_t stat_call_vhost_rx;
-    uint64_t stat_pkt_vhost_tx;
-    uint64_t stat_call_vhost_tx;
-    uint64_t stat_pkt_vhost_tx_fail;
-
-    /* Lightweight bottleneck detection (no TSC overhead) */
-    uint64_t stat_tx_drain_calls;   // Times drain_vhost_tx() was called
-    uint64_t stat_tx_drain_timeout; // Times drain happened due to timeout
-    uint64_t stat_tx_drain_full;    // Times drain happened when queue was full
-    uint64_t stat_tx_q_max_depth;   // Maximum queue depth observed
-    uint64_t stat_eth_tx_partial;   // Times network_send() returned < requested
-    uint64_t stat_loop_iterations;  // Total loop iterations
-};
-
-extern struct dataplane_context **ctxs;
-
-int dataplane_init(void);
-int dataplane_context_init(struct dataplane_context *ctx);
-void dataplane_context_destroy(struct dataplane_context *ctx);
-void dataplane_loop(struct dataplane_context *ctx);
-void dataplane_dump_stats(void);
-
-#endif /* ndef FASTPATH_H_ */
+#endif /* FASTPATH_H_ */

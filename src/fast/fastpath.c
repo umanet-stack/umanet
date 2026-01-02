@@ -2,7 +2,7 @@
 #include "src/include/fastpath.h"
 #include "log.h"
 #include "src/fast/internal.h"
-#include "src/include/tas.h"
+#include "src/include/main.h"
 #include "src/network/network.h"
 #include "src/vhost/vhost.h"
 #include <rte_mbuf_core.h>

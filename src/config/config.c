@@ -15,6 +15,7 @@
 #define BURST_RX_RETRIES 4  /* Number of retries on RX. */
 
 static inline int parse_int8(const char *s, uint8_t *pi);
+static inline int parse_int16(const char *s, uint16_t *pi);
 static inline int parse_int32(const char *s, uint32_t *pi);
 static int parse_socket_dir(config_t *c, const char *q_arg);
 static inline int parse_cidr(char *s, uint32_t *ip, uint8_t *prefix);
@@ -37,6 +38,10 @@ void init_config(config_t *c) {
     c->ip_prefix = 0;
     c->mac = (struct rte_ether_addr){{0x02, 0x00, 0x00, 0x00, 0x00, 0xFE}};
     c->other_node_mac = (struct rte_ether_addr){{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}};
+    c->eth_rx_cores = 0;
+    c->eth_tx_cores = 0;
+    c->vhost_rx_cores = 0;
+    c->vhost_tx_cores = 0;
     /* ===== TAS ===== */
     c->shm_len = 1024 * 1024 * 1024;
     c->fp_cores_max = 1;
@@ -61,9 +66,12 @@ enum cfg_params {
     CP_TSO,
     CP_CLIENT,
     CP_DEQUEUE_ZERO_COPY,
-    CP_FP_CORES_MAX,
     CP_IP_ADDR,
     CP_OTHER_NODE_MAC,
+    CP_ETH_RX_CORES,
+    CP_ETH_TX_CORES,
+    CP_VHOST_RX_CORES,
+    CP_VHOST_TX_CORES,
 };
 
 static struct option options[] = {
@@ -112,15 +120,14 @@ static struct option options[] = {
         required_argument,
         .val = CP_TSO,
     },
-    {
-        "fp-cores-max",
-        required_argument,
-        .val = CP_FP_CORES_MAX,
-    },
     {"client", no_argument, .val = CP_CLIENT},
     {"dequeue-zero-copy", no_argument, .val = CP_DEQUEUE_ZERO_COPY},
     {"ip-addr", required_argument, .val = CP_IP_ADDR},
     {"other-node-mac", required_argument, .val = CP_OTHER_NODE_MAC},
+    {"eth-rx-cores", required_argument, .val = CP_ETH_RX_CORES},
+    {"eth-tx-cores", required_argument, .val = CP_ETH_TX_CORES},
+    {"vhost-rx-cores", required_argument, .val = CP_VHOST_RX_CORES},
+    {"vhost-tx-cores", required_argument, .val = CP_VHOST_TX_CORES},
 };
 
 /*
@@ -208,12 +215,6 @@ int parse_config(config_t *c, int argc, char **argv) {
                 goto failed;
             }
             break;
-        case CP_FP_CORES_MAX:
-            if (parse_int32(optarg, &c->fp_cores_max) != 0) {
-                fprintf(stderr, "Invalid argument for fp-cores-max [0-N]\n");
-                goto failed;
-            }
-            break;
 
         case CP_CLIENT:
             c->client_mode = 1;
@@ -232,6 +233,34 @@ int parse_config(config_t *c, int argc, char **argv) {
         case CP_OTHER_NODE_MAC:
             if (parse_ether_addr(optarg, &c->other_node_mac) != 0) {
                 fprintf(stderr, "Invalid argument for other-node-mac\n");
+                goto failed;
+            }
+            break;
+
+        case CP_ETH_RX_CORES:
+            if (parse_int16(optarg, &c->eth_rx_cores) != 0) {
+                fprintf(stderr, "Invalid argument for eth-rx-cores [0-N]\n");
+                goto failed;
+            }
+            break;
+
+        case CP_ETH_TX_CORES:
+            if (parse_int16(optarg, &c->eth_tx_cores) != 0) {
+                fprintf(stderr, "Invalid argument for eth-tx-cores [0-N]\n");
+                goto failed;
+            }
+            break;
+
+        case CP_VHOST_RX_CORES:
+            if (parse_int16(optarg, &c->vhost_rx_cores) != 0) {
+                fprintf(stderr, "Invalid argument for vhost-rx-cores [0-N]\n");
+                goto failed;
+            }
+            break;
+
+        case CP_VHOST_TX_CORES:
+            if (parse_int16(optarg, &c->vhost_tx_cores) != 0) {
+                fprintf(stderr, "Invalid argument for vhost-tx-cores [0-N]\n");
                 goto failed;
             }
             break;
@@ -280,6 +309,14 @@ static int parse_ether_addr(const char *s, struct rte_ether_addr *addr) {
 }
 
 static inline int parse_int32(const char *s, uint32_t *pi) {
+    char *end;
+    *pi = strtoul(s, &end, 10);
+    if (!*s || *end)
+        return -1;
+    return 0;
+}
+
+static inline int parse_int16(const char *s, uint16_t *pi) {
     char *end;
     *pi = strtoul(s, &end, 10);
     if (!*s || *end)

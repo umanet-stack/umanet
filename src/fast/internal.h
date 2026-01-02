@@ -26,6 +26,7 @@
 #define INTERNAL_H_
 
 #include "src/include/fastpath.h"
+#include "src/include/state.h"
 #include <stddef.h>
 #include <stdint.h>
 

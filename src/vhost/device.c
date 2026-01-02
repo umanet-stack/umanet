@@ -2,20 +2,18 @@
  * Copyright(c) 2010-2017 Intel Corporation
  */
 
-#include "../include/tas.h"
+#include "../include/main.h"
 #include <rte_hash.h>
 #include <rte_jhash.h>
 #include <rte_lcore.h>
 #include <rte_malloc.h>
 #include <rte_vhost.h>
+#include <stdatomic.h>
 #include <unistd.h>
 
 #include "log.h"
+#include "src/include/state.h"
 #include "src/vhost/vhost.h"
-
-// Global hash table for MAC address to vhost_dev lookup
-struct rte_hash *mac_lookup_table = NULL;
-#define MAC_LOOKUP_TABLE_SIZE 256 // Support up to 256 devices
 
 int check_device_state(struct vhost_dev *vdev, const char *func) {
     if (unlikely(vdev == NULL)) {
@@ -28,77 +26,76 @@ int check_device_state(struct vhost_dev *vdev, const char *func) {
         return -1;
     }
 
-    if (unlikely(vdev->remove || vdev->ready == DEVICE_SAFE_REMOVE)) {
-        LOG_WARN("Warning: Attempting to %s device vid=%d marked for removal (ready=%d, remove=%d)\n", func, vdev->vid,
-                 vdev->ready, vdev->remove);
+    if (unlikely(vdev->ready == DEVICE_SAFE_REMOVE)) {
+        LOG_WARN("(%d) Attempting to %s device marked for removal (ready=%d)\n", vdev->vid, func, vdev->ready);
         return -1;
     }
 
     return 0;
 }
 
-struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
-    if (unlikely(mac_lookup_table == NULL)) {
-        // Hash table not initialized yet, fall back to linear search
-        struct vhost_dev *vdev;
-        for (int i = 0; i < fp_cores_max; i++) {
-            struct dataplane_context *ctx = ctxs[i];
-            if (ctx == NULL)
-                continue;
-            for (int j = 0; j < ctx->vhost.device_num; j++) {
-                vdev = ctx->vhost.vdev_list[j];
-                if (vdev != NULL && vdev->ready == DEVICE_RX && rte_is_same_ether_addr(mac, &vdev->mac_address))
-                    return vdev;
-            }
-        }
-        return NULL;
-    }
+// struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
+//     if (unlikely(mac_lookup_table == NULL)) {
+//         // Hash table not initialized yet, fall back to linear search
+//         struct vhost_dev *vdev;
+//         for (int i = 0; i < global->fp_cores; i++) {
+//             struct dataplane_context *ctx = ctxs[i];
+//             if (ctx == NULL)
+//                 continue;
+//             for (int j = 0; j < ctx->vhost.device_num; j++) {
+//                 vdev = ctx->vhost.vdev_list[j];
+//                 if (vdev != NULL && vdev->ready == DEVICE_RX && rte_is_same_ether_addr(mac, &vdev->mac_address))
+//                     return vdev;
+//             }
+//         }
+//         return NULL;
+//     }
 
-    // Fast O(1) hash lookup
-    struct vhost_dev *vdev = NULL;
-    int ret = rte_hash_lookup_data(mac_lookup_table, mac, (void **)&vdev);
-    if (ret >= 0 && vdev != NULL && vdev->ready == DEVICE_RX) {
-        return vdev;
-    }
+//     // Fast O(1) hash lookup
+//     struct vhost_dev *vdev = NULL;
+//     int ret = rte_hash_lookup_data(mac_lookup_table, mac, (void **)&vdev);
+//     if (ret >= 0 && vdev != NULL && vdev->ready == DEVICE_RX) {
+//         return vdev;
+//     }
 
-    return NULL;
-}
+//     return NULL;
+// }
 
-struct vhost_dev *find_vhost_dev_core_ip(struct dataplane_context *ctx, uint32_t vm_ip_address) {
-    struct vhost_dev *vdev;
-    for (int j = 0; j < ctx->vhost.device_num; j++) {
-        vdev = ctx->vhost.vdev_list[j];
-        if (vdev != NULL && vdev->ready == DEVICE_RX && vdev->vm_ip_address == vm_ip_address)
-            return vdev;
-    }
-    return NULL;
-}
+// struct vhost_dev *find_vhost_dev_core_ip(struct dataplane_context *ctx, uint32_t vm_ip_address) {
+//     struct vhost_dev *vdev;
+//     for (int j = 0; j < ctx->vhost.device_num; j++) {
+//         vdev = ctx->vhost.vdev_list[j];
+//         if (vdev != NULL && vdev->ready == DEVICE_RX && vdev->vm_ip_address == vm_ip_address)
+//             return vdev;
+//     }
+//     return NULL;
+// }
 
 // Search for VM device by IP address across all cores (similar to find_vhost_dev for MAC)
-struct vhost_dev *find_vhost_dev_ip(uint32_t vm_ip_address) {
-    struct vhost_dev *vdev;
-    for (int i = 0; i < fp_cores_max; i++) {
-        struct dataplane_context *ctx = ctxs[i];
-        if (ctx == NULL)
-            continue;
-        for (int j = 0; j < ctx->vhost.device_num; j++) {
-            vdev = ctx->vhost.vdev_list[j];
-            if (vdev != NULL && vdev->ready == DEVICE_RX && vdev->vm_ip_address == vm_ip_address)
-                return vdev;
-        }
-    }
-    return NULL;
-}
+// struct vhost_dev *find_vhost_dev_ip(uint32_t vm_ip_address) {
+//     struct vhost_dev *vdev;
+//     for (int i = 0; i < global->fp_cores; i++) {
+//         struct dataplane_context *ctx = ctxs[i];
+//         if (ctx == NULL)
+//             continue;
+//         for (int j = 0; j < ctx->vhost.device_num; j++) {
+//             vdev = ctx->vhost.vdev_list[j];
+//             if (vdev != NULL && vdev->ready == DEVICE_RX && vdev->vm_ip_address == vm_ip_address)
+//                 return vdev;
+//         }
+//     }
+//     return NULL;
+// }
 
-struct vhost_dev *find_vhost_dev_core_mac(struct dataplane_context *ctx, struct rte_ether_addr *mac) {
-    struct vhost_dev *vdev;
-    for (int j = 0; j < ctx->vhost.device_num; j++) {
-        vdev = ctx->vhost.vdev_list[j];
-        if (vdev != NULL && vdev->ready == DEVICE_RX && rte_is_same_ether_addr(mac, &vdev->mac_address))
-            return vdev;
-    }
-    return NULL;
-}
+// struct vhost_dev *find_vhost_dev_core_mac(struct dataplane_context *ctx, struct rte_ether_addr *mac) {
+//     struct vhost_dev *vdev;
+//     for (int j = 0; j < ctx->vhost.device_num; j++) {
+//         vdev = ctx->vhost.vdev_list[j];
+//         if (vdev != NULL && vdev->ready == DEVICE_RX && rte_is_same_ether_addr(mac, &vdev->mac_address))
+//             return vdev;
+//     }
+//     return NULL;
+// }
 
 /*
  * Remove a device from the specific data core linked list and from the
@@ -107,95 +104,95 @@ struct vhost_dev *find_vhost_dev_core_mac(struct dataplane_context *ctx, struct 
  * of dev->remove=1 which can cause an infinite loop in the rte_pause loop.
  */
 static void destroy_device(int vid) {
-    struct vhost_dev *vdev = NULL;
-    int lcore;
-    struct dataplane_context *ctx = NULL;
-
-    LOG_INFO("destroy_device called for vid=%d\n", vid);
-
-    // Find the device across all contexts
-    for (int i = 0; i < fp_cores_max; i++) {
-        for (int j = 0; j < ctxs[i]->vhost.device_num; j++) {
-            if (ctxs[i]->vhost.vdev_list[j] != NULL && ctxs[i]->vhost.vdev_list[j]->vid == vid) {
-                vdev = ctxs[i]->vhost.vdev_list[j];
-                ctx = ctxs[i];
-                break;
-            }
-        }
-        if (vdev != NULL)
-            break;
+    LOG_IMPT("destroy_device called for vid=%d\n", vid);
+    struct vhost_dev *vdev = vdev_list->vdevs[vid];
+    if (vdev == NULL) {
+        LOG_ERROR("(%d) device not found during destroy\n", vid);
+        return;
     }
-    if (!vdev) {
-        LOG_WARN("Warning: device vid=%d not found during destroy\n", vid);
+    unlink_vmdq(vdev);
+
+    struct vdev_list *old, *new;
+    while (1) {
+        old = atomic_load_explicit(&vdev_list, memory_order_acquire);
+        new = rte_malloc(NULL, sizeof(*new), RTE_CACHE_LINE_SIZE);
+        if (!new) {
+            LOG_ERROR("allocation failed\n");
+            return;
+        }
+        memcpy(new, old, sizeof(*new));
+        if (new->vdevs[vid] == NULL) {
+            LOG_WARN("(%d) device  not found during destroy\n", vid);
+            rte_free(new);
+            return;
+        }
+        if (new->vdevs[vid]->ready != DEVICE_SAFE_REMOVE) {
+            LOG_WARN("(%d) device not in safe remove state during destroy\n", vid);
+            rte_free(new);
+            return;
+        }
+
+        new->num = old->num - 1;
+        new->vdevs[vid] = NULL;
+
+        if (atomic_compare_exchange_weak_explicit(&vdev_list, &old, new, memory_order_release, memory_order_acquire)) {
+            break; // success
+        }
+
+        // CAS failed — someone updated concurrently
+        rte_free(new);
+    }
+
+    int res = vhost_rx_plan_remove(vid);
+    if (res != 0) {
+        LOG_ERROR("Failed to remove device vid=%d from vhost_rx_plan\n", vid);
+        return;
+    }
+    res = vhost_tx_plan_remove(vid);
+    if (res != 0) {
+        LOG_ERROR("Failed to remove device vid=%d from vhost_tx_plan\n", vid);
         return;
     }
 
-    LOG_INFO("Found device vid=%d on core %d, marking for removal\n", vid, ctx->id);
+    LOG_INFO("Found device vid=%d, marking for removal\n", vid);
 
     /* Set the remove flag with memory barrier to ensure visibility */
-    __sync_synchronize();
-    vdev->remove = 1;
-    __sync_synchronize();
+    // __sync_synchronize();
+    // vdev->remove = 1;
+    // __sync_synchronize();
 
-    /* Wait for dataplane to acknowledge removal (with timeout) */
-    // Give dataplane time to wake up and process removal (dataplane sleeps 100ms)
-    int max_wait_ms = 5000; // 5 seconds max
-    int wait_ms = 0;
-    while (vdev->ready != DEVICE_SAFE_REMOVE && wait_ms < max_wait_ms) {
-        usleep(10000); // Sleep 10ms between checks
-        wait_ms += 10;
-    }
+    // /* Wait for dataplane to acknowledge removal (with timeout) */
+    // // Give dataplane time to wake up and process removal (dataplane sleeps 100ms)
+    // int max_wait_ms = 5000; // 5 seconds max
+    // int wait_ms = 0;
+    // while (vdev->ready != DEVICE_SAFE_REMOVE && wait_ms < max_wait_ms) {
+    //     usleep(10000); // Sleep 10ms between checks
+    //     wait_ms += 10;
+    // }
 
-    if (wait_ms >= max_wait_ms) {
-        LOG_WARN("Warning: Timeout waiting for device vid=%d removal acknowledgment after %dms\n", vid, wait_ms);
-        // Force removal anyway to prevent resource leak
-    } else {
-        LOG_INFO("Device vid=%d removal acknowledged after %dms\n", vid, wait_ms);
-    }
+    // if (wait_ms >= max_wait_ms) {
+    //     LOG_WARN("Warning: Timeout waiting for device vid=%d removal acknowledgment after %dms\n", vid, wait_ms);
+    //     // Force removal anyway to prevent resource leak
+    // } else {
+    //     LOG_INFO("Device vid=%d removal acknowledged after %dms\n", vid, wait_ms);
+    // }
 
-    // NOTE: Device removal from array and device_num decrement is handled by the dataplane loop
-    // We just need to wait for the dataplane to acknowledge the removal
-    // DO NOT remove from array or decrement device_num here - it causes double decrement!
+    // LOG_INFO("(%d) device has been removed from vdev_list (device_num now=%d)\n", vdev->vid, vdev_list->num);
 
-    // tells worker cores to acknowledge they've seen the removal at their next safe point
-    /* Set the dev_removal_flag on each lcore. */
-    RTE_LCORE_FOREACH_WORKER(lcore)
-    ctx->vhost.dev_removal_flag = REQUEST_DEV_REMOVAL;
+    // // Remove from MAC lookup table if MAC was registered
+    // if (mac_lookup_table != NULL && vdev->ready == DEVICE_RX) {
+    //     int ret = rte_hash_del_key(mac_lookup_table, &vdev->mac_address);
+    //     if (ret < 0 && ret != -ENOENT) {
+    //         LOG_WARN("Warning: Failed to remove MAC from lookup table for vid=%d (ret=%d)\n", vdev->vid, ret);
+    //     }
+    // }
 
-    /*
-     * Once each core has set the dev_removal_flag to ACK_DEV_REMOVAL
-     * we can be sure that they can no longer access the device removed
-     * from the linked lists and that the devices are no longer in use.
-     */
-    RTE_LCORE_FOREACH_WORKER(lcore) {
-        // busy-wait until it acknowledges removal
-        while (ctx->vhost.dev_removal_flag != ACK_DEV_REMOVAL)
-            rte_pause();
-    }
-
-    LOG_INFO("(%d) device has been removed from data core %d (device_num now=%d)\n", vdev->vid, ctx->id,
-             ctx->vhost.device_num);
-
-    // Remove from MAC lookup table if MAC was registered
-    if (mac_lookup_table != NULL && vdev->ready == DEVICE_RX) {
-        int ret = rte_hash_del_key(mac_lookup_table, &vdev->mac_address);
-        if (ret < 0 && ret != -ENOENT) {
-            LOG_WARN("Warning: Failed to remove MAC from lookup table for vid=%d (ret=%d)\n", vdev->vid, ret);
-        }
-    }
-
-    rte_free(vdev);
+    // rte_free(vdev);
 }
 
-/*
- * A new device is added to a data core. First the device is added to the main linked list
- * and then allocated to a specific data core.
- */
 // dpdk automatically assigns vid (0, 1, 2, ...) to each device
 static int new_device(int vid) {
-    // uint32_t device_num_min = 64;
     struct vhost_dev *vdev;
-    struct dataplane_context *ctx = NULL;
 
     // RTE_CACHE_LINE_SIZE: Align to cache line (64 bytes typically) to avoid false sharing between cores
     vdev = rte_zmalloc("vhost device", sizeof(*vdev), RTE_CACHE_LINE_SIZE);
@@ -204,73 +201,45 @@ static int new_device(int vid) {
         return -1;
     }
     vdev->vid = vid;
-
-    /*reset ready flag*/
+    vdev->vm_id = -1;
     vdev->ready = DEVICE_MAC_LEARNING;
-    vdev->remove = 0;
+    vdev->mac = (struct rte_ether_addr){0};
+    vdev->ip = 0;
 
-    /* Find a suitable context (lcore) to add the device using load balancing.
-     * With N cores and M VMs (M > N):
-     * - RX queues: VMs share queues via modulo (e.g., VMs 0,8,16,24 share queue 0 with 8 cores)
-     * - Core assignment: Load-balanced across cores (any core can handle any VM)
-     * Example with 8 cores, 32 VMs: Each core handles ~4 VMs, but VMs sharing an RX queue
-     * may be on different cores.
-     */
-    ctx = ctxs[vid % fp_cores_max];
-    // LOG_INFO("(%d) Searching for suitable context (fp_cores_max=%d)...\n", vid, fp_cores_max);
-
-    // for (int i = 0; i < fp_cores_max; i++) {
-    //     // Validate context pointer before dereferencing
-    //     if (ctxs[i] == NULL) {
-    //         LOG_WARN("(%d) Warning: ctxs[%d] is NULL, skipping\n", vid, i);
-    //         continue;
-    //     }
-
-    //     LOG_INFO("(%d) Context %d has %d devices\n", vid, i, ctxs[i]->vhost.device_num);
-
-    //     if (ctxs[i]->vhost.device_num < device_num_min) {
-    //         device_num_min = ctxs[i]->vhost.device_num;
-    //         ctx = ctxs[i];
-    //     }
-    // }
-
-    // if (ctx == NULL) {
-    //     if (fp_cores_max == 0) {
-    //         LOG_ERROR("(%d) ERROR: fp_cores_max is 0, no dataplane cores configured!\n", vid);
-    //     } else {
-    //         LOG_ERROR("(%d) couldn't find suitable context (fp_cores_max=%d, all contexts NULL or full)\n", vid,
-    //                   fp_cores_max);
-    //         LOG_ERROR(
-    //             "(%d) This might be a timing issue - contexts may not be initialized yet. VM connection will
-    //             retry.\n", vid);
-    //     }
-    //     rte_free(vdev);
-    //     return -1;
-    // }
-
-    LOG_INFO("(%d) Selected context %d (device_num=%d)\n", vid, ctx->id, ctx->vhost.device_num);
-    vdev->coreid = ctx->id;
-
-    // Add device to array with bounds checking
-    if (ctx->vhost.device_num < 0) {
-        LOG_ERROR("(%d) ERROR: device_num is negative (%d) - memory corruption or double-decrement bug!\n", vid,
-                  ctx->vhost.device_num);
-        LOG_INFO("(%d) Resetting device_num to 0\n", vid);
-        ctx->vhost.device_num = 0;
-    }
-
-    if (ctx->vhost.device_num >= MAX_VHOST_DEVICES_PER_CORE) {
-        LOG_ERROR("(%d) too many devices on core %d (max %d)\n", vid, ctx->id, MAX_VHOST_DEVICES_PER_CORE);
+    if (vdev_list->num >= MAX_VHOSTS) {
+        LOG_ERROR("(%d) too many devices on vdev_list (max %d)\n", vid, MAX_VHOSTS);
         rte_free(vdev);
         return -1;
     }
 
-    uint16_t dev_idx = ctx->vhost.device_num;
-    ctx->vhost.vdev_list[dev_idx] = vdev;
-    ctx->vhost.device_num++;
+    struct vdev_list *old, *new;
+    while (1) {
+        old = atomic_load_explicit(&vdev_list, memory_order_acquire);
 
-    // make it active to ensure new devices are checked right away
-    vdev->is_active = 1;
+        if (old->num >= MAX_VHOSTS) {
+            LOG_ERROR("vdev_list full\n");
+            return -1;
+        }
+
+        new = rte_malloc(NULL, sizeof(*new), RTE_CACHE_LINE_SIZE);
+        if (!new) {
+            LOG_ERROR("allocation failed\n");
+            return -1;
+        }
+
+        memcpy(new, old, sizeof(*new));
+
+        new->vdevs[vid] = vdev;
+        new->num = old->num + 1;
+
+        if (atomic_compare_exchange_weak_explicit(&vdev_list, &old, new, memory_order_release, memory_order_acquire)) {
+            break; // success
+        }
+
+        // CAS failed — someone updated concurrently
+        rte_free(new);
+    }
+    LOG_INFO("(%d) device added to vdev_list (total vdev now=%d)\n", vid, vdev_list->num);
 
     /* Disable notifications. */
     // Normally, guest would send interrupt when it adds packets to TX queue or consumes packets from RX queue
@@ -280,21 +249,31 @@ static int new_device(int vid) {
     rte_vhost_enable_guest_notification(vid, VIRTIO_TXQ, 0);
 
     // Check negotiated protocol features after device connection
-    uint64_t proto_features;
-    if (rte_vhost_get_negotiated_protocol_features(vid, &proto_features) == 0) {
-        LOG_INFO("(%d) Negotiated protocol features: 0x%lx\n", vid, proto_features);
-        if (proto_features & (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD)) {
-            LOG_INFO("(%d) Zero-copy enabled: INFLIGHT_SHMFD protocol feature negotiated\n", vid);
-        } else {
-            LOG_WARN("(%d) Zero-copy NOT possible: missing INFLIGHT_SHMFD (protocol features: 0x%lx)\n", vid,
-                     proto_features);
-        }
+    // uint64_t proto_features;
+    // if (rte_vhost_get_negotiated_protocol_features(vid, &proto_features) == 0) {
+    //     LOG_INFO("(%d) Negotiated protocol features: 0x%lx\n", vid, proto_features);
+    //     if (proto_features & (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD)) {
+    //         LOG_INFO("(%d) Zero-copy enabled: INFLIGHT_SHMFD protocol feature negotiated\n", vid);
+    //     } else {
+    //         LOG_WARN("(%d) Zero-copy NOT possible: missing INFLIGHT_SHMFD (protocol features: 0x%lx)\n", vid,
+    //                  proto_features);
+    //     }
+    // }
+
+    int res = vhost_rx_plan_add(vid);
+    if (res != 0) {
+        LOG_ERROR("Failed to add device vid=%d to vhost_rx_plan\n", vid);
+        rte_free(vdev);
+        return -1;
+    }
+    res = vhost_tx_plan_add(vid);
+    if (res != 0) {
+        LOG_ERROR("Failed to add device vid=%d to vhost_tx_plan\n", vid);
+        rte_free(vdev);
+        return -1;
     }
 
-    LOG_IMPT("[%d] added device %d\n", vdev->coreid, vid);
-
     // Note: MAC address will be added to lookup table when learned in link_vmdq()
-
     return 0;
 }
 
@@ -317,41 +296,21 @@ void unregister_vhost_drivers(int socket_num, const char *path) {
             LOG_ERROR("Fail to unregister vhost driver for %s.\n", path + i * PATH_MAX);
     }
 
-    // Cleanup MAC lookup hash table
-    if (mac_lookup_table != NULL) {
-        rte_hash_free(mac_lookup_table);
-        mac_lookup_table = NULL;
-        LOG_INFO("MAC lookup hash table destroyed\n");
-    }
-}
-
-// Initialize MAC lookup hash table
-static int init_mac_lookup_table(void) {
-    struct rte_hash_parameters hash_params = {
-        .name = "mac_lookup_table",
-        .entries = MAC_LOOKUP_TABLE_SIZE,
-        .key_len = sizeof(struct rte_ether_addr),
-        .hash_func = rte_jhash,
-        .hash_func_init_val = 0,
-        .socket_id = rte_socket_id(),
-    };
-
-    mac_lookup_table = rte_hash_create(&hash_params);
-    if (mac_lookup_table == NULL) {
-        LOG_ERROR("Failed to create MAC lookup hash table\n");
-        return -1;
-    }
-
-    LOG_INFO("MAC lookup hash table initialized (size=%d)\n", MAC_LOOKUP_TABLE_SIZE);
-    return 0;
+    cleanup_route_table();
 }
 
 int register_vhost_drivers() {
     uint64_t flags = 0;
-    // Note: vdev_list is already initialized in dataplane_context_init()
 
-    // Initialize MAC lookup hash table
-    if (init_mac_lookup_table() != 0) {
+    vdev_list = rte_zmalloc("vdev_list", sizeof(*vdev_list), RTE_CACHE_LINE_SIZE);
+    if (vdev_list == NULL) {
+        LOG_ERROR("Failed to allocate memory for vdev_list\n");
+        return -1;
+    }
+    vdev_list->num = 0;
+    memset(vdev_list->vdevs, 0, sizeof(vdev_list->vdevs));
+
+    if (init_route_table() != 0) {
         LOG_ERROR("Failed to initialize MAC lookup table\n");
         return -1;
     }
@@ -359,14 +318,14 @@ int register_vhost_drivers() {
     if (config.client_mode)
         flags |= RTE_VHOST_USER_CLIENT;
 
-    // Zero copy support flags
-    // if (config.dequeue_zero_copy) {
-    // External buffer support enables zero copy (mbufs with external buffers)
-    flags |= RTE_VHOST_USER_EXTBUF_SUPPORT;
-    // Linear buffer support (required for external buffers)
-    flags |= RTE_VHOST_USER_LINEARBUF_SUPPORT;
-    LOG_INFO("Zero copy enabled: EXTBUF_SUPPORT and LINEARBUF_SUPPORT flags set\n");
-    // }
+    // // Zero copy support flags
+    // // if (config.dequeue_zero_copy) {
+    // // External buffer support enables zero copy (mbufs with external buffers)
+    // flags |= RTE_VHOST_USER_EXTBUF_SUPPORT;
+    // // Linear buffer support (required for external buffers)
+    // flags |= RTE_VHOST_USER_LINEARBUF_SUPPORT;
+    // LOG_INFO("Zero copy enabled: EXTBUF_SUPPORT and LINEARBUF_SUPPORT flags set\n");
+    // // }
 
     config.socket_files = malloc(PATH_MAX * config.nb_sockets);
     if (config.socket_files == NULL) {
@@ -406,22 +365,22 @@ int register_vhost_drivers() {
         // - RTE_VHOST_USER_EXTBUF_SUPPORT (enables external buffer mbufs)
         // - RTE_VHOST_USER_LINEARBUF_SUPPORT (required for external buffers)
         // - VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD (required for zero copy tracking)
-        uint64_t protocol_features = 0;
-        if (rte_vhost_driver_get_protocol_features(file, &protocol_features) == 0) {
-            protocol_features |= (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD);
-            if (rte_vhost_driver_set_protocol_features(file, protocol_features) != 0) {
-                LOG_WARN("Failed to set INFLIGHT_SHMFD protocol feature for %s (zero copy may not work)\n", file);
-            } else {
-                LOG_INFO("Enabled INFLIGHT_SHMFD protocol feature for zero copy support (features: 0x%lx)\n",
-                         protocol_features);
-            }
-        } else {
-            LOG_WARN("Failed to get protocol features for %s, trying to set INFLIGHT_SHMFD directly\n", file);
-            protocol_features = (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD);
-            if (rte_vhost_driver_set_protocol_features(file, protocol_features) != 0) {
-                LOG_WARN("Failed to set INFLIGHT_SHMFD protocol feature for %s (zero copy may not work)\n", file);
-            }
-        }
+        // uint64_t protocol_features = 0;
+        // if (rte_vhost_driver_get_protocol_features(file, &protocol_features) == 0) {
+        //     protocol_features |= (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD);
+        //     if (rte_vhost_driver_set_protocol_features(file, protocol_features) != 0) {
+        //         LOG_WARN("Failed to set INFLIGHT_SHMFD protocol feature for %s (zero copy may not work)\n", file);
+        //     } else {
+        //         LOG_INFO("Enabled INFLIGHT_SHMFD protocol feature for zero copy support (features: 0x%lx)\n",
+        //                  protocol_features);
+        //     }
+        // } else {
+        //     LOG_WARN("Failed to get protocol features for %s, trying to set INFLIGHT_SHMFD directly\n", file);
+        //     protocol_features = (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD);
+        //     if (rte_vhost_driver_set_protocol_features(file, protocol_features) != 0) {
+        //         LOG_WARN("Failed to set INFLIGHT_SHMFD protocol feature for %s (zero copy may not work)\n", file);
+        //     }
+        // }
 
         if (rte_vhost_driver_callback_register(file, &virtio_net_device_ops) != 0) {
             LOG_ERROR("Failed to register vhost driver callbacks for %s (socket %d/%d)\n", file, i, config.nb_sockets);
