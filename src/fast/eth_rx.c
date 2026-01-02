@@ -52,12 +52,24 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
         if (poll_num == 0)
             continue;
 
+        // Prefetch first packets
+        for (int p = 0; p < RTE_MIN(poll_num, 4); p++) {
+            rte_prefetch0(pkts[p]);
+            rte_prefetch0(rte_pktmbuf_mtod(pkts[p], void *));
+        }
+
         slow_cnt = 0;
         uint64_t vid_seen_mask = 0;
         uint16_t dst_cnt = 0;
 
         struct vdev_list *vdev_list_ptr = atomic_load_explicit(&vdev_list, memory_order_relaxed);
         for (int j = 0; j < poll_num; j++) {
+            // Prefetch next packet's mbuf and packet data
+            if (j + 1 < poll_num) {
+                rte_prefetch0(pkts[j + 1]);
+                rte_prefetch0(rte_pktmbuf_mtod(pkts[j + 1], void *));
+            }
+
             struct rte_mbuf *m = pkts[j];
             struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 

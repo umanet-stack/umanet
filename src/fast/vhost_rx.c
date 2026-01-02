@@ -138,9 +138,13 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             if (poll_num == 0)
                 continue;
 
-            // Prefetch first packet
-            rte_prefetch0(pkts[0]);
-            rte_prefetch0(rte_pktmbuf_mtod(pkts[0], void *));
+            // Prefetch first packets
+            // prefetching a small window (like 2–8, commonly 4) gives the CPU time to bring cache lines in before you
+            // actually touch them in the hot loop
+            for (int p = 0; p < RTE_MIN(poll_num, 4); p++) {
+                rte_prefetch0(pkts[p]);
+                rte_prefetch0(rte_pktmbuf_mtod(pkts[p], void *));
+            }
 
             slow_cnt = 0;
             uint64_t vid_seen_mask = 0;

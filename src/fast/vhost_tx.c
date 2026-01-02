@@ -29,8 +29,12 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
             // LOG_INFO("[%d] Dequeued %d packets from vhost_tx_ring[%d] to vhost_tx_loop\n", ctx->core_id, deq_num,
             // vid);
 
-            if (deq_num > 0)
+            if (deq_num > 0) {
+                for (int j = 0; j < RTE_MIN(deq_num, 4); j++) {
+                    rte_prefetch0(pkts[j]);
+                }
                 vhost_send(ctx, deq_num, vid, pkts);
+            }
         }
     }
 }
