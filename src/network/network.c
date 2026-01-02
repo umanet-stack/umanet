@@ -39,11 +39,9 @@
 #include <rte_spinlock.h>
 #include <rte_version.h>
 
-#include "../fast/internal.h"
 #include "../include/main.h"
 #include "network.h"
 #include "src/include/state.h"
-#include <tas_memif.h>
 #include <utils.h>
 #include <utils_rng.h>
 
@@ -383,13 +381,13 @@ static int reta_setup() {
         goto error_exit;
     }
 
-    if (rss_reta_size > FLEXNIC_PL_MAX_FLOWGROUPS) {
-        fprintf(stderr,
-                "reta_setup: reta size (%u) greater than maximum supported"
-                " (%u)\n",
-                rss_reta_size, FLEXNIC_PL_MAX_FLOWGROUPS);
-        abort();
-    }
+    // if (rss_reta_size > FLEXNIC_PL_MAX_FLOWGROUPS) {
+    //     fprintf(stderr,
+    //             "reta_setup: reta size (%u) greater than maximum supported"
+    //             " (%u)\n",
+    //             rss_reta_size, FLEXNIC_PL_MAX_FLOWGROUPS);
+    //     abort();
+    // }
 
     /* initialize reta */
     for (i = 0, c = 0; i < rss_reta_size; i++) {
