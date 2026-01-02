@@ -41,7 +41,7 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
         ret = 0;
 
     if (ret < num) {
-        // pkts[0 .. ret-1]     -> consumed by vhost (do not free)
+        // pkts[0 .. ret-1]     -> consumed by vhost (free)
         // pkts[ret .. num-1]   -> STILL OWNED BY YOU -> send back to ring (do not free)
         int enq_num = rte_ring_enqueue_burst(global->vhost_tx_rings[vid], (void **)(pkts + ret), num - ret, NULL);
         if (enq_num < num - ret) {
@@ -49,6 +49,7 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
                      num - ret - enq_num, vid);
             free_pkts(pkts + ret + enq_num, num - ret - enq_num);
         }
+        // free_pkts(pkts + ret, num - ret); // if no requeue, free packets
         STATS_ADD(ctx->vdev_stats[vid], requeue_count, 1);
     }
 
@@ -59,6 +60,7 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
 
     LOG_VM_OUT("[%d](%d) Sent %d packets to VM\n", ctx->core_id, vid, ret);
     PRINT_PKTS(pkts, ret, LOG_VM_OUT);
+    free_pkts(pkts, ret);
 
     return ret;
 }
