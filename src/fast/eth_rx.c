@@ -50,8 +50,8 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
             struct rte_mbuf *pkts[MAX_PKT_BURST];
             uint16_t cnt;
         } vm_bucket[MAX_VHOSTS] = {0};
-        uint8_t vid_seen[MAX_VHOSTS] = {0};
-        uint16_t dst_vids[MAX_VHOSTS] = {0};
+        uint64_t vid_seen_mask = 0;
+        uint16_t dst_vids[MAX_VHOSTS]; // indexed by dst_cnt, no need to init
         uint16_t dst_cnt = 0;
 
         struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
@@ -90,10 +90,10 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
                 rte_ether_addr_copy(&config.mac, &eth_hdr->src_addr); // src MAC = our MAC
 
                 vm_bucket[dst_vid].pkts[vm_bucket[dst_vid].cnt++] = m;
-                if (vid_seen[dst_vid])
+                if (vid_seen_mask & (1ULL << dst_vid))
                     continue;
 
-                vid_seen[dst_vid] = 1;
+                vid_seen_mask |= (1ULL << dst_vid);
                 if (dst_cnt >= MAX_VHOSTS) {
                     LOG_ERROR("[%d] dst_vids array full, dropping vid %d\n", ctx->core_id, dst_vid);
                     continue;
