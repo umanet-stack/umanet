@@ -88,7 +88,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         uint64_t pkt_count = 0;
         uint64_t call_count = 0;
         uint64_t max_send_count = 0;
-        uint64_t send_fail_count = 0;
+        uint64_t requeue_count = 0;
         uint64_t ring_deq_max_count = 0;
 
         for (int j = 0; j < MAX_VHOSTS; j++) {
@@ -100,7 +100,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
                 pkt_count += ctx->vdev_stats[j]->pkt_count;
                 call_count += ctx->vdev_stats[j]->call_count;
                 max_send_count += ctx->vdev_stats[j]->max_send_count;
-                send_fail_count += ctx->vdev_stats[j]->send_fail_count;
+                requeue_count += ctx->vdev_stats[j]->requeue_count;
                 ring_deq_max_count += ctx->vdev_stats[j]->ring_deq_max_count;
             }
         }
@@ -109,7 +109,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         fprintf(tty_fp, "pkt: %s\t", display_number(pkt_count));
         fprintf(tty_fp, "call: %s\t", display_number(call_count));
         fprintf(tty_fp, "max_send: %s\t", display_number(max_send_count));
-        fprintf(tty_fp, "send_fail: %s\t", display_number(send_fail_count));
+        fprintf(tty_fp, "requeue_ring: %s\t", display_number(requeue_count));
         fprintf(tty_fp, "ring_deq_max: %s\n", display_number(ring_deq_max_count));
         print_pkts_by_tx_vdev(vdev_list_ptr, plan, ctx->vdev_stats);
     }
