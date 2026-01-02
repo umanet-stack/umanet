@@ -3,6 +3,7 @@
 #include <rte_arp.h>
 #include <rte_ether.h>
 #include <rte_ip.h>
+#include <rte_tcp.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <time.h>
@@ -188,6 +189,28 @@ void print_pkts(struct rte_mbuf **pkts, uint16_t count, enum log_level level) {
                 printf(" (UDP)");
             } else if (ipv4->next_proto_id == IPPROTO_TCP) {
                 printf(" (TCP)");
+                // Print TCP flags
+                size_t ip_hdr_len = (ipv4->version_ihl & 0x0f) * 4;
+                if (pkts[i]->pkt_len >= sizeof(struct rte_ether_hdr) + ip_hdr_len + 13) {
+                    struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *)((uint8_t *)ipv4 + ip_hdr_len);
+                    uint8_t flags = tcp->tcp_flags;
+                    if (flags & 0x10)
+                        printf(" ACK");
+                    if (flags & 0x02)
+                        printf(" SYN");
+                    if (flags & 0x01)
+                        printf(" FIN");
+                    if (flags & 0x04)
+                        printf(" RST");
+                    if (flags & 0x08)
+                        printf(" PSH");
+                    // Print ports and seq/ack numbers
+                    printf(" sport=%u dport=%u", rte_be_to_cpu_16(tcp->src_port), rte_be_to_cpu_16(tcp->dst_port));
+                    if (flags & 0x10) {
+                        printf(" ack=%u", rte_be_to_cpu_32(tcp->recv_ack));
+                    }
+                    printf(" seq=%u", rte_be_to_cpu_32(tcp->sent_seq));
+                }
             }
             // Print IP addresses (network byte order)
             uint32_t src_ip = rte_be_to_cpu_32(ipv4->src_addr);
