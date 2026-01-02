@@ -64,6 +64,14 @@ static inline int network_send(struct eth_tx_ctx *ctx, unsigned num, struct rte_
             free_pkts(pkts + ret + enq_num, num - ret - enq_num);
         }
         // free_pkts(pkts + ret, num - ret); // if no requeue, free packets
+
+        // requeue only ONCE
+        // int16_t ret2 = rte_eth_tx_burst(global->eth_port_id, ctx->eth_queue_id, pkts + ret, num - ret);
+        // if (ret2 < num - ret) {
+        //     LOG_WARN("[%d](%d) failed to requeue %d packets to ETH queue %d\n", ctx->core_id, ctx->eth_queue_id,
+        //              num - ret - ret2, ctx->eth_queue_id);
+        //     free_pkts(pkts + ret + ret2, num - ret - ret2);
+        // }
         STATS_ADD(ctx->stats, requeue_count, 1);
     }
 
