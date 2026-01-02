@@ -16,12 +16,22 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
         sleep(1);
 #endif
 
+        struct vdev_list *vdev_list_ptr = atomic_load_explicit(&vdev_list, memory_order_relaxed);
+        if (vdev_list_ptr == NULL) {
+            LOG_ERROR("vdev_list_ptr is NULL\n");
+            continue;
+        }
+
         struct vhost_plan *plan = atomic_load_explicit(&vhost_tx_plans[ctx->vhost_tx_core_id], memory_order_relaxed);
         for (int i = 0; i < plan->num; i++) {
             uint16_t vid = plan->vids[i];
             uint16_t num = MAX_PKT_BURST;
             struct rte_mbuf *pkts[num];
 
+            // DPDK 24/25: Check if RXQ is enabled before sending
+            if (!vdev_list_ptr->vdevs[vid] || !vdev_list_ptr->vdevs[vid]->rxq_enabled) {
+                continue;
+            }
             int deq_num = rte_ring_dequeue_burst(global->vhost_tx_rings[plan->vids[i]], (void **)pkts, num, NULL);
             if (deq_num == num) {
                 STATS_ADD(ctx->vdev_stats[plan->vids[i]], ring_deq_max_count, 1);
@@ -41,10 +51,8 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
 
 static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
     STATS_ADD(ctx->vdev_stats[vid], call_count, 1);
-    int16_t ret = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
-    if (ret < 0)
-        ret = 0;
 
+    int16_t ret = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
     if (ret < num) {
         // pkts[0 .. ret-1]     -> consumed by vhost (free)
         // pkts[ret .. num-1]   -> STILL OWNED BY YOU -> send back to ring (do not free)

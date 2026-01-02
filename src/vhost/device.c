@@ -118,6 +118,8 @@ static int new_device(int vid) {
     vdev->ready = DEVICE_MAC_LEARNING;
     vdev->mac = (struct rte_ether_addr){0};
     vdev->ip = 0;
+    vdev->rxq_enabled = 0;
+    vdev->txq_enabled = 0;
 
     if (vdev_list->num >= MAX_VHOSTS) {
         LOG_ERROR("(%d) too many devices on vdev_list (max %d)\n", vid, MAX_VHOSTS);
@@ -191,12 +193,37 @@ static int new_device(int vid) {
 }
 
 /*
+ * Callback for vring (virtqueue) state changes
+ * Critical for DPDK 24/25 compatibility - tracks when individual queues are enabled/disabled
+ */
+static int vring_state_changed(int vid, uint16_t queue_id, int enable) {
+    struct vhost_dev *vdev = vdev_list->vdevs[vid];
+    if (vdev == NULL) {
+        LOG_WARN("(%d) vring_state_changed: device not found for queue %d\n", vid, queue_id);
+        return -1;
+    }
+
+    if (queue_id == VIRTIO_RXQ) {
+        vdev->rxq_enabled = enable ? 1 : 0;
+        LOG_INFO("(%d) RXQ (queue %d) %s\n", vid, queue_id, enable ? "enabled" : "disabled");
+    } else if (queue_id == VIRTIO_TXQ) {
+        vdev->txq_enabled = enable ? 1 : 0;
+        LOG_INFO("(%d) TXQ (queue %d) %s\n", vid, queue_id, enable ? "enabled" : "disabled");
+    } else {
+        LOG_WARN("(%d) Unknown queue_id %d state changed to %d\n", vid, queue_id, enable);
+    }
+
+    return 0;
+}
+
+/*
  * These callback allow devices to be added to the data core when configuration
  * has been fully complete.
  */
 const struct rte_vhost_device_ops virtio_net_device_ops = {
     .new_device = new_device,
     .destroy_device = destroy_device,
+    .vring_state_changed = vring_state_changed,
 };
 
 void unregister_vhost_drivers(int socket_num, const char *path) {
