@@ -39,7 +39,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         fprintf(tty_fp, "pkt: %s\t", display_number(eth_tx_ctxs[i]->stats->pkt_count));
         fprintf(tty_fp, "call: %s\t", display_number(eth_tx_ctxs[i]->stats->call_count));
         fprintf(tty_fp, "max_send: %s\t", display_number(eth_tx_ctxs[i]->stats->max_send_count));
-        fprintf(tty_fp, "send_fail: %s\t", display_number(eth_tx_ctxs[i]->stats->send_fail_count));
+        fprintf(tty_fp, "requeue: %s\t", display_number(eth_tx_ctxs[i]->stats->requeue_count));
         fprintf(tty_fp, "ring_deq_max: %s\n", display_number(eth_tx_ctxs[i]->stats->ring_deq_max_count));
     }
 

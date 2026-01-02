@@ -2,6 +2,7 @@
 #include "src/include/fastpath.h"
 #include "src/include/main.h"
 #include "src/include/state.h"
+#include "src/network/network.h"
 #include <rte_ethdev.h>
 #include <rte_ring.h>
 #include <unistd.h>
@@ -52,9 +53,18 @@ void eth_tx_loop(struct eth_tx_ctx *ctx) {
 static inline int network_send(struct eth_tx_ctx *ctx, unsigned num, struct rte_mbuf **pkts) {
     STATS_ADD(ctx->stats, call_count, 1);
     int16_t ret = rte_eth_tx_burst(global->eth_port_id, ctx->eth_queue_id, pkts, num);
-    if (ret == 0) {
-        STATS_ADD(ctx->stats, send_fail_count, 1);
-        return 0;
+    if (ret < num) {
+        // pkts[0 .. ret-1]     -> consumed by NIC (do not free)
+        // pkts[ret .. num-1]   -> STILL OWNED BY YOU -> send back to ring (do not free)
+        int enq_num =
+            rte_ring_enqueue_burst(global->eth_tx_rings[ctx->eth_queue_id], (void **)(pkts + ret), num - ret, NULL);
+        if (enq_num < num - ret) {
+            LOG_WARN("[%d](%d) failed to requeue %d packets to eth_tx_ring[%d]\n", ctx->core_id, ctx->eth_queue_id,
+                     num - ret - enq_num, ctx->eth_queue_id);
+            free_pkts(pkts + ret + enq_num, num - ret - enq_num);
+        }
+        // free_pkts(pkts + ret, num - ret); // if no requeue, free packets
+        STATS_ADD(ctx->stats, requeue_count, 1);
     }
 
     STATS_ADD(ctx->stats, pkt_count, ret);
