@@ -111,6 +111,8 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             // // Clients (odd vm_id: 1,3,5,7,...) are polled every iteration
 
             int poll_num = vhost_poll(ctx, num, vid, pkts);
+            if (poll_num == 0)
+                continue;
 
             struct slow_msg *slow_msgs[num];
             int slow_cnt = 0;

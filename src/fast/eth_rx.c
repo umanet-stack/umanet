@@ -40,6 +40,8 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
         uint16_t num = MAX_PKT_BURST;
         struct rte_mbuf *pkts[num];
         int poll_num = network_poll(ctx, num, pkts);
+        if (poll_num == 0)
+            continue;
 
         struct slow_msg *slow_msgs[num];
         int slow_cnt = 0;
