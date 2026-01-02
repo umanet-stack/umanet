@@ -2,6 +2,7 @@
 #include "src/include/state.h"
 #include "src/network/network.h"
 #include <rte_ring.h>
+#include <stdatomic.h>
 #include <unistd.h>
 
 static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts);
@@ -15,7 +16,7 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
         sleep(1);
 #endif
 
-        struct vhost_plan *plan = atomic_load(&vhost_tx_plans[ctx->vhost_tx_core_id]);
+        struct vhost_plan *plan = atomic_load_explicit(&vhost_tx_plans[ctx->vhost_tx_core_id], memory_order_relaxed);
         for (int i = 0; i < plan->num; i++) {
             uint16_t vid = plan->vids[i];
             uint16_t num = MAX_PKT_BURST;
