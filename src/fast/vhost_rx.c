@@ -111,6 +111,14 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                 LOG_WARN("[%d]  Invalid vid %d or vdevs[%d] is NULL\n", ctx->core_id, vid);
                 continue;
             }
+            // Prefetch next vdev
+            if (i + 1 < plan->num) {
+                uint16_t next_vid = plan->vids[i + 1];
+                if (next_vid < MAX_VHOSTS && vdev_list_ptr->vdevs[next_vid] != NULL) {
+                    rte_prefetch0(vdev_list_ptr->vdevs[next_vid]);
+                }
+            }
+
             struct vhost_dev *vdev = vdev_list_ptr->vdevs[vid];
 
             // Adaptive polling: Skip iperf servers (even vm_id) some of the time
@@ -130,6 +138,10 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             if (poll_num == 0)
                 continue;
 
+            // Prefetch first packet
+            rte_prefetch0(pkts[0]);
+            rte_prefetch0(rte_pktmbuf_mtod(pkts[0], void *));
+
             slow_cnt = 0;
             uint64_t vid_seen_mask = 0;
             uint16_t dst_cnt = 0;
@@ -145,6 +157,12 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             }
 
             for (int j = 0; j < poll_num; j++) {
+                // Prefetch mbuf and first 64 bytes of packet (enough for headers)
+                if (j + 1 < poll_num) {
+                    rte_prefetch0(pkts[j + 1]);                           // prefetch next mbuf struct
+                    rte_prefetch0(rte_pktmbuf_mtod(pkts[j + 1], void *)); // prefetch packet data
+                }
+
                 STATS_ADD(ctx->vdev_stats[vid], byte_wnd[ctx->vdev_stats[vid]->wnd_idx], rte_pktmbuf_pkt_len(pkts[j]));
                 struct rte_mbuf *m = pkts[j];
                 struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);

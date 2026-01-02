@@ -32,6 +32,11 @@ void eth_tx_loop(struct eth_tx_ctx *ctx) {
         struct rte_ether_hdr *eth_hdr;
 
         for (int i = 0; i < deq_num; i++) {
+            if (i + 1 < deq_num) {
+                rte_prefetch0(pkts[i + 1]);
+                rte_prefetch0(rte_pktmbuf_mtod(pkts[i + 1], void *));
+            }
+
             eth_hdr = rte_pktmbuf_mtod(pkts[i], struct rte_ether_hdr *);
             rte_ether_addr_copy(&global->eth_addr, &eth_hdr->src_addr); // Src: NIC's MAC
 
