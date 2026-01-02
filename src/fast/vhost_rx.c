@@ -74,7 +74,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
     ctx->iteration_counter = 0;
 
     while (1) {
-        STATS_TS(start);
+        // STATS_TS(start);
 #ifdef DEBUG
         sleep(1);
 #endif

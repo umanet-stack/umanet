@@ -13,7 +13,7 @@ void eth_tx_loop(struct eth_tx_ctx *ctx) {
     LOG_IMPT("[%u] Entering eth_tx loop...\n", ctx->core_id);
 
     while (1) {
-        STATS_TS(start);
+        // STATS_TS(start);
 #ifdef DEBUG
         sleep(1);
 #endif
