@@ -48,7 +48,6 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
         sleep(1);
 #endif
 
-        // uint16_t num = MAX_PKT_BURST;
         poll_num = network_poll(ctx, MAX_PKT_BURST, pkts);
         if (poll_num == 0)
             continue;
