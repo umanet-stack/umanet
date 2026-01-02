@@ -12,6 +12,11 @@
 struct rte_flow *eth_rx_flows[MAX_VHOSTS] = {NULL};
 
 int install_eth_rx_flow(struct vhost_dev *vdev) {
+    if (eth_rx_flows[vdev->vm_id] != NULL) {
+        LOG_WARN("Flow already installed for VM %d\n", vdev->vm_id);
+        return -1;
+    }
+
     uint16_t eth_queue_id = vdev->vm_id % config.eth_rx_cores;
 
     struct rte_flow_attr attr;

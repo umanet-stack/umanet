@@ -13,6 +13,7 @@
 
 #include "log.h"
 #include "src/include/state.h"
+#include "src/network/network.h"
 #include "src/vhost/vhost.h"
 
 int check_device_state(struct vhost_dev *vdev, const char *func) {
@@ -88,6 +89,12 @@ static void destroy_device(int vid) {
     res = vhost_tx_plan_remove(vid);
     if (res != 0) {
         LOG_ERROR("Failed to remove device vid=%d from vhost_tx_plan\n", vid);
+        return;
+    }
+
+    res = uninstall_eth_rx_flow(vdev);
+    if (res != 0) {
+        LOG_ERROR("Failed to uninstall eth_rx_flow for vid=%d\n", vid);
         return;
     }
 
