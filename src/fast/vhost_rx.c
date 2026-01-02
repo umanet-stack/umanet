@@ -208,8 +208,11 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                 // LOG_INFO("[%d](%d) enqueued %d packets to eth_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
                 //          ctx->vhost_rx_core_id);
                 if (enq_num < eth_bucket[j].cnt) {
-                    LOG_WARN("[%d](%d) failed to enqueue %d packets to eth_tx_ring[%d]\n", ctx->core_id, vid,
-                             eth_bucket[j].cnt - enq_num, j);
+                    int dropped = eth_bucket[j].cnt - enq_num;
+                    STATS_ADD(ctx->vdev_stats[vid], eth_tx_ring_enq_fail_count, dropped);
+                    for (int k = enq_num; k < eth_bucket[j].cnt; k++) {
+                        rte_pktmbuf_free(eth_bucket[j].pkts[k]);
+                    }
                 }
             }
 
@@ -223,7 +226,8 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                 // LOG_INFO("[%d](%d) enqueued %d packets to vhost_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
                 //  dst_vids[j]);
                 if (enq_num < vm_bucket[dst_vids[j]].cnt) {
-                    STATS_ADD(ctx->vdev_stats[dst_vids[j]], ring_enq_fail_count, vm_bucket[dst_vids[j]].cnt - enq_num);
+                    STATS_ADD(ctx->vdev_stats[dst_vids[j]], vhost_tx_ring_enq_fail_count,
+                              vm_bucket[dst_vids[j]].cnt - enq_num);
                 }
             }
 
