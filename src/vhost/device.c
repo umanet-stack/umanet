@@ -118,8 +118,10 @@ static int new_device(int vid) {
     vdev->ready = DEVICE_MAC_LEARNING;
     vdev->mac = (struct rte_ether_addr){0};
     vdev->ip = 0;
-    vdev->rxq_enabled = 0;
-    vdev->txq_enabled = 0;
+    // Initialize queues as enabled - vring_state_changed will update if they change
+    // DPDK 25 doesn't call vring_state_changed on initial enable, only on state changes
+    vdev->rxq_enabled = 1;
+    vdev->txq_enabled = 1;
 
     if (vdev_list->num >= MAX_VHOSTS) {
         LOG_ERROR("(%d) too many devices on vdev_list (max %d)\n", vid, MAX_VHOSTS);
@@ -195,6 +197,10 @@ static int new_device(int vid) {
 /*
  * Callback for vring (virtqueue) state changes
  * Critical for DPDK 24/25 compatibility - tracks when individual queues are enabled/disabled
+ *
+ * NOTE: In DPDK 25, this callback is ONLY called when queue state CHANGES,
+ * NOT on initial enable. Queues start enabled by default, so we initialize
+ * rxq_enabled=1 and txq_enabled=1 in new_device().
  */
 static int vring_state_changed(int vid, uint16_t queue_id, int enable) {
     struct vhost_dev *vdev = vdev_list->vdevs[vid];
@@ -205,10 +211,10 @@ static int vring_state_changed(int vid, uint16_t queue_id, int enable) {
 
     if (queue_id == VIRTIO_RXQ) {
         vdev->rxq_enabled = enable ? 1 : 0;
-        LOG_INFO("(%d) RXQ (queue %d) %s\n", vid, queue_id, enable ? "enabled" : "disabled");
+        LOG_IMPT("(%d) RXQ (queue %d) %s\n", vid, queue_id, enable ? "enabled" : "disabled");
     } else if (queue_id == VIRTIO_TXQ) {
         vdev->txq_enabled = enable ? 1 : 0;
-        LOG_INFO("(%d) TXQ (queue %d) %s\n", vid, queue_id, enable ? "enabled" : "disabled");
+        LOG_IMPT("(%d) TXQ (queue %d) %s\n", vid, queue_id, enable ? "enabled" : "disabled");
     } else {
         LOG_WARN("(%d) Unknown queue_id %d state changed to %d\n", vid, queue_id, enable);
     }
