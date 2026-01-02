@@ -179,6 +179,17 @@ void calculate_vhost_tx_plan() {
             }
         }
 
+        // Probe ALL VMs assigned to this TX core to detect new activity
+        // This is critical - without this, VMs never get added to the plan after initial assignment!
+        for (int j = 0; j < MAX_VHOSTS && new_plan->num < MAX_PKT_BURST; j++) {
+            // inactive, still in vdev_list, and has affinity to this core
+            if (!is_active[j] && vdev_list_ptr->vdevs[j] && vhost_tx_core[j] == i) {
+                new_plan->vids[new_plan->num++] = j;
+                // Don't log every probe to avoid spam
+                // LOG_IMPT("[%d](%d) probe vdev inactive -> active, add to plan\n", i, j);
+            }
+        }
+
         struct vhost_plan *old = atomic_exchange_explicit(&vhost_tx_plans[i], new_plan, memory_order_release);
         rte_free(old);
     }
