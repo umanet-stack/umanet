@@ -39,11 +39,9 @@
 #include <rte_spinlock.h>
 #include <rte_version.h>
 
-#include "../fast/internal.h"
 #include "../include/main.h"
 #include "network.h"
 #include "src/include/state.h"
-#include <tas_memif.h>
 #include <utils.h>
 #include <utils_rng.h>
 
@@ -65,14 +63,12 @@ static struct rte_eth_conf port_conf = {
         {
             .rss_conf =
                 {
-                    // Include both TCP and UDP for proper RSS distribution
-                    // This ensures both TCP and UDP packets are distributed across queues
-                    .rss_hf = RTE_ETH_FLOW_NONFRAG_IPV4_TCP | RTE_ETH_FLOW_NONFRAG_IPV4_UDP,
+                    .rss_hf = RTE_ETH_RSS_IP | RTE_ETH_RSS_TCP | RTE_ETH_RSS_UDP,
                 },
         },
     .intr_conf =
         {
-            .rxq = 1,
+            .rxq = 0,
         },
 };
 
@@ -128,20 +124,20 @@ int network_init() {
     }
 
     /* enable per port checksum offload if requested */
-    if (config.fp_xsumoffload) {
-        uint64_t requested_offloads = RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
-        /* mask unsupported TX offloads */
-        port_conf.txmode.offloads = requested_offloads & eth_devinfo.tx_offload_capa;
-        if (port_conf.txmode.offloads != requested_offloads) {
-            LOG_WARN("NIC does not support all requested TX offloads (requested: 0x%lx, supported: 0x%lx, "
-                     "using: 0x%lx).\n",
-                     requested_offloads, eth_devinfo.tx_offload_capa, port_conf.txmode.offloads);
-        }
-    }
+    // if (config.fp_xsumoffload) {
+    //     uint64_t requested_offloads = RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
+    //     /* mask unsupported TX offloads */
+    //     port_conf.txmode.offloads = requested_offloads & eth_devinfo.tx_offload_capa;
+    //     if (port_conf.txmode.offloads != requested_offloads) {
+    //         LOG_WARN("NIC does not support all requested TX offloads (requested: 0x%lx, supported: 0x%lx, "
+    //                  "using: 0x%lx).\n",
+    //                  requested_offloads, eth_devinfo.tx_offload_capa, port_conf.txmode.offloads);
+    //     }
+    // }
 
     /* disable rx interrupts if requested */
-    if (!config.fp_interrupts)
-        port_conf.intr_conf.rxq = 0;
+    // if (!config.fp_interrupts)
+    //     port_conf.intr_conf.rxq = 0;
 
     /* initialize port */
     ret = rte_eth_dev_configure(global->eth_port_id, config.eth_rx_cores, config.eth_tx_cores, &port_conf);
@@ -154,11 +150,11 @@ int network_init() {
 
     /* enable per-queue checksum offload if requested */
     eth_devinfo.default_txconf.offloads = 0;
-    if (config.fp_xsumoffload) {
-        uint64_t requested_offloads = RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
-        /* mask unsupported TX offloads (use same mask as port-level) */
-        eth_devinfo.default_txconf.offloads = requested_offloads & eth_devinfo.tx_offload_capa;
-    }
+    // if (config.fp_xsumoffload) {
+    //     uint64_t requested_offloads = RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
+    //     /* mask unsupported TX offloads (use same mask as port-level) */
+    //     eth_devinfo.default_txconf.offloads = requested_offloads & eth_devinfo.tx_offload_capa;
+    // }
 
     return 0;
 
@@ -266,22 +262,22 @@ int network_start_eth() {
     }
 
     /* enable vlan stripping if configured */
-    if (config.fp_vlan_strip) {
-        ret = rte_eth_dev_get_vlan_offload(global->eth_port_id);
-        ret |= RTE_ETH_VLAN_STRIP_OFFLOAD;
-        if (rte_eth_dev_set_vlan_offload(global->eth_port_id, ret)) {
-            fprintf(stderr, "network_thread_init: vlan off set failed\n");
-            goto error_tx_queue;
-        }
-    }
+    // if (config.fp_vlan_strip) {
+    //     ret = rte_eth_dev_get_vlan_offload(global->eth_port_id);
+    //     ret |= RTE_ETH_VLAN_STRIP_OFFLOAD;
+    //     if (rte_eth_dev_set_vlan_offload(global->eth_port_id, ret)) {
+    //         fprintf(stderr, "network_thread_init: vlan off set failed\n");
+    //         goto error_tx_queue;
+    //     }
+    // }
 
     /* setting up RETA - non-fatal if not supported (e.g., safe mode) */
-    if (config.fp_autoscale) {
-        if (reta_setup() != 0) {
-            fprintf(stderr, "RETA setup failed - continuing without autoscaling support\n");
-            /* Don't treat as fatal error - device may not support RSS/RETA */
-        }
-    }
+    // if (config.fp_autoscale) {
+    //     if (reta_setup() != 0) {
+    //         fprintf(stderr, "RETA setup failed - continuing without autoscaling support\n");
+    //         /* Don't treat as fatal error - device may not support RSS/RETA */
+    //     }
+    // }
     start_done = 1;
     return 0;
 
@@ -383,13 +379,13 @@ static int reta_setup() {
         goto error_exit;
     }
 
-    if (rss_reta_size > FLEXNIC_PL_MAX_FLOWGROUPS) {
-        fprintf(stderr,
-                "reta_setup: reta size (%u) greater than maximum supported"
-                " (%u)\n",
-                rss_reta_size, FLEXNIC_PL_MAX_FLOWGROUPS);
-        abort();
-    }
+    // if (rss_reta_size > FLEXNIC_PL_MAX_FLOWGROUPS) {
+    //     fprintf(stderr,
+    //             "reta_setup: reta size (%u) greater than maximum supported"
+    //             " (%u)\n",
+    //             rss_reta_size, FLEXNIC_PL_MAX_FLOWGROUPS);
+    //     abort();
+    // }
 
     /* initialize reta */
     for (i = 0, c = 0; i < rss_reta_size; i++) {

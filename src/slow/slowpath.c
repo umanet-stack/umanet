@@ -1,8 +1,8 @@
 #include "src/slow/slowpath.h"
 #include "log.h"
-#include "src/include/fastpath.h"
 #include "src/include/main.h"
 #include "src/include/state.h"
+#include "src/network/network.h"
 #include "src/vhost/vhost.h"
 #include <generic/rte_cycles.h>
 #include <rte_malloc.h>
@@ -19,7 +19,7 @@ void slowpath_loop(struct control_ctx *ctx) {
     control_tty_init();
 
     while (1) {
-        STATS_TS(start);
+        // STATS_TS(start);
 #ifdef DEBUG
         sleep(1);
 #endif
@@ -43,6 +43,7 @@ void slowpath_loop(struct control_ctx *ctx) {
                     continue;
                 }
                 link_vmdq(vdev_list_ptr->vdevs[slow_msg->vid], slow_msg->mbuf);
+                install_eth_rx_flow(vdev_list_ptr->vdevs[slow_msg->vid]);
                 break;
 
             case SLOW_ARP_REQ:
@@ -56,6 +57,7 @@ void slowpath_loop(struct control_ctx *ctx) {
             default:
                 break;
             }
+            rte_mempool_put(control_ctx->msg_pool, slow_msg);
         }
 
         // calculate new vhost RX plan

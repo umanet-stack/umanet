@@ -70,4 +70,7 @@ int network_tx_queue_init(struct eth_tx_ctx *ctx);
 int network_rx_queue_init(struct eth_rx_ctx *ctx);
 int network_start_eth();
 
+int install_eth_rx_flow(struct vhost_dev *vdev);
+int uninstall_eth_rx_flow(struct vhost_dev *vdev);
+
 #endif /* ndef NETWORK_H_ */

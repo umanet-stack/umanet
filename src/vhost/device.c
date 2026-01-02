@@ -13,6 +13,7 @@
 
 #include "log.h"
 #include "src/include/state.h"
+#include "src/network/network.h"
 #include "src/vhost/vhost.h"
 
 int check_device_state(struct vhost_dev *vdev, const char *func) {
@@ -33,69 +34,6 @@ int check_device_state(struct vhost_dev *vdev, const char *func) {
 
     return 0;
 }
-
-// struct vhost_dev *find_vhost_dev(struct rte_ether_addr *mac) {
-//     if (unlikely(mac_lookup_table == NULL)) {
-//         // Hash table not initialized yet, fall back to linear search
-//         struct vhost_dev *vdev;
-//         for (int i = 0; i < global->fp_cores; i++) {
-//             struct dataplane_context *ctx = ctxs[i];
-//             if (ctx == NULL)
-//                 continue;
-//             for (int j = 0; j < ctx->vhost.device_num; j++) {
-//                 vdev = ctx->vhost.vdev_list[j];
-//                 if (vdev != NULL && vdev->ready == DEVICE_RX && rte_is_same_ether_addr(mac, &vdev->mac_address))
-//                     return vdev;
-//             }
-//         }
-//         return NULL;
-//     }
-
-//     // Fast O(1) hash lookup
-//     struct vhost_dev *vdev = NULL;
-//     int ret = rte_hash_lookup_data(mac_lookup_table, mac, (void **)&vdev);
-//     if (ret >= 0 && vdev != NULL && vdev->ready == DEVICE_RX) {
-//         return vdev;
-//     }
-
-//     return NULL;
-// }
-
-// struct vhost_dev *find_vhost_dev_core_ip(struct dataplane_context *ctx, uint32_t vm_ip_address) {
-//     struct vhost_dev *vdev;
-//     for (int j = 0; j < ctx->vhost.device_num; j++) {
-//         vdev = ctx->vhost.vdev_list[j];
-//         if (vdev != NULL && vdev->ready == DEVICE_RX && vdev->vm_ip_address == vm_ip_address)
-//             return vdev;
-//     }
-//     return NULL;
-// }
-
-// Search for VM device by IP address across all cores (similar to find_vhost_dev for MAC)
-// struct vhost_dev *find_vhost_dev_ip(uint32_t vm_ip_address) {
-//     struct vhost_dev *vdev;
-//     for (int i = 0; i < global->fp_cores; i++) {
-//         struct dataplane_context *ctx = ctxs[i];
-//         if (ctx == NULL)
-//             continue;
-//         for (int j = 0; j < ctx->vhost.device_num; j++) {
-//             vdev = ctx->vhost.vdev_list[j];
-//             if (vdev != NULL && vdev->ready == DEVICE_RX && vdev->vm_ip_address == vm_ip_address)
-//                 return vdev;
-//         }
-//     }
-//     return NULL;
-// }
-
-// struct vhost_dev *find_vhost_dev_core_mac(struct dataplane_context *ctx, struct rte_ether_addr *mac) {
-//     struct vhost_dev *vdev;
-//     for (int j = 0; j < ctx->vhost.device_num; j++) {
-//         vdev = ctx->vhost.vdev_list[j];
-//         if (vdev != NULL && vdev->ready == DEVICE_RX && rte_is_same_ether_addr(mac, &vdev->mac_address))
-//             return vdev;
-//     }
-//     return NULL;
-// }
 
 /*
  * Remove a device from the specific data core linked list and from the
@@ -154,38 +92,13 @@ static void destroy_device(int vid) {
         return;
     }
 
+    res = uninstall_eth_rx_flow(vdev);
+    if (res != 0) {
+        LOG_ERROR("Failed to uninstall eth_rx_flow for vid=%d\n", vid);
+        return;
+    }
+
     LOG_INFO("Found device vid=%d, marking for removal\n", vid);
-
-    /* Set the remove flag with memory barrier to ensure visibility */
-    // __sync_synchronize();
-    // vdev->remove = 1;
-    // __sync_synchronize();
-
-    // /* Wait for dataplane to acknowledge removal (with timeout) */
-    // // Give dataplane time to wake up and process removal (dataplane sleeps 100ms)
-    // int max_wait_ms = 5000; // 5 seconds max
-    // int wait_ms = 0;
-    // while (vdev->ready != DEVICE_SAFE_REMOVE && wait_ms < max_wait_ms) {
-    //     usleep(10000); // Sleep 10ms between checks
-    //     wait_ms += 10;
-    // }
-
-    // if (wait_ms >= max_wait_ms) {
-    //     LOG_WARN("Warning: Timeout waiting for device vid=%d removal acknowledgment after %dms\n", vid, wait_ms);
-    //     // Force removal anyway to prevent resource leak
-    // } else {
-    //     LOG_INFO("Device vid=%d removal acknowledged after %dms\n", vid, wait_ms);
-    // }
-
-    // LOG_INFO("(%d) device has been removed from vdev_list (device_num now=%d)\n", vdev->vid, vdev_list->num);
-
-    // // Remove from MAC lookup table if MAC was registered
-    // if (mac_lookup_table != NULL && vdev->ready == DEVICE_RX) {
-    //     int ret = rte_hash_del_key(mac_lookup_table, &vdev->mac_address);
-    //     if (ret < 0 && ret != -ENOENT) {
-    //         LOG_WARN("Warning: Failed to remove MAC from lookup table for vid=%d (ret=%d)\n", vdev->vid, ret);
-    //     }
-    // }
 
     // rte_free(vdev);
 }

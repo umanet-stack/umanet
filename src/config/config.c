@@ -1,5 +1,25 @@
-/* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2010-2017 Intel Corporation
+/*
+ * Copyright 2019 University of Washington, Max Planck Institute for
+ * Software Systems, and The University of Texas at Austin
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including
+ * without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 #include "config.h"
@@ -42,16 +62,6 @@ void init_config(config_t *c) {
     c->eth_tx_cores = 0;
     c->vhost_rx_cores = 0;
     c->vhost_tx_cores = 0;
-    /* ===== TAS ===== */
-    c->shm_len = 1024 * 1024 * 1024;
-    c->fp_cores_max = 1;
-    c->fp_interrupts = 1;
-    c->fp_xsumoffload = 1;
-    c->fp_autoscale = 1;
-    c->fp_hugepages = 1;
-    c->fp_vlan_strip = 0;
-    c->fp_poll_interval_tas = 10000;
-    c->fp_poll_interval_app = 10000;
 }
 
 enum cfg_params {
@@ -130,9 +140,6 @@ static struct option options[] = {
     {"vhost-tx-cores", required_argument, .val = CP_VHOST_TX_CORES},
 };
 
-/*
- * Display usage
- */
 static void us_vhost_usage(const char *prgname) {
     fprintf(stderr,
             "%s [EAL options] -- --portmask PORTMASK\n"
@@ -158,9 +165,6 @@ static void us_vhost_usage(const char *prgname) {
             prgname);
 }
 
-/*
- * Parse the arguments given in the command line of the application.
- */
 int parse_config(config_t *c, int argc, char **argv) {
     int opt;
     const char *prgname = argv[0];
@@ -345,17 +349,6 @@ static int parse_socket_dir(config_t *c, const char *q_arg) // path e.g. /mnt/hu
         return -1;
 
     c->socket_dir = strdup(q_arg);
-
-    // old = c->socket_dir;
-    // // Reallocates socket_files to fit one more socket path
-    // c->socket_dir = realloc(c->socket_dir, PATH_MAX * (c->nb_sockets + 1));
-    // if (c->socket_dir == NULL) { // check if realloc failed
-    //     free(old);
-    //     return -1;
-    // }
-
-    // strlcpy(c->socket_dir + c->nb_sockets * PATH_MAX, q_arg, PATH_MAX); // copies path to socket_dir' new slot
-    // c->nb_sockets++;
 
     return 0;
 }

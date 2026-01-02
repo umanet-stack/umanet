@@ -2,6 +2,7 @@
 #include "src/include/state.h"
 #include "src/network/network.h"
 #include <rte_ring.h>
+#include <stdatomic.h>
 #include <unistd.h>
 
 static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts);
@@ -10,12 +11,12 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
     LOG_IMPT("[%u] Entering vhost_tx loop...\n", ctx->core_id);
 
     while (1) {
-        STATS_TS(start);
+        // STATS_TS(start);
 #ifdef DEBUG
         sleep(1);
 #endif
 
-        struct vhost_plan *plan = atomic_load(&vhost_tx_plans[ctx->vhost_tx_core_id]);
+        struct vhost_plan *plan = atomic_load_explicit(&vhost_tx_plans[ctx->vhost_tx_core_id], memory_order_relaxed);
         for (int i = 0; i < plan->num; i++) {
             uint16_t vid = plan->vids[i];
             uint16_t num = MAX_PKT_BURST;
@@ -28,8 +29,12 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
             // LOG_INFO("[%d] Dequeued %d packets from vhost_tx_ring[%d] to vhost_tx_loop\n", ctx->core_id, deq_num,
             // vid);
 
-            if (deq_num > 0)
+            if (deq_num > 0) {
+                for (int j = 0; j < RTE_MIN(deq_num, 4); j++) {
+                    rte_prefetch0(pkts[j]);
+                }
                 vhost_send(ctx, deq_num, vid, pkts);
+            }
         }
     }
 }

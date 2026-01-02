@@ -31,29 +31,45 @@ static inline int dst_is_local_subnet(struct rte_ether_hdr *eth_hdr) {
 void eth_rx_loop(struct eth_rx_ctx *ctx) {
     LOG_IMPT("[%u] Entering eth_rx loop...\n", ctx->core_id);
 
+    struct rte_mbuf *pkts[MAX_PKT_BURST];
+    struct rte_mbuf *vm_pkts[MAX_VHOSTS][MAX_PKT_BURST];
+    uint16_t vm_cnt[MAX_VHOSTS];
+    for (int i = 0; i < MAX_VHOSTS; i++) {
+        vm_cnt[i] = 0;
+    }
+    uint16_t dst_vids[MAX_VHOSTS]; // indexed by dst_cnt, no need to init
+
+    struct slow_msg *slow_msgs[MAX_PKT_BURST];
+    int slow_cnt, poll_num;
+
     while (1) {
-        STATS_TS(start);
+        // STATS_TS(start);
 #ifdef DEBUG
         sleep(1);
 #endif
 
-        uint16_t num = MAX_PKT_BURST;
-        struct rte_mbuf *pkts[num];
-        int poll_num = network_poll(ctx, num, pkts);
+        poll_num = network_poll(ctx, MAX_PKT_BURST, pkts);
+        if (poll_num == 0)
+            continue;
 
-        struct slow_msg *slow_msgs[num];
-        int slow_cnt = 0;
+        // Prefetch first packets
+        for (int p = 0; p < RTE_MIN(poll_num, 4); p++) {
+            rte_prefetch0(pkts[p]);
+            rte_prefetch0(rte_pktmbuf_mtod(pkts[p], void *));
+        }
 
-        struct {
-            struct rte_mbuf *pkts[MAX_PKT_BURST];
-            uint16_t cnt;
-        } vm_bucket[MAX_VHOSTS] = {0};
-        uint8_t vid_seen[MAX_VHOSTS] = {0};
-        uint16_t dst_vids[MAX_VHOSTS] = {0};
+        slow_cnt = 0;
+        uint64_t vid_seen_mask = 0;
         uint16_t dst_cnt = 0;
 
-        struct vdev_list *vdev_list_ptr = atomic_load(&vdev_list);
+        struct vdev_list *vdev_list_ptr = atomic_load_explicit(&vdev_list, memory_order_relaxed);
         for (int j = 0; j < poll_num; j++) {
+            // Prefetch next packet's mbuf and packet data
+            if (j + 1 < poll_num) {
+                rte_prefetch0(pkts[j + 1]);
+                rte_prefetch0(rte_pktmbuf_mtod(pkts[j + 1], void *));
+            }
+
             struct rte_mbuf *m = pkts[j];
             struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 
@@ -62,7 +78,8 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
                 // only ARP req for dataplane, VM ARPs go stright to vhost_tx_loop
                 if (arp_hdr->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST) &&
                     rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip) == config.ip) {
-                    struct slow_msg *slow_msg = (struct slow_msg *)malloc(sizeof(struct slow_msg));
+                    struct slow_msg *slow_msg;
+                    rte_mempool_get(control_ctx->msg_pool, (void **)&slow_msg);
                     slow_msg->reason = SLOW_ARP_REQ;
                     slow_msg->src = SLOW_SRC_ETH;
                     slow_msg->eth_queue_id = ctx->eth_queue_id;
@@ -87,11 +104,11 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
                 rte_ether_addr_copy(&vdev->mac, &eth_hdr->dst_addr);  // dst MAC = vm MAC
                 rte_ether_addr_copy(&config.mac, &eth_hdr->src_addr); // src MAC = our MAC
 
-                vm_bucket[dst_vid].pkts[vm_bucket[dst_vid].cnt++] = m;
-                if (vid_seen[dst_vid])
+                vm_pkts[dst_vid][vm_cnt[dst_vid]++] = m;
+                if (vid_seen_mask & (1ULL << dst_vid))
                     continue;
 
-                vid_seen[dst_vid] = 1;
+                vid_seen_mask |= (1ULL << dst_vid);
                 if (dst_cnt >= MAX_VHOSTS) {
                     LOG_ERROR("[%d] dst_vids array full, dropping vid %d\n", ctx->core_id, dst_vid);
                     continue;
@@ -101,16 +118,16 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
         }
 
         for (int j = 0; j < dst_cnt; j++) {
-            if (vm_bucket[dst_vids[j]].cnt == 0)
+            if (vm_cnt[dst_vids[j]] == 0)
                 break;
 
-            int enq_num =
-                rte_ring_enqueue_burst(global->vhost_tx_rings[dst_vids[j]], (void **)vm_bucket[dst_vids[j]].pkts,
-                                       vm_bucket[dst_vids[j]].cnt, NULL);
+            int enq_num = rte_ring_enqueue_burst(global->vhost_tx_rings[dst_vids[j]], (void **)vm_pkts[dst_vids[j]],
+                                                 vm_cnt[dst_vids[j]], NULL);
             // LOG_INFO("[%d] enqueued %d packets to vhost_tx_ring[%d]\n", ctx->core_id, enq_num, dst_vids[j]);
-            if (enq_num < vm_bucket[dst_vids[j]].cnt) {
-                STATS_ADD(ctx->stats, ring_enq_fail_count, vm_bucket[dst_vids[j]].cnt - enq_num);
+            if (enq_num < vm_cnt[dst_vids[j]]) {
+                STATS_ADD(ctx->stats, ring_enq_fail_count, vm_cnt[dst_vids[j]] - enq_num);
             }
+            vm_cnt[dst_vids[j]] = 0; // reset for next iteration
         }
 
         if (slow_cnt) {
