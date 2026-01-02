@@ -129,6 +129,7 @@ struct vhost_plan {
 
 struct control_ctx {
     uint16_t core_id;
+    struct rte_mempool *msg_pool;
     // struct arp_table *arp;
     // struct route_table *route_table;
     // struct vhost_map *vmap;

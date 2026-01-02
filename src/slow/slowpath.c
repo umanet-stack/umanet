@@ -55,6 +55,7 @@ void slowpath_loop(struct control_ctx *ctx) {
             default:
                 break;
             }
+            rte_mempool_put(control_ctx->msg_pool, slow_msg);
         }
 
         // calculate new vhost RX plan

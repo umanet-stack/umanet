@@ -2,6 +2,7 @@
 #include "src/include/main.h"
 #include "src/include/state.h"
 #include "src/network/network.h"
+#include "src/slow/slowpath.h"
 #include "src/vhost/vhost.h"
 #include <rte_malloc.h>
 
@@ -118,6 +119,12 @@ int init_dataplane_ctxs() {
         return -1;
     }
     control_ctx->core_id = 0;
+    if ((control_ctx->msg_pool =
+             rte_mempool_create("control_ctx->msg_pool", PERTHREAD_MBUFS, MBUF_SIZE, 32, sizeof(struct slow_msg),
+                                rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, rte_socket_id(), 0)) == NULL) {
+        LOG_ERROR("init_dataplane_ctxs: failed to create control_ctx->msg_pool\n");
+        return -1;
+    }
 
     return 0;
 }

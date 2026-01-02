@@ -135,7 +135,8 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             uint16_t dst_cnt = 0;
 
             if (unlikely(vdev->ready == DEVICE_MAC_LEARNING && poll_num > 0)) {
-                struct slow_msg *slow_msg = (struct slow_msg *)malloc(sizeof(struct slow_msg));
+                struct slow_msg *slow_msg;
+                rte_mempool_get(control_ctx->msg_pool, (void **)&slow_msg);
                 slow_msg->reason = SLOW_MAC_LEARNING;
                 slow_msg->src = SLOW_SRC_VHOST;
                 slow_msg->vid = vid;
@@ -153,7 +154,8 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                     // only ARP req for dataplane, VM ARPs go stright to vhost_tx_loop
                     if (arp_hdr->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST) &&
                         rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip) == config.ip) {
-                        struct slow_msg *slow_msg = (struct slow_msg *)malloc(sizeof(struct slow_msg));
+                        struct slow_msg *slow_msg;
+                        rte_mempool_get(control_ctx->msg_pool, (void **)&slow_msg);
                         slow_msg->reason = SLOW_ARP_REQ;
                         slow_msg->src = SLOW_SRC_VHOST;
                         slow_msg->vid = vid;
