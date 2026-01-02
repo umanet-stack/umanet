@@ -28,10 +28,6 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
             uint16_t num = MAX_PKT_BURST;
             struct rte_mbuf *pkts[num];
 
-            // DPDK 24/25: Check if RXQ is enabled before sending
-            if (!vdev_list_ptr->vdevs[vid] || !vdev_list_ptr->vdevs[vid]->rxq_enabled) {
-                continue;
-            }
             int deq_num = rte_ring_dequeue_burst(global->vhost_tx_rings[plan->vids[i]], (void **)pkts, num, NULL);
             if (deq_num == num) {
                 STATS_ADD(ctx->vdev_stats[plan->vids[i]], ring_deq_max_count, 1);

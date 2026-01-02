@@ -45,10 +45,6 @@ struct vhost_dev {
 
     // ready if the MAC address has been set
     volatile uint8_t ready;
-
-    // Queue state tracking for DPDK 24/25 compatibility
-    volatile uint8_t rxq_enabled;
-    volatile uint8_t txq_enabled;
 } __rte_cache_aligned;
 
 #define WINDOW_SIZE 10 // number of intervals (~seconds)

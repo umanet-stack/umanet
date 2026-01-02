@@ -134,12 +134,6 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             // }
             // // Clients (odd vm_id: 1,3,5,7,...) are polled every iteration
 
-            // DPDK 24/25: Check if TXQ is enabled before polling
-            if (!vdev->txq_enabled) {
-                STATS_ADD(ctx->vdev_stats[vid], empty_poll_count, 1);
-                STATS_ADD(ctx->vdev_stats[vid], empty_wnd[ctx->vdev_stats[vid]->wnd_idx], 1);
-                continue;
-            }
             poll_num = vhost_poll(ctx, MAX_PKT_BURST, vid, pkts);
             if (poll_num == 0)
                 continue;
