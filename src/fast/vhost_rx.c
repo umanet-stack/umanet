@@ -5,7 +5,9 @@
 #include <rte_ip.h>
 #include <rte_jhash.h>
 #include <rte_ring.h>
+#include <rte_tcp.h>
 #include <rte_thash.h>
+#include <rte_udp.h>
 #include <stdint.h>
 #include <unistd.h>
 
@@ -17,30 +19,42 @@ static const uint8_t default_rss_key[40] = {0x6d, 0x5a, 0x56, 0xda, 0x25, 0x5b, 
 static inline unsigned vhost_poll(struct vhost_rx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts);
 
 // returns dst_ip if dst_ip is in the local subnet, else 0
-static inline int dst_is_local_subnet(struct rte_ether_hdr *eth_hdr, uint32_t *src_ip, uint32_t *dst_ip) {
+static inline int dst_is_local_subnet(struct rte_ether_hdr *eth_hdr, uint32_t *src_ip, uint32_t *dst_ip,
+                                      uint16_t *src_port, uint16_t *dst_port, uint8_t *proto) {
     uint32_t subnet = (config.ip & 0xFFFFFF00);
     if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
-        struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
-        *src_ip = rte_be_to_cpu_32(ipv4_hdr->src_addr);
-        *dst_ip = rte_be_to_cpu_32(ipv4_hdr->dst_addr);
-        return (*dst_ip & 0xFFFFFF00) == subnet;
+        struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth_hdr + 1);
+        *src_ip = rte_be_to_cpu_32(ip->src_addr);
+        *dst_ip = rte_be_to_cpu_32(ip->dst_addr);
+
+        *proto = ip->next_proto_id;
+        if (ip->next_proto_id == IPPROTO_TCP) {
+            struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *)((uint8_t *)ip + (ip->ihl * 4));
+            *src_port = rte_be_to_cpu_16(tcp->src_port);
+            *dst_port = rte_be_to_cpu_16(tcp->dst_port);
+        } else if (ip->next_proto_id == IPPROTO_UDP) {
+            struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((uint8_t *)ip + (ip->ihl * 4));
+            *src_port = rte_be_to_cpu_16(udp->src_port);
+            *dst_port = rte_be_to_cpu_16(udp->dst_port);
+        }
     } else if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)) {
         struct rte_arp_hdr *arp_hdr = (struct rte_arp_hdr *)(eth_hdr + 1);
         *src_ip = rte_be_to_cpu_32(arp_hdr->arp_data.arp_sip);
         *dst_ip = rte_be_to_cpu_32(arp_hdr->arp_data.arp_tip);
-        return (*dst_ip & 0xFFFFFF00) == subnet;
     }
 
-    return 0;
+    return (*dst_ip & 0xFFFFFF00) == subnet;
 }
 
 // static inline int flow_pick_tx(struct vhost_rx_ctx *ctx, struct flow_key *key, uint64_t now) {
-static inline int flow_pick_tx(uint32_t src_ip, uint32_t dst_ip) {
-    uint32_t tuple[2];
-    tuple[0] = src_ip;
-    tuple[1] = dst_ip;
+static inline int flow_pick_tx(uint32_t src_ip, uint32_t dst_ip, uint16_t src_port, uint16_t dst_port, uint8_t proto) {
+    uint32_t tuple[4];
+    tuple[0] = rte_cpu_to_be_32(src_ip);
+    tuple[1] = rte_cpu_to_be_32(dst_ip);
+    tuple[2] = rte_cpu_to_be_16(src_port) << 16 | rte_cpu_to_be_16(dst_port);
+    tuple[3] = rte_cpu_to_be_32(proto);
 
-    uint32_t h = rte_softrss_be(tuple, 2, default_rss_key);
+    uint32_t h = rte_softrss_be(tuple, 4, default_rss_key);
     return h % config.eth_tx_cores;
     // uint32_t idx = h & (FLOW_TABLE_SIZE - 1);
 
@@ -145,7 +159,9 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                 }
 
                 uint32_t src_ip = 0, dst_ip = 0;
-                if (dst_is_local_subnet(eth_hdr, &src_ip, &dst_ip)) {
+                uint16_t src_port = 0, dst_port = 0;
+                uint8_t proto = 0;
+                if (dst_is_local_subnet(eth_hdr, &src_ip, &dst_ip, &src_port, &dst_port, &proto)) {
                     // dpdk's ip (192.168.100.1) and ips not belonging to any vms (e.g. 192.168.100.99)
                     // won't be found in ip_2_vid table
                     int dst_vid = find_vid_by_ip(dst_ip);
@@ -171,7 +187,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                     //     .dst_ip = dst_ip,
                     // };
                     // int eth_tx_core = flow_pick_tx(ctx, &eth_key, rte_rdtsc());
-                    int eth_tx_core = flow_pick_tx(src_ip, dst_ip);
+                    int eth_tx_core = flow_pick_tx(src_ip, dst_ip, src_port, dst_port, proto);
                     // if (eth_tx_core < 0 || eth_tx_core >= MAX_ETH_TX_CORES) {
                     //     struct slow_msg *slow_msg = (struct slow_msg *)malloc(sizeof(struct slow_msg));
                     //     slow_msg->reason = SLOW_ETH_TX_FLOW;
