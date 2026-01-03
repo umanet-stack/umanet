@@ -39,8 +39,9 @@ def load_results(logs_dir: Path, process_all_vms: bool = False) -> Dict[str, dic
                 log_content = f.read()
             
             # Extract the summary line
-            # Format: [timestamp] start-iperf.sh[pid]: [date time] vmX:   Throughput: X Gbps | Bytes: X GB | Retransmits: X | CPU (host): X% | CPU (remote): X%
-            pattern = r'\[.*?\] start-iperf\.sh\[.*?\]: \[.*?\] vm:\s+Throughput:\s+([\d.]+)\s+Gbps\s+\|\s+Bytes:\s+([\d.]+)\s+GB\s+\|\s+Retransmits:\s+(\d+)\s+\|\s+CPU\s+\(host\):\s+([\d.]+)%\s+\|\s+CPU\s+\(remote\):\s+([\d.]+)%'
+            # Format: [timestamp] start-iperf.sh[pid]: [date time] vm:   Throughput: X Gbps | Bytes: X GB | Retransmits: X | CPU (host): X% | CPU (remote): X%
+            # Note: Script name can be start-iperf.sh or start-test.sh depending on test setup
+            pattern = r'\[.*?\] start-(?:iperf|test)\.sh\[.*?\]: \[.*?\] vm:\s+Throughput:\s+([\d.]+)\s+Gbps\s+\|\s+Bytes:\s+([\d.]+)\s+GB\s+\|\s+Retransmits:\s+(\d+)\s+\|\s+CPU\s+\(host\):\s+([\d.]+)%\s+\|\s+CPU\s+\(remote\):\s+([\d.]+)%'
             match = re.search(pattern, log_content)
             
             if match:
@@ -57,11 +58,12 @@ def load_results(logs_dir: Path, process_all_vms: bool = False) -> Dict[str, dic
                 
                 # Extract intervals from log text
                 # Format: "[timestamp] start-iperf.sh[pid]:   [0-1.001431s] 10.13 Gbps"
+                # Note: Script name can be start-iperf.sh or start-test.sh
                 intervals = []
                 # Find all interval lines after "iperf3 intervals"
                 # Pattern matches lines with kernel timestamp prefix: "[timestamp] start-iperf.sh[pid]:   [0-1.001431s] 10.13 Gbps"
                 # Look for lines that contain interval pattern after "iperf3 intervals"
-                interval_section = re.search(r'iperf3 intervals.*?\n((?:\[.*?\] start-iperf\.sh\[.*?\]:\s+\[[\d.]+-[\d.]+s\]\s+[\d.]+\s+Gbps\n?)+)', log_content, re.MULTILINE)
+                interval_section = re.search(r'iperf3 intervals.*?\n((?:\[.*?\] start-(?:iperf|test)\.sh\[.*?\]:\s+\[[\d.]+-[\d.]+s\]\s+[\d.]+\s+Gbps\n?)+)', log_content, re.MULTILINE)
                 
                 if interval_section:
                     interval_block = interval_section.group(1)
@@ -386,64 +388,19 @@ def get_next_report_number(base_dir: Path) -> int:
     return max(existing_reports) + 1
 
 
-def main():
-    """Main processing pipeline"""
-    parser = argparse.ArgumentParser(description="Process iperf3 test results and generate reports")
-    parser.add_argument(
-        "folder",
-        nargs="?",
-        default="testing",
-        help="Folder name relative to script directory (default: testing)"
-    )
-    parser.add_argument(
-        "mode",
-        nargs="?",
-        choices=["vm-vm-internal", "vm-client"],
-        default="vm-vm-internal",
-        help="Processing mode: 'vm-vm-internal' (process only odd VMs) or 'vm-client' (process all VMs) (default: vm-vm-internal)"
-    )
-    args = parser.parse_args()
+def process_iperf_results(logs_dir: Path, reports_dir: Path, mode: str):
+    """Process iperf3 results and generate reports
     
-    # Determine if we should process all VMs
-    process_all_vms = (args.mode == "vm-client")
-    
-    # Set up directories relative to script
-    base_dir = SCRIPT_DIR / args.folder
-    logs_dir = base_dir / "logs"
-    reports_base_dir = base_dir / args.mode
-    
-    # Create base directory if it doesn't exist
-    base_dir.mkdir(exist_ok=True, parents=True)
-    
-    # Check if logs directory exists
-    if not logs_dir.exists():
-        print(f"❌ Logs directory not found: {logs_dir}")
-        print(f"   Please ensure log files are in: {logs_dir}/")
-        return
-    
-    # Count VMs to determine report directory name
-    num_vms = 0
-    for log_file in sorted(logs_dir.glob("vm*.log")):
-        vm_name = log_file.stem  # e.g., "vm1"
-        vm_num = int(vm_name[2:])  # Extract number: "vm1" -> 1
-        
-        # Count based on mode
-        if process_all_vms or vm_num % 2 == 1:  # All VMs for vm-client, odd VMs for vm-vm-internal
-            num_vms += 1
-    
-    # Create report directory: {mode}/report-{n}vm
-    reports_dir = reports_base_dir / f"report-{num_vms}vm"
-    reports_dir.mkdir(exist_ok=True, parents=True)
-    
-    print("🔥 Processing iperf3 results...")
-    print(f"📁 Base folder: {base_dir}")
-    print(f"📁 Logs folder: {logs_dir}")
-    print(f"📁 Reports folder: {reports_dir}")
-    print()
+    Args:
+        logs_dir: Directory containing VM log files
+        reports_dir: Directory where reports will be saved
+        mode: Processing mode ('vm-vm-internal' or 'vm-client')
+    """
+    process_all_vms = (mode == "vm-client")
     
     # Load results
     print("📂 Loading results...")
-    print(f"   Mode: {args.mode} ({'processing all VMs' if process_all_vms else 'processing odd VMs only'})")
+    print(f"   Mode: {mode} ({'processing all VMs' if process_all_vms else 'processing odd VMs only'})")
     results = load_results(logs_dir, process_all_vms=process_all_vms)
     print(f"   Found {len(results)} VM results")
     print()
@@ -484,6 +441,62 @@ def main():
     print()
     print(f"✅ All reports saved to: {reports_dir}/")
     print()
+
+
+def main():
+    """Main processing pipeline - for standalone execution"""
+    parser = argparse.ArgumentParser(description="Process iperf3 test results and generate reports")
+    parser.add_argument(
+        "folder",
+        choices=["dpdk", "tap", "dpdk-tap"],
+        help="Folder name: 'dpdk', 'tap', or 'dpdk-tap'"
+    )
+    parser.add_argument(
+        "mode",
+        choices=["vm-vm-internal", "vm-client"],
+        help="Processing mode: 'vm-vm-internal' (process only odd VMs) or 'vm-client' (process all VMs)"
+    )
+    args = parser.parse_args()
+    
+    # Determine if we should process all VMs
+    process_all_vms = (args.mode == "vm-client")
+    
+    # Set up directories relative to script
+    base_dir = SCRIPT_DIR.parent / args.folder
+    logs_dir = base_dir / "logs"
+    reports_base_dir = base_dir / "iperf" / args.mode
+    
+    # Create base directory if it doesn't exist
+    reports_base_dir.mkdir(exist_ok=True, parents=True)
+    
+    # Check if logs directory exists
+    if not logs_dir.exists():
+        print(f"❌ Logs directory not found: {logs_dir}")
+        print(f"   Please ensure log files are in: {logs_dir}/")
+        return
+    
+    # Count VMs to determine report directory name
+    num_vms = 0
+    for log_file in sorted(logs_dir.glob("vm*.log")):
+        vm_name = log_file.stem  # e.g., "vm1"
+        vm_num = int(vm_name[2:])  # Extract number: "vm1" -> 1
+        
+        # Count based on mode
+        if process_all_vms or vm_num % 2 == 1:  # All VMs for vm-client, odd VMs for vm-vm-internal
+            num_vms += 1
+    
+    # Create report directory: iperf/{mode}/report-{n}vm
+    reports_dir = reports_base_dir / f"report-{num_vms}vm"
+    reports_dir.mkdir(exist_ok=True, parents=True)
+    
+    print("🔥 Processing iperf3 results...")
+    print(f"📁 Base folder: {base_dir}")
+    print(f"📁 Logs folder: {logs_dir}")
+    print(f"📁 Reports folder: {reports_dir}")
+    print()
+    
+    # Call the main processing function
+    process_iperf_results(logs_dir, reports_dir, args.mode)
 
 
 if __name__ == "__main__":

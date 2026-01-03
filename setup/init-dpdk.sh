@@ -47,3 +47,9 @@ cd ~/dpdk-inst-21.11.9/build
 ninja
 sudo ninja install
 sudo ldconfig
+
+# disable SMT (2 threads/core => 1 thread/core)
+echo off | sudo tee /sys/devices/system/cpu/smt/control
+
+# Decompress the DDP package, required for Intel ice driver in not safe mode (to create flow rules)
+sudo zstd -d /lib/firmware/intel/ice/ddp/ice-1.3.36.0.pkg.zst -o /lib/firmware/intel/ice/ddp/ice.pkg

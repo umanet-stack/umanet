@@ -24,6 +24,7 @@
 
 #include <linux/virtio_net.h>
 #include <pthread.h>
+#include <rte_build_config.h>
 #include <rte_malloc.h>
 #include <signal.h>
 #include <stdint.h>
@@ -79,7 +80,7 @@ int main(int argc, char *argv[]) {
         res = EXIT_FAILURE;
         goto error_exit;
     }
-    LOG_IMPT("✅ Initialized DPDK EAL\n");
+    LOG_IMPT("✅ Initialized DPDK EAL (%d.%d.%d)\n", RTE_VER_YEAR, RTE_VER_MONTH, RTE_VER_MINOR);
     argc -= dpdk_args; // Update argc to exclude DPDK-specific arguments
     argv += dpdk_args;
 
