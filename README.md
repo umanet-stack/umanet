@@ -20,9 +20,8 @@ The switch worker loop continuously:
 ## Setup
 - for vm setup, see `setup/setup_vm.md`
 ```bash
+# make sure to run this, even if it's TAP, ovs-dpdk (there's CPU settings + Intel NIC config)
 ./setup/init-dpdk.sh
-# Decompress the DDP package, required for Intel ice driver in not safe mode (to create flow rules)
-sudo zstd -d /lib/firmware/intel/ice/ddp/ice-1.3.36.0.pkg.zst -o /lib/firmware/intel/ice/ddp/ice.pkg
 
 # reserve hugepages
 # 24576 × 2 MB = 48 GB mem for hugepages

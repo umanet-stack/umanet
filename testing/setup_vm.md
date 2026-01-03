@@ -16,9 +16,6 @@ sudo cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm-img.raw
 # setup node (allow internet NAT)
 ./setup/setup_node.sh
 
-# disable SMT (2 threads/core => 1 thread/core)
-echo off | sudo tee /sys/devices/system/cpu/smt/control
-
 # first run: let it install packages + setup services (use tap to access internet)
 ./setup/vm/setup_br_tap.sh 32
 ./setup/vm/spawn_vms.sh tap 32 vm-vm-internal
