@@ -366,61 +366,19 @@ See the following plots for detailed analysis:
     print(f"✅ Saved report: {output_path}")
 
 
-def main():
-    """Main processing pipeline"""
-    parser = argparse.ArgumentParser(description="Process sockperf test results and generate reports")
-    parser.add_argument(
-        "folder",
-        choices=["dpdk", "tap", "dpdk-tap"],
-        help="Folder name: 'dpdk', 'tap', or 'dpdk-tap'"
-    )
-    parser.add_argument(
-        "mode",
-        choices=["vm-vm-internal", "vm-client"],
-        help="Processing mode: 'vm-vm-internal' (process only odd VMs) or 'vm-client' (process all VMs)"
-    )
-    args = parser.parse_args()
+def process_sockperf_results(logs_dir: Path, reports_dir: Path, mode: str):
+    """Process sockperf results and generate reports
     
-    # Determine if we should process all VMs
-    process_all_vms = (args.mode == "vm-client")
-    
-    # Set up directories relative to script
-    base_dir = SCRIPT_DIR / args.folder
-    logs_dir = base_dir / "logs"
-    reports_base_dir = base_dir / "sockperf" / args.mode
-    
-    # Create base directory if it doesn't exist
-    reports_base_dir.mkdir(exist_ok=True, parents=True)
-    
-    # Check if logs directory exists
-    if not logs_dir.exists():
-        print(f"❌ Logs directory not found: {logs_dir}")
-        print(f"   Please ensure log files are in: {logs_dir}/")
-        return
-    
-    # Count VMs to determine report directory name
-    num_vms = 0
-    for log_file in sorted(logs_dir.glob("vm*.log")):
-        vm_name = log_file.stem  # e.g., "vm1"
-        vm_num = int(vm_name[2:])  # Extract number: "vm1" -> 1
-        
-        # Count based on mode
-        if process_all_vms or vm_num % 2 == 1:  # All VMs for vm-client, odd VMs for vm-vm-internal
-            num_vms += 1
-    
-    # Create report directory: sockperf/{mode}/report-{n}vm
-    reports_dir = reports_base_dir / f"report-{num_vms}vm"
-    reports_dir.mkdir(exist_ok=True, parents=True)
-    
-    print("🔥 Processing sockperf results...")
-    print(f"📁 Base folder: {base_dir}")
-    print(f"📁 Logs folder: {logs_dir}")
-    print(f"📁 Reports folder: {reports_dir}")
-    print()
+    Args:
+        logs_dir: Directory containing VM log files
+        reports_dir: Directory where reports will be saved
+        mode: Processing mode ('vm-vm-internal' or 'vm-client')
+    """
+    process_all_vms = (mode == "vm-client")
     
     # Load results
     print("📂 Loading results...")
-    print(f"   Mode: {args.mode} ({'processing all VMs' if process_all_vms else 'processing odd VMs only'})")
+    print(f"   Mode: {mode} ({'processing all VMs' if process_all_vms else 'processing odd VMs only'})")
     results = load_results(logs_dir, process_all_vms=process_all_vms)
     print(f"   Found {len(results)} VM results")
     print()
@@ -464,6 +422,62 @@ def main():
     print()
     print(f"✅ All reports saved to: {reports_dir}/")
     print()
+
+
+def main():
+    """Main processing pipeline - for standalone execution"""
+    parser = argparse.ArgumentParser(description="Process sockperf test results and generate reports")
+    parser.add_argument(
+        "folder",
+        choices=["dpdk", "tap", "dpdk-tap"],
+        help="Folder name: 'dpdk', 'tap', or 'dpdk-tap'"
+    )
+    parser.add_argument(
+        "mode",
+        choices=["vm-vm-internal", "vm-client"],
+        help="Processing mode: 'vm-vm-internal' (process only odd VMs) or 'vm-client' (process all VMs)"
+    )
+    args = parser.parse_args()
+    
+    # Determine if we should process all VMs
+    process_all_vms = (args.mode == "vm-client")
+    
+    # Set up directories relative to script
+    base_dir = SCRIPT_DIR.parent / args.folder
+    logs_dir = base_dir / "logs"
+    reports_base_dir = base_dir / "sockperf" / args.mode
+    
+    # Create base directory if it doesn't exist
+    reports_base_dir.mkdir(exist_ok=True, parents=True)
+    
+    # Check if logs directory exists
+    if not logs_dir.exists():
+        print(f"❌ Logs directory not found: {logs_dir}")
+        print(f"   Please ensure log files are in: {logs_dir}/")
+        return
+    
+    # Count VMs to determine report directory name
+    num_vms = 0
+    for log_file in sorted(logs_dir.glob("vm*.log")):
+        vm_name = log_file.stem  # e.g., "vm1"
+        vm_num = int(vm_name[2:])  # Extract number: "vm1" -> 1
+        
+        # Count based on mode
+        if process_all_vms or vm_num % 2 == 1:  # All VMs for vm-client, odd VMs for vm-vm-internal
+            num_vms += 1
+    
+    # Create report directory: sockperf/{mode}/report-{n}vm
+    reports_dir = reports_base_dir / f"report-{num_vms}vm"
+    reports_dir.mkdir(exist_ok=True, parents=True)
+    
+    print("🔥 Processing sockperf results...")
+    print(f"📁 Base folder: {base_dir}")
+    print(f"📁 Logs folder: {logs_dir}")
+    print(f"📁 Reports folder: {reports_dir}")
+    print()
+    
+    # Call the main processing function
+    process_sockperf_results(logs_dir, reports_dir, args.mode)
 
 
 if __name__ == "__main__":
