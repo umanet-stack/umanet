@@ -6,7 +6,7 @@ if [ "$#" -ne 4 ]; then
     echo "  i: index of the VM"
     echo "  res_dir: directory containing resources"
     echo "  role: server or client"
-    echo "  command: iperf3 command"
+    echo "  command: test command"
     exit 1
 fi
 
@@ -20,7 +20,7 @@ LOG_DIR="$(dirname "$0")/../../testing/ovs_dpdk/logs"
 logfile="$LOG_DIR/vm$i.log"
 
 # Base64 encode the command to avoid space issues in kernel cmdline
-IPERF_COMMAND_B64=$(echo -n "$COMMAND" | base64 -w 0)
+TEST_COMMAND_B64=$(echo -n "$COMMAND" | base64 -w 0)
 
 # dpdk vms starts from core 5 (tap starts from core 4) since 1 core for dpdk master
 # prefault=on when doing zero-copy
@@ -32,7 +32,7 @@ cloud-hypervisor \
     --memory size=512M,hugepages=on,shared=on,prefault=on \
     --kernel "$RES_DIR/vmlinux.bin" \
     --initramfs /tmp/initramfs-overlay.img \
-    --cmdline "console=ttyS0 console=hvc0 rdinit=/init VM_INDEX=$i ROLE=$ROLE IPERF_COMMAND_B64=$IPERF_COMMAND_B64" \
+    --cmdline "console=ttyS0 console=hvc0 rdinit=/init VM_INDEX=$i ROLE=$ROLE TEST_COMMAND_B64=$TEST_COMMAND_B64" \
     --disk path="$RES_DIR/noble-server-cloudimg-amd64-customized.raw",readonly=on path="$RES_DIR/disks/state-$i.img" \
     --net "mac=12:34:56:78:90:$(printf '%02X' $i),vhost_user=true,socket=/mnt/huge/sock$i,num_queues=2,vhost_mode=server,socket=/tmp/vhost-user$i,queue_size=4096" \
     > "$logfile" 2>&1 &
