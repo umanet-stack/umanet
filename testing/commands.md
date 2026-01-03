@@ -11,7 +11,10 @@ For `vm-vm-internal`, if you run 8 vms = 4 servers + 4 clients = `report-4vm`
 ./setup/vm/setup_br_tap.sh 32
 ./setup/vm/spawn_vms.sh tap 32 vm-vm-internal iperf
 python testing/process_iperf.py tap vm-vm-internal
+
 ./setup/vm/spawn_vms.sh tap 32 vm-vm-internal sockperf
+python testing/process_sockperf.py tap vm-vm-internal
+
 ```
 ## multinode
 ```bash
