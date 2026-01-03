@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd ~/code/fahren/setup/img
+cd ~/code/umanet/setup/img
 sudo rm -rf initramfs || true
 sudo rm -f /tmp/initramfs-overlay.img || true
 

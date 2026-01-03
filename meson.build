@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright(c) 2017 Intel Corporation
 
-project('fahren', 'c',
+project('umanet', 'c',
 	version: '1.0.0',
 	license: 'BSD-3-Clause',
 	default_options: ['buildtype=release', 'c_std=c17'])
