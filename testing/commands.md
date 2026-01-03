@@ -25,6 +25,7 @@ python testing/process_logs/main.py tap vm-client
 ```
 
 # dpdk
+- vm user-data has ping service that will ping 3 times to make dpdk app learn IP of vm
 ## vm-vm-internal
 ```bash
 # run TAP once before DPDK to make it download iperf
@@ -38,7 +39,6 @@ sudo ./build_and_run.sh test 32
 python testing/process_logs/main.py dpdk vm-vm-internal
 ```
 ## multinode
-- vm user-data has ping service that will ping 3 times to make dpdk app learn IP of vm
 ```bash
 # node 1
 sudo ./build_and_run.sh test 32
