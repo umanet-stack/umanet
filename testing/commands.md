@@ -90,6 +90,11 @@ iperf3 -c 192.168.100.2 -P 4 -t 10 -J \
 | jq --arg vm "vm7" '. + {vm: $vm}' \
 | nc -N 192.168.100.1 9000
 
+# server
+sockperf server -i 192.168.100.2
+# client
+sockperf ping-pong -i 192.168.100.2 -m 64 -t 10
+
 # vCPU usage
 # Poll cores → ~100% usr
 # High %softirq → kernel networking leaking in
