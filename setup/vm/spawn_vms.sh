@@ -3,19 +3,17 @@ set -eu
 source env.sh
 
 
-if [ "$#" -ne 4 ]; then
-    echo "Usage: $0 <network> <num_vms> <test_mode> <test>"
+if [ "$#" -ne 3 ]; then
+    echo "Usage: $0 <network> <num_vms> <test_mode>"
     echo "  network: network type (tap, dpdk-tap, dpdk, ovs_dpdk)"
     echo "  num_vms: number of VMs to spawn"
     echo "  test_mode: test mode (vm-vm-internal, vm-client, vm-server)"
-    echo "  test: test to run (iperf, sockperf)"
     exit 1
 fi
 
 NETWORK=$1
 NUM_VMS=$2
 TEST_MODE=$3
-TEST=$4
 
 VALID_NETWORKS=("tap" "dpdk-tap" "dpdk" "ovs_dpdk")
 VALID_TEST_MODES=("vm-vm-internal" "vm-client" "vm-server")

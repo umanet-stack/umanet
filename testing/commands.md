@@ -3,16 +3,15 @@
 sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | tail -15
 ```
 
+The tests (iperf, sockperf) are configured in `.env` file.
 # tap
 ## vm-vm-internal
 For `vm-vm-internal`, if you run 8 vms = 4 servers + 4 clients = `report-4vm`
 ```bash
 # need to rerun br/tap setup after dpdk test
 ./setup/vm/setup_br_tap.sh 32
-./setup/vm/spawn_vms.sh tap 32 vm-vm-internal iperf
+./setup/vm/spawn_vms.sh tap 32 vm-vm-internal
 python testing/process_iperf.py tap vm-vm-internal
-
-./setup/vm/spawn_vms.sh tap 32 vm-vm-internal sockperf
 python testing/process_sockperf.py tap vm-vm-internal
 
 ```
@@ -20,11 +19,12 @@ python testing/process_sockperf.py tap vm-vm-internal
 ```bash
 # node 1
 ./setup/vm/setup_br_tap.sh 32
-./setup/vm/spawn_vms.sh tap 32 vm-server iperf
+./setup/vm/spawn_vms.sh tap 32 vm-server
 # node 0
 ./setup/vm/setup_br_tap.sh 32
-./setup/vm/spawn_vms.sh tap 32 vm-client iperf
+./setup/vm/spawn_vms.sh tap 32 vm-client
 python testing/process_iperf.py tap vm-client
+python testing/process_sockperf.py tap vm-client
 ```
 
 # dpdk
@@ -35,21 +35,23 @@ python testing/process_iperf.py tap vm-client
 sudo ./build_and_run.sh test 32
 
 # do local networking via dpdk
-./setup/vm/spawn_vms.sh dpdk 32 vm-vm-internal iperf
+./setup/vm/spawn_vms.sh dpdk 32 vm-vm-internal
 # do local networking via tap
-./setup/vm/spawn_vms.sh dpdk-tap 32 vm-vm-internal iperf
+./setup/vm/spawn_vms.sh dpdk-tap 32 vm-vm-internal
 python testing/process_iperf.py dpdk vm-vm-internal
+python testing/process_sockperf.py dpdk vm-vm-internal
 ```
 ## multinode
 - vm user-data has ping service that will ping 3 times to make dpdk app learn IP of vm
 ```bash
 # node 1
 sudo ./build_and_run.sh test 32
-./setup/vm/spawn_vms.sh dpdk 32 vm-server iperf
+./setup/vm/spawn_vms.sh dpdk 32 vm-server
 # node 0
 sudo ./build_and_run.sh test 32
-./setup/vm/spawn_vms.sh dpdk 32 vm-client iperf
+./setup/vm/spawn_vms.sh dpdk 32 vm-client
 python testing/process_iperf.py dpdk vm-client
+python testing/process_sockperf.py dpdk vm-client
 ```
 
 ```bash
@@ -72,11 +74,13 @@ sudo ./setup/img/build_ovs_image.sh /tmp/noble-server-cloudimg-amd64.raw
 sudo ./setup/img/build_initramfs.sh
 sudo ./setup/img/build_rw_disk.sh 32 512
 
-sudo ./setup/vm/spawn_vms.sh ovs_dpdk 32 /tmp samenode iperf
+sudo ./setup/vm/spawn_vms.sh ovs_dpdk 32 /tmp samenode
 python testing/process_iperf.py ovs_dpdk samenode
+python testing/process_sockperf.py ovs_dpdk samenode
 
-sudo ./setup/vm/spawn_vms.sh ovs_dpdk 32 /tmp multinode iperf
+sudo ./setup/vm/spawn_vms.sh ovs_dpdk 32 /tmp multinode
 python testing/process_iperf.py ovs_dpdk multinode
+python testing/process_sockperf.py ovs_dpdk multinode
 ```
 
 ## manual

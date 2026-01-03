@@ -8,6 +8,7 @@ set +a
 : "${NIC:?missing NIC}"
 : "${NIC_PCI:?missing NIC_PCI}"
 : "${TMPDIR:?missing TMPDIR}"
+: "${TEST:?missing TEST}"
 : "${ETH_RX_CORES:?missing ETH_RX_CORES}"
 : "${ETH_TX_CORES:?missing ETH_TX_CORES}"
 : "${VHOST_RX_CORES:?missing VHOST_RX_CORES}"

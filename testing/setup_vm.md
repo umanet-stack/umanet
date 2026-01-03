@@ -21,7 +21,7 @@ echo off | sudo tee /sys/devices/system/cpu/smt/control
 
 # first run: let it install packages + setup services (use tap to access internet)
 ./setup/vm/setup_br_tap.sh 32
-./setup/vm/spawn_vms.sh tap 32 vm-vm-internal iperf
+./setup/vm/spawn_vms.sh tap 32 vm-vm-internal
 
 # kill all vms when done
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
