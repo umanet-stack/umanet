@@ -26,7 +26,8 @@ sudo cp ~/code/umanet/setup/cpu/datapath.conf /etc/systemd/system/datapath.slice
 # --lcores="0-7"
 # --main-lcore=0
 
+sudo systemctl daemon-reload
 sudo systemctl daemon-reexec
 echo "⚙️ system.slice: $(cat /sys/fs/cgroup/system.slice/cpuset.cpus)"
-echo "⚙️ datapath.slice: $(cat /sys/fs/cgroup/datapath.slice/cpuset.cpus)"
-echo "⚙️ user.slice: $(cat /sys/fs/cgroup/user.slice/cpuset.cpus)"
+# echo "⚙️ datapath.slice: $(cat /sys/fs/cgroup/datapath.slice/cpuset.cpus)"
+# echo "⚙️ user.slice: $(cat /sys/fs/cgroup/user.slice/cpuset.cpus)"

@@ -13,9 +13,15 @@ sudo cp ~/code/umanet/setup/cpu/system.conf /etc/systemd/system/system.slice.d/o
 
 sudo systemctl daemon-reexec
 cat /sys/fs/cgroup/system.slice/cpuset.cpus
-cat /sys/fs/cgroup/datapath.slice/cpuset.cpus
 cat /sys/fs/cgroup/user.slice/cpuset.cpus
 
+# will show 0-7 only when something is running in the slice (will still show even after stopping the service)
+cat /sys/fs/cgroup/datapath.slice/cpuset.cpus
+systemctl status datapath.slice
+
+sudo systemd-run --slice=datapath.slice iperf3 -s
+# Running as unit: run-rabd36d9b8ff0438a95980e1f7334989a.service; invocation ID: 1dacaa5d1cb743a9bb0ad98c262a743f
+sudo systemctl stop run-rabd36d9b8ff0438a95980e1f7334989a.service
 
 ./setup/cpu/slice_cpu.sh
 ```
