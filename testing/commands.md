@@ -144,6 +144,8 @@ perf top
 # hot functions per thread
 perf top -H
 
+htop
+
 # no. of TX/RX queues in NIC e.g. combined 32 = 32TX + 32RX
 # canonical: 1 core uses 1TX + 1RX
 ethtool -l enp23s0f0np0

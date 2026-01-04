@@ -22,11 +22,7 @@ logfile="$LOG_DIR/vm$i.log"
 # Base64 encode the command to avoid space issues in kernel cmdline
 TEST_COMMAND_B64=$(echo -n "$COMMAND" | base64 -w 0)
 
-# dpdk vms starts from core 5 (tap starts from core 4) since 1 core for dpdk master
-# prefault=on when doing zero-copy
-sudo systemd-run --scope \
-    -p AllowedCPUs=9-24 \
-    -p CPUQuota=80% \
+sudo systemd-run --scope --slice=vms.slice \
 cloud-hypervisor \
     --cpus boot=1 \
     --memory size=512M,hugepages=on,shared=on,prefault=on \
