@@ -21,6 +21,9 @@ logfile="$LOG_DIR/vm$i.log"
 # Base64 encode the command to avoid space issues in kernel cmdline
 TEST_COMMAND_B64=$(echo -n "$COMMAND" | base64 -w 0)
 
+# sudo systemd-run --scope \
+#     -p AllowedCPUs=12-27 \
+#     -p CPUQuota=100% \
 sudo systemd-run --scope --slice=vms.slice \
 cloud-hypervisor \
     --cpus boot=1 \
