@@ -12,8 +12,12 @@ sudo mkdir -p /etc/systemd/system/system.slice.d
 sudo cp ~/code/umanet/setup/cpu/system.conf /etc/systemd/system/system.slice.d/override.conf
 
 sudo systemctl daemon-reexec
+cat /sys/fs/cgroup/system.slice/cpuset.cpus
+cat /sys/fs/cgroup/datapath.slice/cpuset.cpus
+cat /sys/fs/cgroup/user.slice/cpuset.cpus
 
 
+./setup/cpu/slice_cpu.sh
 ```
 
 | Cores     | Purpose                    |
@@ -21,4 +25,4 @@ sudo systemctl daemon-reexec
 | **0–7**   | TAP / DPDK (8 cores)       |
 | **8–9**   | Host / kernel / background |
 | **10–11** | Guard / spare              |
-| **12–27** | VMs                        |
+| **12–27** | VMs (16 cores)             |
