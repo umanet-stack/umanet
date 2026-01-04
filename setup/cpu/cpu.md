@@ -8,6 +8,7 @@
 #   CPU 0 only
 echo off | sudo tee /sys/devices/system/cpu/smt/control
 
+# warning: don't forget to rm old files (they can union the cpu cores with new files)
 sudo mkdir -p /etc/systemd/system/system.slice.d
 sudo cp ~/code/umanet/setup/cpu/system.conf /etc/systemd/system/system.slice.d/override.conf
 

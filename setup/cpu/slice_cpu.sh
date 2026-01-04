@@ -10,13 +10,11 @@ set -eu
 #   CPU 0 only
 echo off | sudo tee /sys/devices/system/cpu/smt/control
 
-# give system cores 0-9
-# TAP can use cores 0-9
-# DPDK will use cores 0-7
+# give system cores 24-27
 sudo mkdir -p /etc/systemd/system/system.slice.d
 sudo cp ~/code/umanet/setup/cpu/system.conf /etc/systemd/system/system.slice.d/override.conf
 
-# give vms cores 12-27
+# TAP/DPDK/vm can use cores 0-23
 sudo mkdir -p /etc/systemd/system/vms.slice.d
 sudo cp ~/code/umanet/setup/cpu/vms.conf /etc/systemd/system/vms.slice.d/override.conf
 
