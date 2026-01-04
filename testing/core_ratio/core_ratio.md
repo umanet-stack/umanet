@@ -11,7 +11,18 @@ echo $vcpus
 
 # sample traffic for 10s, -g = records call stacks
 sudo perf record -p $(echo $vcpus | tr ' ' ',') -g -- sleep 10
-sudo perf report
+
+sudo apt update
+sudo apt install linux-tools-common linux-tools-$(uname -r)
+# sudo perf report
+# sudo perf report --sort overhead,symbol
+# sudo perf report --sort cpu
+# sudo perf report -g
+
+# get sorted table of %cpu cycles
+# About 52% of VM CPU cycles are spent in TAP/networking code -> justify 1 dedicated core = 2 shared cores
+sudo perf report --no-children
+
 
 sudo perf report -n --stdio | \
 grep -E 'tun_|netif_|skb_|tcp_|udp_|_copy_' | \
