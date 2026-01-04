@@ -11,17 +11,10 @@ set -eu
 echo off | sudo tee /sys/devices/system/cpu/smt/control
 
 # give system cores 0-9
+# TAP can use cores 0-9
+# DPDK will use cores 0-7
 sudo mkdir -p /etc/systemd/system/system.slice.d
 sudo cp ~/code/umanet/setup/cpu/system.conf /etc/systemd/system/system.slice.d/override.conf
-
-# give datapath (TAP/DPDK) cores 0-7
-# may have problems using TAP when DPDK is using cores 0-7
-sudo cp ~/code/umanet/setup/cpu/datapath.conf /etc/systemd/system/datapath.slice
-# TAP
-# systemd-run \
-#   --slice=datapath.slice \
-#   iperf3 -s
-
 # DPDK
 # --lcores="0-7"
 # --main-lcore=0
@@ -29,5 +22,4 @@ sudo cp ~/code/umanet/setup/cpu/datapath.conf /etc/systemd/system/datapath.slice
 sudo systemctl daemon-reload
 sudo systemctl daemon-reexec
 echo "⚙️ system.slice: $(cat /sys/fs/cgroup/system.slice/cpuset.cpus)"
-# echo "⚙️ datapath.slice: $(cat /sys/fs/cgroup/datapath.slice/cpuset.cpus)"
 # echo "⚙️ user.slice: $(cat /sys/fs/cgroup/user.slice/cpuset.cpus)"
