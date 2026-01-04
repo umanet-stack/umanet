@@ -15,6 +15,14 @@ sudo systemctl daemon-reexec
 cat /sys/fs/cgroup/system.slice/cpuset.cpus
 cat /sys/fs/cgroup/user.slice/cpuset.cpus
 
+# list slices
+systemctl list-units --type=slice
+
+systemctl show vms.slice | grep -E "CPUQuota"
+
+# remove slice
+sudo systemctl stop vms.slice
+
 ./setup/cpu/slice_cpu.sh
 ```
 

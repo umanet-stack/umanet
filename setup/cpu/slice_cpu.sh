@@ -15,11 +15,13 @@ echo off | sudo tee /sys/devices/system/cpu/smt/control
 # DPDK will use cores 0-7
 sudo mkdir -p /etc/systemd/system/system.slice.d
 sudo cp ~/code/umanet/setup/cpu/system.conf /etc/systemd/system/system.slice.d/override.conf
-# DPDK
-# --lcores="0-7"
-# --main-lcore=0
+
+# give vms cores 12-27
+sudo mkdir -p /etc/systemd/system/vms.slice.d
+sudo cp ~/code/umanet/setup/cpu/vms.conf /etc/systemd/system/vms.slice.d/override.conf
 
 sudo systemctl daemon-reload
 sudo systemctl daemon-reexec
 echo "⚙️ system.slice: $(cat /sys/fs/cgroup/system.slice/cpuset.cpus)"
+echo "⚙️ vms.slice: $(cat /sys/fs/cgroup/vms.slice/cpuset.cpus)"
 # echo "⚙️ user.slice: $(cat /sys/fs/cgroup/user.slice/cpuset.cpus)"
