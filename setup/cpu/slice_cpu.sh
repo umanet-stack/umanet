@@ -21,5 +21,6 @@ sudo cp ~/code/umanet/setup/cpu/vms.conf /etc/systemd/system/vms.slice.d/overrid
 sudo systemctl daemon-reload
 sudo systemctl daemon-reexec
 echo "⚙️ system.slice: $(cat /sys/fs/cgroup/system.slice/cpuset.cpus)"
+# this may be "No such file or directory" before the first vm runs
 echo "⚙️ vms.slice: $(cat /sys/fs/cgroup/vms.slice/cpuset.cpus)"
 # echo "⚙️ user.slice: $(cat /sys/fs/cgroup/user.slice/cpuset.cpus)"
