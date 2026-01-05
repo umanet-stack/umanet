@@ -377,8 +377,11 @@ def get_next_report_number(base_dir: Path) -> int:
     for item in base_dir.iterdir():
         if item.is_dir() and item.name.startswith("report-"):
             try:
-                num = int(item.name.split("-")[1])
-                existing_reports.append(num)
+                # Extract last number from directory name (e.g., report-16vm-0 -> 0)
+                parts = item.name.split("-")
+                if len(parts) >= 3:  # report-{n}vm-{num}
+                    num = int(parts[-1])
+                    existing_reports.append(num)
             except (ValueError, IndexError):
                 continue
     
@@ -485,8 +488,11 @@ def main():
         if process_all_vms or vm_num % 2 == 1:  # All VMs for vm-client, odd VMs for vm-vm-internal
             num_vms += 1
     
-    # Create report directory: iperf/{mode}/report-{n}vm
-    reports_dir = reports_base_dir / f"report-{num_vms}vm"
+    # Get next report number to avoid overwriting existing reports
+    report_num = get_next_report_number(reports_base_dir)
+    
+    # Create report directory: iperf/{mode}/report-{n}vm-{num}
+    reports_dir = reports_base_dir / f"report-{num_vms}vm-{report_num}"
     reports_dir.mkdir(exist_ok=True, parents=True)
     
     print("🔥 Processing iperf3 results...")
