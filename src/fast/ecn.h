@@ -4,21 +4,30 @@
 #include <rte_mbuf_core.h>
 
 #define RING_ALMOST_FULL RING_SIZE * 0.8
+#define ECN_START (RING_SIZE * 1 / 2)   // 50%
+#define ECN_MID (RING_SIZE * 7 / 10)    // 70%
+#define ECN_HIGH (RING_SIZE * 85 / 100) // 85%
 
 static inline void ecn_mark_packet(struct rte_mbuf *pkt);
 
-static inline void ecn_mark_packets(struct rte_mbuf **mbufs, int num, int congestion) {
-    if (congestion > RING_ALMOST_FULL) {
-        // ring 80%+ full, mark all packets
-        for (int i = 0; i < num; i++) {
+static inline void ecn_mark_packets(struct rte_mbuf **mbufs, int num, int congestion,
+                                    uint32_t *rr) // per-core counter for probabilistic randomness
+{
+    if (congestion < ECN_START)
+        return;
+
+    int step;
+    if (congestion < ECN_MID) {
+        step = 16; // 50–70% congestion, ~6% ecn marks
+    } else if (congestion < ECN_HIGH) {
+        step = 4; // 70–85% congestion, ~25% ecn marks
+    } else {
+        step = 1; // 85%+ congestion, 100% ecn marks
+    }
+
+    for (int i = 0; i < num; i++) {
+        if (((*rr)++ % step) == 0)
             ecn_mark_packet(mbufs[i]);
-        }
-    } else if (congestion > RING_SIZE * 3 / 5) {
-        // ring 60%+ full, mark every 4th packet
-        for (int i = 0; i < num; i++) {
-            if ((i & 3) == 0)
-                ecn_mark_packet(mbufs[i]);
-        }
     }
 }
 

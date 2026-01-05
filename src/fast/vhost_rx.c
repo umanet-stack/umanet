@@ -236,7 +236,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                     continue;
 
                 int congestion = RING_SIZE - rte_ring_free_count(global->eth_tx_rings[j]);
-                ecn_mark_packets(eth_pkts[j], eth_cnt[j], congestion);
+                ecn_mark_packets(eth_pkts[j], eth_cnt[j], congestion, &ctx->ecn_rr_eth[j]);
 
                 // if ring is full, enqueue < n (possibly 0) = if vhost tx slow, vhost rx will be made slow
                 int enq_num = rte_ring_enqueue_burst(global->eth_tx_rings[j], (void **)eth_pkts[j], eth_cnt[j], NULL);
@@ -257,7 +257,8 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                     break;
 
                 int congestion = RING_SIZE - rte_ring_free_count(global->vhost_tx_rings[dst_vids[j]]);
-                ecn_mark_packets(vm_pkts[dst_vids[j]], vm_cnt[dst_vids[j]], congestion);
+                ecn_mark_packets(vm_pkts[dst_vids[j]], vm_cnt[dst_vids[j]], congestion,
+                                 &ctx->ecn_rr_vhost[dst_vids[j]]);
 
                 int enq_num = rte_ring_enqueue_burst(global->vhost_tx_rings[dst_vids[j]], (void **)vm_pkts[dst_vids[j]],
                                                      vm_cnt[dst_vids[j]], NULL);
