@@ -72,7 +72,7 @@ static inline int flow_pick_tx(uint32_t src_ip, uint32_t dst_ip, uint16_t src_po
 
 void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
     LOG_IMPT("[%u] Entering vhost_rx loop...\n", ctx->core_id);
-    // ctx->iteration_counter = 0;
+    ctx->iteration_counter = 0;
 
     struct rte_mbuf *pkts[MAX_PKT_BURST];
     struct rte_mbuf *vm_pkts[MAX_VHOSTS][MAX_PKT_BURST];
@@ -96,7 +96,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
 #ifdef DEBUG
         sleep(1);
 #endif
-        // ctx->iteration_counter++;
+        ctx->iteration_counter++;
 
         struct vhost_plan *plan = atomic_load_explicit(&vhost_rx_plans[ctx->vhost_rx_core_id], memory_order_relaxed);
         struct vdev_list *vdev_list_ptr = atomic_load_explicit(&vdev_list, memory_order_relaxed);
@@ -125,14 +125,14 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             // Servers send ACKs/control packets (important for TCP flow control!), clients send bulk data
             // Poll servers every OTHER iteration to balance efficiency with TCP ACK latency
             // Skipping too aggressively (e.g., 7/8) delays ACKs and throttles clients
-            // if (vdev->vm_id >= 0 && (vdev->vm_id % 2 == 0)) {
+            // if ((vdev->vm_id & 0x1) == 0) {
             //     // This is an iperf server (even vm_id: 0,2,4,6,...)
             //     // Skip every other poll (only poll on even iterations)
             //     if ((ctx->iteration_counter & 0x3) != 0) {
             //         continue; // Skip this poll
             //     }
             // }
-            // // Clients (odd vm_id: 1,3,5,7,...) are polled every iteration
+            // Clients (odd vm_id: 1,3,5,7,...) are polled every iteration
 
             poll_num = vhost_poll(ctx, MAX_PKT_BURST, vid, pkts);
             if (poll_num == 0)
