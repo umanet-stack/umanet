@@ -2,6 +2,7 @@
 #define STATE_H_
 
 #include "src/fast/poll.h"
+#include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 #include <rte_ether.h>
 #include <rte_hash.h>
@@ -67,21 +68,6 @@ struct eth_tx_stats {
     uint32_t requeue_pkt_count;
     uint32_t max_send_count;
     uint32_t ring_deq_max_count;
-};
-
-#define MAX_PKT_BURST 32
-struct flow_key {
-    uint32_t src_ip;
-    uint32_t dst_ip;
-    // uint16_t src_port;
-    // uint16_t dst_port;
-    // uint8_t proto;
-};
-
-struct flow_entry {
-    struct flow_key key;
-    uint16_t eth_tx_core;
-    uint64_t last_seen_tsc;
 };
 
 enum vm_state {
