@@ -58,6 +58,9 @@ void eth_tx_loop(struct eth_tx_ctx *ctx) {
 static inline int network_send(struct eth_tx_ctx *ctx, unsigned num, struct rte_mbuf **pkts) {
     STATS_ADD(ctx->stats, call_count, 1);
     int16_t ret = rte_eth_tx_burst(global->eth_port_id, ctx->eth_queue_id, pkts, num);
+    if (ret < 0)
+        ret = 0;
+
     if (ret < num) {
         // pkts[0 .. ret-1]     -> consumed by NIC (do not free)
         // pkts[ret .. num-1]   -> STILL OWNED BY YOU -> send back to ring (do not free)

@@ -38,15 +38,14 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
 
             if (ctx->retry_cnts[vid] > 0) {
                 int ret = vhost_send(ctx, ctx->retry_cnts[vid], vid, ctx->retry_pkts[vid]);
-                //     if (ret > 0) {
-                //         free_pkts(ctx->retry_pkts[vid], ret);
-                //         // Shift remaining retry packets to front of array
-                //         for (int k = 0; k < ctx->retry_cnts[vid] - ret; k++) {
-                //             ctx->retry_pkts[vid][k] = ctx->retry_pkts[vid][k + ret];
-                //         }
-                //         ctx->retry_cnts[vid] -= ret;
-                //     }
-                ctx->retry_cnts[vid] = 0;
+                if (ret > 0) {
+                    free_pkts(ctx->retry_pkts[vid], ret);
+                    // Shift remaining retry packets to front of array
+                    for (int k = 0; k < ctx->retry_cnts[vid] - ret; k++) {
+                        ctx->retry_pkts[vid][k] = ctx->retry_pkts[vid][k + ret];
+                    }
+                    ctx->retry_cnts[vid] -= ret;
+                }
                 STATS_ADD(ctx->vdev_stats[vid], requeue_pkt_count, ret);
                 continue;
             }
@@ -74,6 +73,10 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
 static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
     STATS_ADD(ctx->vdev_stats[vid], call_count, 1);
     int16_t ret = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
+    // CRITICAL: Handle error case (negative return = -1 on error)
+    if (ret < 0) {
+        ret = 0;
+    }
 
     if (ret < num) {
         // pkts[0 .. ret-1]     -> consumed by vhost (free)
@@ -84,6 +87,9 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
             ctx->retry_pkts[vid][i] = pkts[ret + i];
         }
         ctx->retry_cnts[vid] = num - ret;
+    } else {
+        // All packets sent successfully - clear backpressure
+        vm_bp[vid].state = VM_ACTIVE;
     }
 
     STATS_ADD(ctx->vdev_stats[vid], pkt_count, ret);
