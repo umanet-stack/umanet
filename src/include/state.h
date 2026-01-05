@@ -10,7 +10,6 @@
 #include <stdatomic.h>
 
 #define MAX_VHOSTS 64
-#define RING_SIZE 4096
 
 extern struct dataplane_topology *global;
 extern struct eth_rx_ctx **eth_rx_ctxs;

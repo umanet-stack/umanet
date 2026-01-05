@@ -63,5 +63,6 @@
 #endif
 
 #define MAX_PKT_BURST 32
+#define RING_SIZE 4096
 
 #endif /* FASTPATH_H_ */

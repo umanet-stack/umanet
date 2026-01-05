@@ -1,3 +1,4 @@
+#include "src/fast/ecn.h"
 #include "src/include/fastpath.h"
 #include "src/include/main.h"
 #include "src/include/state.h"
@@ -233,6 +234,10 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             for (int j = 0; j < config.eth_tx_cores; j++) {
                 if (eth_cnt[j] == 0)
                     continue;
+
+                int congestion = RING_SIZE - rte_ring_free_count(global->eth_tx_rings[j]);
+                ecn_mark_packets(eth_pkts[j], eth_cnt[j], congestion);
+
                 // if ring is full, enqueue < n (possibly 0) = if vhost tx slow, vhost rx will be made slow
                 int enq_num = rte_ring_enqueue_burst(global->eth_tx_rings[j], (void **)eth_pkts[j], eth_cnt[j], NULL);
                 // LOG_INFO("[%d](%d) enqueued %d packets to eth_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
@@ -250,6 +255,9 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             for (int j = 0; j < dst_cnt; j++) {
                 if (vm_cnt[dst_vids[j]] == 0)
                     break;
+
+                int congestion = RING_SIZE - rte_ring_free_count(global->vhost_tx_rings[dst_vids[j]]);
+                ecn_mark_packets(vm_pkts[dst_vids[j]], vm_cnt[dst_vids[j]], congestion);
 
                 int enq_num = rte_ring_enqueue_burst(global->vhost_tx_rings[dst_vids[j]], (void **)vm_pkts[dst_vids[j]],
                                                      vm_cnt[dst_vids[j]], NULL);
