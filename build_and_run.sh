@@ -115,7 +115,7 @@ echo "✅ Running DPDK on cores $FIRST_CORE-$LAST_CORE, num_vms: $NUM_VMS"
 
 DPDK_DEV_ARG="-a $NIC_PCI"
 
-sudo ./build/vhost-switch \
+sudo ./build/umanet \
   -l $FIRST_CORE-$LAST_CORE -n 4 \
   --file-prefix=vhost \
   $DPDK_DEV_ARG \
