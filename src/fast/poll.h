@@ -9,7 +9,7 @@ enum rx_state {
     RX_FROZEN // time-based sleep
 };
 
-#define RX_BACKOFF 1000000 // 1ms
+#define RX_BACKOFF 100000 // 100us
 #define LOW_PKT_BURST MAX_PKT_BURST / 4
 
 // adaptive polling for vms
