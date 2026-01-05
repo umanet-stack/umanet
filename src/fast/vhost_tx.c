@@ -63,7 +63,7 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
         //              num - ret - ret2, vid);
         //     free_pkts(pkts + ret + ret2, num - ret - ret2);
         // }
-        STATS_ADD(ctx->vdev_stats[vid], requeue_count, 1);
+        STATS_ADD(ctx->vdev_stats[vid], requeue_pkt_count, enq_num);
     }
 
     STATS_ADD(ctx->vdev_stats[vid], pkt_count, ret);

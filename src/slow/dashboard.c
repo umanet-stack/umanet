@@ -39,7 +39,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         fprintf(tty_fp, "pkt: %s\t", display_number(eth_tx_ctxs[i]->stats->pkt_count));
         fprintf(tty_fp, "call: %s\t", display_number(eth_tx_ctxs[i]->stats->call_count));
         fprintf(tty_fp, "max_send: %s\t", display_number(eth_tx_ctxs[i]->stats->max_send_count));
-        fprintf(tty_fp, "requeue: %s\t", display_number(eth_tx_ctxs[i]->stats->requeue_count));
+        fprintf(tty_fp, "requeue_pkt: %s\t", display_number(eth_tx_ctxs[i]->stats->requeue_pkt_count));
         fprintf(tty_fp, "ring_deq_max: %s\n", display_number(eth_tx_ctxs[i]->stats->ring_deq_max_count));
     }
 
@@ -85,7 +85,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         print_pkts_by_rx_vdev(vdev_list_ptr, plan, ctx->vdev_stats);
     }
 
-    fprintf(tty_fp, "\npkt\tcall\tmax_send\trequeue_ring\tring_deq_max\n");
+    fprintf(tty_fp, "\npkt\tcall\tmax_send\trequeue_pkt\tring_deq_max\n");
     for (int i = 0; i < config.vhost_tx_cores; i++) {
         struct vhost_tx_ctx *ctx = vhost_tx_ctxs[i];
         struct vhost_plan *plan = atomic_load(&vhost_tx_plans[i]);
@@ -93,7 +93,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         uint64_t pkt_count = 0;
         uint64_t call_count = 0;
         uint64_t max_send_count = 0;
-        uint64_t requeue_count = 0;
+        uint64_t requeue_pkt_count = 0;
         uint64_t ring_deq_max_count = 0;
 
         for (int j = 0; j < MAX_VHOSTS; j++) {
@@ -105,7 +105,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
                 pkt_count += ctx->vdev_stats[j]->pkt_count;
                 call_count += ctx->vdev_stats[j]->call_count;
                 max_send_count += ctx->vdev_stats[j]->max_send_count;
-                requeue_count += ctx->vdev_stats[j]->requeue_count;
+                requeue_pkt_count += ctx->vdev_stats[j]->requeue_pkt_count;
                 ring_deq_max_count += ctx->vdev_stats[j]->ring_deq_max_count;
             }
         }
@@ -114,7 +114,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         fprintf(tty_fp, "%s\t", display_number(pkt_count));
         fprintf(tty_fp, "%s\t", display_number(call_count));
         fprintf(tty_fp, "%s\t\t", display_number(max_send_count));
-        fprintf(tty_fp, "%s\t\t", display_number(requeue_count));
+        fprintf(tty_fp, "%s\t\t", display_number(requeue_pkt_count));
         fprintf(tty_fp, "%s\n", display_number(ring_deq_max_count));
         print_pkts_by_tx_vdev(vdev_list_ptr, plan, ctx->vdev_stats);
     }

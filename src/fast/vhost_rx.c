@@ -233,6 +233,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             for (int j = 0; j < config.eth_tx_cores; j++) {
                 if (eth_cnt[j] == 0)
                     continue;
+                // if ring is full, enqueue < n (possibly 0) = if vhost tx slow, vhost rx will be made slow
                 int enq_num = rte_ring_enqueue_burst(global->eth_tx_rings[j], (void **)eth_pkts[j], eth_cnt[j], NULL);
                 // LOG_INFO("[%d](%d) enqueued %d packets to eth_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
                 //          ctx->vhost_rx_core_id);

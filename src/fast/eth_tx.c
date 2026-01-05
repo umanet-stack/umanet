@@ -77,7 +77,7 @@ static inline int network_send(struct eth_tx_ctx *ctx, unsigned num, struct rte_
         //          num - ret - ret2, ctx->eth_queue_id);
         //     free_pkts(pkts + ret + ret2, num - ret - ret2);
         // }
-        STATS_ADD(ctx->stats, requeue_count, 1);
+        STATS_ADD(ctx->stats, requeue_pkt_count, enq_num);
     }
 
     STATS_ADD(ctx->stats, pkt_count, ret);

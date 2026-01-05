@@ -66,7 +66,7 @@ struct vdev_tx_stats {
     uint32_t call_count;
     uint32_t pkt_count;
     uint32_t max_send_count;
-    uint32_t requeue_count;
+    uint32_t requeue_pkt_count;
     uint32_t ring_deq_max_count;
 };
 
