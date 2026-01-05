@@ -1,6 +1,7 @@
 #ifndef STATE_H_
 #define STATE_H_
 
+#include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 #include <rte_ether.h>
 #include <rte_hash.h>
@@ -84,6 +85,20 @@ struct flow_entry {
     uint64_t last_seen_tsc;
 };
 
+#define BACKOFF_TSC 100000 // 100 us
+// backpressure for vms
+struct vm_bp {
+    enum vm_state state;
+    uint64_t blocked_until_tsc;
+};
+
+#define EMPTY_THRESH 10
+// adaptive polling for vms
+struct vhost_ap {
+    enum vm_state state;
+    uint32_t empty_polls;
+};
+
 struct vhost_rx_ctx {
     uint16_t core_id;
     uint16_t vhost_rx_core_id;
@@ -99,6 +114,7 @@ struct vhost_rx_ctx {
 
     struct vdev_rx_stats *vdev_stats[MAX_VHOSTS];
     struct flow_entry flow_table[FLOW_TABLE_SIZE];
+    struct vhost_ap vhost_ap[MAX_VHOSTS];
 };
 
 struct vhost_tx_ctx {
@@ -115,6 +131,7 @@ struct vhost_tx_ctx {
     // Persistent storage for packets waiting to be retried
     struct rte_mbuf *retry_pkts[MAX_VHOSTS][MAX_PKT_BURST];
     uint32_t retry_cnts[MAX_VHOSTS];
+    struct vm_bp vm_bp[MAX_VHOSTS];
 };
 
 // Published via atomic pointer swap, Never mutated, RX/TX cores only read

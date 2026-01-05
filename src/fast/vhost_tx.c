@@ -5,12 +5,10 @@
 #include <stdatomic.h>
 #include <unistd.h>
 
-struct vm_bp vm_bp[MAX_VHOSTS];
-
-void vm_bp_init(void) {
+void vm_bp_init(struct vhost_tx_ctx *ctx) {
     for (int i = 0; i < MAX_VHOSTS; i++) {
-        vm_bp[i].state = VM_ACTIVE;
-        vm_bp[i].blocked_until_tsc = 0;
+        ctx->vm_bp[i].state = VM_ACTIVE;
+        ctx->vm_bp[i].blocked_until_tsc = 0;
     }
 }
 
@@ -18,6 +16,7 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
 
 void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
     LOG_IMPT("[%u] Entering vhost_tx loop...\n", ctx->core_id);
+    vm_bp_init(ctx);
 
     while (1) {
         // STATS_TS(start);
@@ -32,7 +31,7 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
                 continue;
             }
 
-            if (vm_bp[vid].state == VM_BLOCKED_TX && rte_rdtsc() < vm_bp[vid].blocked_until_tsc)
+            if (ctx->vm_bp[vid].state == VM_BLOCKED_TX && rte_rdtsc() < ctx->vm_bp[vid].blocked_until_tsc)
                 continue;
 
             if (ctx->retry_cnts[vid] > 0) {
@@ -80,15 +79,15 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
     if (ret < num) {
         // pkts[0 .. ret-1]     -> consumed by vhost (free)
         // pkts[ret .. num-1]   -> STILL OWNED BY YOU -> send back to ring (do not free)
-        vm_bp[vid].state = VM_BLOCKED_TX;
-        vm_bp[vid].blocked_until_tsc = rte_rdtsc() + BACKOFF_TSC;
+        ctx->vm_bp[vid].state = VM_BLOCKED_TX;
+        ctx->vm_bp[vid].blocked_until_tsc = rte_rdtsc() + BACKOFF_TSC;
         for (int i = 0; i < num - ret; i++) {
             ctx->retry_pkts[vid][i] = pkts[ret + i];
         }
         ctx->retry_cnts[vid] = num - ret;
     } else {
         // All packets sent successfully - clear backpressure
-        vm_bp[vid].state = VM_ACTIVE;
+        ctx->vm_bp[vid].state = VM_ACTIVE;
     }
 
     STATS_ADD(ctx->vdev_stats[vid], pkt_count, ret);

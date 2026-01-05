@@ -25,7 +25,6 @@
 #ifndef FASTPATH_H_
 #define FASTPATH_H_
 
-#include "src/include/state.h"
 #include <rte_ether.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -68,23 +67,5 @@ enum vm_state {
     VM_BLOCKED_TX,
     VM_IDLE_RX,
 };
-
-#define BACKOFF_TSC 100000 // 100 us
-// backpressure for vms
-struct vm_bp {
-    enum vm_state state;
-    uint64_t blocked_until_tsc;
-};
-extern struct vm_bp vm_bp[MAX_VHOSTS];
-void vm_bp_init(void);
-
-#define EMPTY_THRESH 10
-// adaptive polling for vms, need to separate from vm_bp else TX and RX cores can access same idx same time
-struct vhost_ap {
-    enum vm_state state;
-    uint32_t empty_polls;
-};
-extern struct vhost_ap vhost_ap[MAX_VHOSTS];
-void vhost_ap_init(void);
 
 #endif /* FASTPATH_H_ */
