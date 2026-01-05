@@ -5,6 +5,16 @@
 #include <stdatomic.h>
 #include <unistd.h>
 
+struct vm_bp vm_bp[MAX_VHOSTS];
+
+void vm_bp_init(void) {
+    for (int i = 0; i < MAX_VHOSTS; i++) {
+        vm_bp[i].state = VM_ACTIVE;
+        vm_bp[i].blocked_until_tsc = 0;
+        vm_bp[i].empty_polls = 0;
+    }
+}
+
 static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts);
 
 void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
@@ -19,12 +29,35 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
         struct vhost_plan *plan = atomic_load_explicit(&vhost_tx_plans[ctx->vhost_tx_core_id], memory_order_relaxed);
         for (int i = 0; i < plan->num; i++) {
             uint16_t vid = plan->vids[i];
+
+            // Skip invalid vids (can happen during VM attach/detach)
+            if (vid >= MAX_VHOSTS || vid == (uint16_t)-1) {
+                continue;
+            }
+
+            if (vm_bp[vid].state == VM_BLOCKED_TX && rte_rdtsc() < vm_bp[vid].blocked_until_tsc)
+                continue;
+
+            // if (ctx->retry_cnts[vid] > 0) {
+            //     int ret = vhost_send(ctx, ctx->retry_cnts[vid], vid, ctx->retry_pkts[vid]);
+            //     if (ret > 0) {
+            //         free_pkts(ctx->retry_pkts[vid], ret);
+            //         // Shift remaining retry packets to front of array
+            //         for (int k = 0; k < ctx->retry_cnts[vid] - ret; k++) {
+            //             ctx->retry_pkts[vid][k] = ctx->retry_pkts[vid][k + ret];
+            //         }
+            //         ctx->retry_cnts[vid] -= ret;
+            //     }
+            //     STATS_ADD(ctx->vdev_stats[vid], requeue_pkt_count, ret);
+            //     continue;
+            // }
+
             uint16_t num = MAX_PKT_BURST;
             struct rte_mbuf *pkts[num];
 
-            int deq_num = rte_ring_dequeue_burst(global->vhost_tx_rings[plan->vids[i]], (void **)pkts, num, NULL);
+            int deq_num = rte_ring_dequeue_burst(global->vhost_tx_rings[vid], (void **)pkts, num, NULL);
             if (deq_num == num) {
-                STATS_ADD(ctx->vdev_stats[plan->vids[i]], ring_deq_max_count, 1);
+                STATS_ADD(ctx->vdev_stats[vid], ring_deq_max_count, 1);
             }
             // LOG_INFO("[%d] Dequeued %d packets from vhost_tx_ring[%d] to vhost_tx_loop\n", ctx->core_id, deq_num,
             // vid);
@@ -42,8 +75,6 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
 static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
     STATS_ADD(ctx->vdev_stats[vid], call_count, 1);
     int16_t ret = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
-    if (ret < 0)
-        ret = 0;
 
     if (ret < num) {
         // pkts[0 .. ret-1]     -> consumed by vhost (free)
@@ -65,6 +96,20 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
         // }
         STATS_ADD(ctx->vdev_stats[vid], requeue_pkt_count, enq_num);
     }
+
+    // if (ret < num) {
+    //     // pkts[0 .. ret-1]     -> consumed by vhost (free)
+    //     // pkts[ret .. num-1]   -> STILL OWNED BY YOU -> save for retry (do not free)
+    //     vm_bp[vid].state = VM_BLOCKED_TX;
+    //     vm_bp[vid].blocked_until_tsc = rte_rdtsc() + BACKOFF_TSC;
+
+    //     for (int i = 0; i < num - ret; i++) {
+    //         ctx->retry_pkts[vid][i] = pkts[ret + i];
+    //     }
+    //     ctx->retry_cnts[vid] = num - ret;
+    // } else {
+    //     vm_bp[vid].state = VM_ACTIVE;
+    // }
 
     STATS_ADD(ctx->vdev_stats[vid], pkt_count, ret);
     if (ret == MAX_PKT_BURST) {
