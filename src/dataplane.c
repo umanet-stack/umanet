@@ -93,7 +93,7 @@ int init_dataplane_ctxs() {
                 LOG_ERROR("init_vhost_rx_ctxs: failed to allocate vhost_rx_ctxs[%d]->vdev_stats[%d]\n", i, j);
                 return -1;
             }
-            vhost_rx_ctxs[i]->vhost_ap[j].state = VM_ACTIVE;
+            vhost_rx_ctxs[i]->vhost_ap[j].state = RX_HOT;
             vhost_rx_ctxs[i]->vhost_ap[j].empty_polls = 0;
         }
     }

@@ -1,6 +1,7 @@
 #ifndef STATE_H_
 #define STATE_H_
 
+#include "src/fast/poll.h"
 #include "src/vhost/vhost.h"
 #include <rte_ether.h>
 #include <rte_hash.h>
@@ -94,14 +95,6 @@ enum vm_state {
 struct vm_bp {
     enum vm_state state;
     uint64_t blocked_until_tsc;
-};
-
-#define EMPTY_THRESH 10
-// adaptive polling for vms
-struct vhost_ap {
-    enum vm_state state;
-    uint32_t empty_polls;
-    uint32_t idle_mask;
 };
 
 struct vhost_rx_ctx {

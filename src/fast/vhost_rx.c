@@ -112,19 +112,35 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
 
             // Adaptive polling: skip idle vms some of the time
             // if (ctx->vhost_ap[vid].state == VM_IDLE_RX &&
-            //     (ctx->iteration_counter & ctx->vhost_ap[vid].idle_mask) != 0) {
+            //     (ctx->iteration_counter & ctx->vhost_ap[vid].active_mask) != 0) {
             //     continue;
             // }
+            switch (ctx->vhost_ap[vid].state) {
+            case RX_HOT:
+                break; // poll always
+            case RX_WARM:
+                if (ctx->iteration_counter & 3) // skip 3/4
+                    continue;
+                break;
+            case RX_COOL:
+                if (ctx->iteration_counter & 7) // skip 7/8
+                    continue;
+                break;
+            case RX_COLD:
+                if (ctx->iteration_counter & 15) // skip 15/16
+                    continue;
+                break;
+            case RX_FROZEN:
+                if (rte_rdtsc() < ctx->vhost_ap[vid].blocked_until_tsc)
+                    continue;
+                ctx->vhost_ap[vid].state = RX_COOL; // thaw gradually
+            }
 
             poll_num = vhost_poll(ctx, MAX_PKT_BURST, vid, pkts);
+            update_rx_state(&ctx->vhost_ap[vid], poll_num);
             if (poll_num == 0) {
-                // ctx->vhost_ap[vid].empty_polls++;
-                // if (ctx->vhost_ap[vid].empty_polls > EMPTY_THRESH)
-                //     ctx->vhost_ap[vid].state = VM_IDLE_RX;
                 continue;
             }
-            // ctx->vhost_ap[vid].empty_polls = 0;
-            // ctx->vhost_ap[vid].state = VM_ACTIVE;
 
             // Prefetch first packets
             // prefetching a small window (like 2–8, commonly 4) gives the CPU time to bring cache lines in before you
