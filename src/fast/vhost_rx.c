@@ -130,6 +130,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             case RX_FROZEN:
                 if (rte_rdtsc() < ctx->vhost_ap[vid].blocked_until_tsc)
                     continue;
+                ctx->vhost_ap[vid].idle_score = 8;
                 ctx->vhost_ap[vid].state = RX_COOL; // thaw gradually
             }
 

@@ -94,7 +94,8 @@ int init_dataplane_ctxs() {
                 return -1;
             }
             vhost_rx_ctxs[i]->vhost_ap[j].state = RX_HOT;
-            vhost_rx_ctxs[i]->vhost_ap[j].low_polls = 0;
+            vhost_rx_ctxs[i]->vhost_ap[j].idle_score = 0;
+            vhost_rx_ctxs[i]->vhost_ap[j].blocked_until_tsc = 0;
         }
         memset(vhost_rx_ctxs[i]->poll_states, 0, sizeof(vhost_rx_ctxs[i]->poll_states));
         memset(vhost_rx_ctxs[i]->ecn_rr_vhost, 0, sizeof(vhost_rx_ctxs[i]->ecn_rr_vhost));
