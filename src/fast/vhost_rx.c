@@ -12,11 +12,10 @@
 #include <stdint.h>
 #include <unistd.h>
 
-struct vhost_ap vhost_ap[MAX_VHOSTS];
-void vhost_ap_init(void) {
+void vhost_ap_init(struct vhost_rx_ctx *ctx) {
     for (int i = 0; i < MAX_VHOSTS; i++) {
-        vhost_ap[i].state = VM_ACTIVE;
-        vhost_ap[i].empty_polls = 0;
+        ctx->vhost_ap[i].state = VM_ACTIVE;
+        ctx->vhost_ap[i].empty_polls = 0;
     }
 }
 
@@ -81,6 +80,7 @@ static inline int flow_pick_tx(uint32_t src_ip, uint32_t dst_ip, uint16_t src_po
 void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
     LOG_IMPT("[%u] Entering vhost_rx loop...\n", ctx->core_id);
     ctx->iteration_counter = 0;
+    vhost_ap_init(ctx);
 
     struct rte_mbuf *pkts[MAX_PKT_BURST];
     struct rte_mbuf *vm_pkts[MAX_VHOSTS][MAX_PKT_BURST];
@@ -130,19 +130,19 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             struct vhost_dev *vdev = vdev_list_ptr->vdevs[vid];
 
             // Adaptive polling: skip idle vms some of the time
-            // if (vhost_ap[vid].state == VM_IDLE_RX && (ctx->iteration_counter & idle_mask) != 0) {
+            // if (ctx->vhost_ap[vid].state == VM_IDLE_RX && (ctx->iteration_counter & idle_mask) != 0) {
             //     continue;
             // }
 
             poll_num = vhost_poll(ctx, MAX_PKT_BURST, vid, pkts);
             if (poll_num == 0) {
-                // vhost_ap[vid].empty_polls++;
-                // if (vhost_ap[vid].empty_polls > EMPTY_THRESH)
-                //     vhost_ap[vid].state = VM_IDLE_RX;
+                ctx->vhost_ap[vid].empty_polls++;
+                if (ctx->vhost_ap[vid].empty_polls > EMPTY_THRESH)
+                    ctx->vhost_ap[vid].state = VM_IDLE_RX;
                 continue;
             }
-            // vhost_ap[vid].empty_polls = 0;
-            // vhost_ap[vid].state = VM_ACTIVE;
+            // ctx->vhost_ap[vid].empty_polls = 0;
+            // ctx->vhost_ap[vid].state = VM_ACTIVE;
 
             // Prefetch first packets
             // prefetching a small window (like 2–8, commonly 4) gives the CPU time to bring cache lines in before you
