@@ -62,10 +62,4 @@
     } while (0)
 #endif
 
-enum vm_state {
-    VM_ACTIVE,
-    VM_BLOCKED_TX,
-    VM_IDLE_RX,
-};
-
 #endif /* FASTPATH_H_ */

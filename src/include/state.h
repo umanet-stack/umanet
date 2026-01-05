@@ -1,7 +1,6 @@
 #ifndef STATE_H_
 #define STATE_H_
 
-#include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 #include <rte_ether.h>
 #include <rte_hash.h>
@@ -82,6 +81,12 @@ struct flow_entry {
     struct flow_key key;
     uint16_t eth_tx_core;
     uint64_t last_seen_tsc;
+};
+
+enum vm_state {
+    VM_ACTIVE,
+    VM_BLOCKED_TX,
+    VM_IDLE_RX,
 };
 
 #define BACKOFF_TSC 100000 // 100 us

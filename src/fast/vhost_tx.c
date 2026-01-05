@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts);
+static inline unsigned vhost_resend(struct vhost_tx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts);
 
 void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
     LOG_IMPT("[%u] Entering vhost_tx loop...\n", ctx->core_id);
@@ -27,8 +28,7 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
                 continue;
 
             if (ctx->retry_cnts[vid] > 0) {
-                int ret = vhost_send(ctx, ctx->retry_cnts[vid], vid, ctx->retry_pkts[vid]);
-                STATS_ADD(ctx->vdev_stats[vid], requeue_pkt_count, ret);
+                vhost_resend(ctx, ctx->retry_cnts[vid], vid, ctx->retry_pkts[vid]);
                 continue;
             }
 
@@ -89,5 +89,32 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
     PRINT_PKTS(pkts, ret, LOG_VM_OUT);
     free_pkts(pkts, ret);
 
+    return ret;
+}
+
+static inline unsigned vhost_resend(struct vhost_tx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
+    STATS_ADD(ctx->vdev_stats[vid], call_count, 1);
+    int16_t ret = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
+    if (ret < 0) {
+        ret = 0;
+    }
+
+    if (ret == MAX_PKT_BURST) {
+        STATS_ADD(ctx->vdev_stats[vid], max_send_count, 1);
+    }
+
+    if (ret < num) {
+        ctx->vm_bp[vid].state = VM_BLOCKED_TX;
+        ctx->vm_bp[vid].blocked_until_tsc = rte_rdtsc() + BACKOFF_TSC;
+
+    } else {
+        ctx->vm_bp[vid].state = VM_ACTIVE;
+    }
+
+    LOG_VM_OUT("[%d](%d) Sent %d packets to VM\n", ctx->core_id, vid, ret);
+    PRINT_PKTS(pkts, ret, LOG_VM_OUT);
+    STATS_ADD(ctx->vdev_stats[vid], requeue_pkt_count, ret);
+    ctx->retry_cnts[vid] = 0;
+    free_pkts(pkts, num);
     return ret;
 }
