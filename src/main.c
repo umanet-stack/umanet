@@ -39,6 +39,7 @@
 #include "./config/config.h"
 #include "./include/main.h"
 #include "log.h"
+#include "src/include/fastpath.h"
 #include "src/include/state.h"
 #include "src/network/network.h"
 #include "src/slow/slowpath.h"
@@ -128,12 +129,8 @@ int main(int argc, char *argv[]) {
     }
     LOG_IMPT("✅ Initialized network\n");
 
-    // if (init_mac_flow_table() != 0) {
-    //     res = EXIT_FAILURE;
-    //     LOG_ERROR("init_mac_flow_table failed\n");
-    //     goto error_network_cleanup;
-    // }
-    // LOG_IMPT("✅ Initialized mac flow table\n");
+    vm_bp_init();
+    LOG_IMPT("✅ Initialized vm backpressure\n");
 
     // Start worker threads BEFORE vhost registration
     // This ensures TX queues are initialized before vhost can send packets

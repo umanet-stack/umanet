@@ -110,6 +110,8 @@ int init_dataplane_ctxs() {
                 LOG_ERROR("init_vhost_tx_ctxs: failed to allocate vhost_tx_ctxs[%d]->vdev_stats[%d]\n", i, j);
                 return -1;
             }
+            // retry_pkts is now a static array, no need to initialize
+            vhost_tx_ctxs[i]->retry_cnts[j] = 0;
         }
     }
     // vhost module takes care of vdev_ids

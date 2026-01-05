@@ -25,6 +25,7 @@
 #ifndef FASTPATH_H_
 #define FASTPATH_H_
 
+#include "src/include/state.h"
 #include <rte_ether.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -61,5 +62,22 @@
     do {                                                                                                               \
     } while (0)
 #endif
+
+enum vm_state {
+    VM_ACTIVE,
+    VM_BLOCKED_TX,
+    VM_IDLE_RX,
+};
+
+// backpressure for vms
+struct vm_bp {
+    enum vm_state state;
+    uint64_t blocked_until_tsc;
+    uint32_t empty_polls;
+};
+
+#define BACKOFF_TSC 100000 // 100 us
+extern struct vm_bp vm_bp[MAX_VHOSTS];
+void vm_bp_init(void);
 
 #endif /* FASTPATH_H_ */

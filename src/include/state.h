@@ -112,6 +112,9 @@ struct vhost_tx_ctx {
     uint16_t inactive_check_counter;
 
     struct vdev_tx_stats *vdev_stats[MAX_VHOSTS];
+    // Persistent storage for packets waiting to be retried
+    struct rte_mbuf *retry_pkts[MAX_VHOSTS][MAX_PKT_BURST];
+    uint32_t retry_cnts[MAX_VHOSTS];
 };
 
 // Published via atomic pointer swap, Never mutated, RX/TX cores only read
