@@ -85,15 +85,8 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
             //          num - ret - enq_num, vid);
             free_pkts(pkts + ret + enq_num, num - ret - enq_num);
         }
-        // free_pkts(pkts + ret, num - ret); // if no requeue, free packets
-
-        // requeue only ONCE
-        // int16_t ret2 = rte_vhost_enqueue_burst(vid, VIRTIO_TXQ, pkts + ret, num - ret);
-        // if (ret2 < num - ret) {
-        //     LOG_WARN("[%d](%d) failed to requeue %d packets to vhost_tx_ring[%d]\n", ctx->core_id, vid,
-        //              num - ret - ret2, vid);
-        //     free_pkts(pkts + ret + ret2, num - ret - ret2);
-        // }
+        vm_bp[vid].state = VM_BLOCKED_TX;
+        vm_bp[vid].blocked_until_tsc = rte_rdtsc() + BACKOFF_TSC;
         STATS_ADD(ctx->vdev_stats[vid], requeue_pkt_count, enq_num);
     }
 
