@@ -111,10 +111,6 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             struct vhost_dev *vdev = vdev_list_ptr->vdevs[vid];
 
             // Adaptive polling: skip idle vms some of the time
-            // if (ctx->vhost_ap[vid].state == VM_IDLE_RX &&
-            //     (ctx->iteration_counter & ctx->vhost_ap[vid].active_mask) != 0) {
-            //     continue;
-            // }
             switch (ctx->vhost_ap[vid].state) {
             case RX_HOT:
                 break; // poll always
@@ -137,7 +133,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             }
 
             poll_num = vhost_poll(ctx, MAX_PKT_BURST, vid, pkts);
-            update_rx_state(&ctx->vhost_ap[vid], poll_num);
+            update_rx_state(&ctx->vhost_ap[vid], poll_num, ctx->poll_states);
             if (poll_num == 0) {
                 continue;
             }

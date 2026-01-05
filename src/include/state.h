@@ -98,6 +98,7 @@ struct vhost_rx_ctx {
 
     struct vdev_rx_stats *vdev_stats[MAX_VHOSTS];
     struct vhost_ap vhost_ap[MAX_VHOSTS];
+    uint32_t poll_states[5];
 };
 
 struct vhost_tx_ctx {

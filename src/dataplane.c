@@ -96,6 +96,7 @@ int init_dataplane_ctxs() {
             vhost_rx_ctxs[i]->vhost_ap[j].state = RX_HOT;
             vhost_rx_ctxs[i]->vhost_ap[j].low_polls = 0;
         }
+        memset(vhost_rx_ctxs[i]->poll_states, 0, sizeof(vhost_rx_ctxs[i]->poll_states));
     }
 
     for (int i = 0; i < config.vhost_tx_cores; i++) {

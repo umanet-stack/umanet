@@ -9,7 +9,7 @@ enum rx_state {
     RX_FROZEN // time-based sleep
 };
 
-#define RX_BACKOFF 10000 // 10us
+#define RX_BACKOFF 1000000 // 1ms
 #define LOW_PKT_BURST MAX_PKT_BURST / 4
 
 // adaptive polling for vms
@@ -19,23 +19,28 @@ struct vhost_ap {
     uint64_t blocked_until_tsc;
 };
 
-static inline void update_rx_state(struct vhost_ap *vhost_ap, int poll_num) {
+static inline void update_rx_state(struct vhost_ap *vhost_ap, int poll_num, uint32_t *poll_states) {
     if (poll_num == MAX_PKT_BURST) {
         vhost_ap->state = RX_HOT;
         vhost_ap->low_polls = 0;
+        poll_states[0]++;
         return;
     }
     if (poll_num < LOW_PKT_BURST) {
         vhost_ap->low_polls++;
-        if (vhost_ap->low_polls == 8)
+        if (vhost_ap->low_polls == 8) {
             vhost_ap->state = RX_WARM;
-        else if (vhost_ap->low_polls == 16)
+            poll_states[1]++;
+        } else if (vhost_ap->low_polls == 16) {
             vhost_ap->state = RX_COOL;
-        else if (vhost_ap->low_polls == 32)
+            poll_states[2]++;
+        } else if (vhost_ap->low_polls == 32) {
             vhost_ap->state = RX_COLD;
-        else if (vhost_ap->low_polls == 64) {
+            poll_states[3]++;
+        } else if (vhost_ap->low_polls == 64) {
             vhost_ap->state = RX_FROZEN;
             vhost_ap->blocked_until_tsc = rte_rdtsc() + RX_BACKOFF;
+            poll_states[4]++;
         }
     }
 }

@@ -13,6 +13,7 @@ void print_pkt_wnd(struct vhost_plan *plan, struct vdev_rx_stats **stats);
 void print_empty_polls(struct vdev_list *vdev_list_ptr, struct vhost_plan *plan, struct vdev_rx_stats **stats);
 void print_pkts_by_rx_vdev(struct vdev_list *vdev_list_ptr, struct vhost_plan *plan, struct vdev_rx_stats **stats);
 void print_pkts_by_tx_vdev(struct vdev_list *vdev_list_ptr, struct vhost_plan *plan, struct vdev_tx_stats **stats);
+void print_poll_states(struct vhost_rx_ctx *ctx);
 
 void control_tty_init() {
     tty_fp = fopen("/dev/tty", "w");
@@ -83,6 +84,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         // print_byte_pkt_sum(plan, ctx->vdev_stats);
         // print_empty_polls(vdev_list_ptr, plan, ctx->vdev_stats);
         print_pkts_by_rx_vdev(vdev_list_ptr, plan, ctx->vdev_stats);
+        print_poll_states(ctx);
     }
 
     fprintf(tty_fp, "\npkt\tcall\tmax_send\trequeue_pkt\tring_deq_max\n");
@@ -188,5 +190,15 @@ void print_pkts_by_tx_vdev(struct vdev_list *vdev_list_ptr, struct vhost_plan *p
         int vm_id = vdev_list_ptr->vdevs[vid]->vm_id;
         fprintf(tty_fp, YELLOW_PREFIX "(%d):%s " RESET_COLOR, vm_id, display_number(stats[vid]->pkt_count));
     }
+    fprintf(tty_fp, "\n");
+}
+
+void print_poll_states(struct vhost_rx_ctx *ctx) {
+    fprintf(tty_fp, RED_PREFIX "poll_states: " RESET_COLOR);
+    fprintf(tty_fp, RED_PREFIX "HOT %s, " RESET_COLOR, display_number(ctx->poll_states[0]));
+    fprintf(tty_fp, RED_PREFIX "WARM %s, " RESET_COLOR, display_number(ctx->poll_states[1]));
+    fprintf(tty_fp, RED_PREFIX "COOL %s, " RESET_COLOR, display_number(ctx->poll_states[2]));
+    fprintf(tty_fp, RED_PREFIX "COLD %s, " RESET_COLOR, display_number(ctx->poll_states[3]));
+    fprintf(tty_fp, RED_PREFIX "FROZEN %s" RESET_COLOR, display_number(ctx->poll_states[4]));
     fprintf(tty_fp, "\n");
 }
