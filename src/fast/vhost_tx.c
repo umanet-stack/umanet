@@ -29,8 +29,6 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
         struct vhost_plan *plan = atomic_load_explicit(&vhost_tx_plans[ctx->vhost_tx_core_id], memory_order_relaxed);
         for (int i = 0; i < plan->num; i++) {
             uint16_t vid = plan->vids[i];
-
-            // Skip invalid vids (can happen during VM attach/detach)
             if (vid >= MAX_VHOSTS || vid == (uint16_t)-1) {
                 continue;
             }
@@ -87,22 +85,12 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
         }
         vm_bp[vid].state = VM_BLOCKED_TX;
         vm_bp[vid].blocked_until_tsc = rte_rdtsc() + BACKOFF_TSC;
+        for (int i = 0; i < num - ret; i++) {
+            ctx->retry_pkts[vid][i] = pkts[ret + i];
+        }
+        ctx->retry_cnts[vid] = num - ret;
         STATS_ADD(ctx->vdev_stats[vid], requeue_pkt_count, enq_num);
     }
-
-    // if (ret < num) {
-    //     // pkts[0 .. ret-1]     -> consumed by vhost (free)
-    //     // pkts[ret .. num-1]   -> STILL OWNED BY YOU -> save for retry (do not free)
-    //     vm_bp[vid].state = VM_BLOCKED_TX;
-    //     vm_bp[vid].blocked_until_tsc = rte_rdtsc() + BACKOFF_TSC;
-
-    //     for (int i = 0; i < num - ret; i++) {
-    //         ctx->retry_pkts[vid][i] = pkts[ret + i];
-    //     }
-    //     ctx->retry_cnts[vid] = num - ret;
-    // } else {
-    //     vm_bp[vid].state = VM_ACTIVE;
-    // }
 
     STATS_ADD(ctx->vdev_stats[vid], pkt_count, ret);
     if (ret == MAX_PKT_BURST) {
