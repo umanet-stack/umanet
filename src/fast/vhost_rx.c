@@ -16,6 +16,7 @@ void vhost_ap_init(struct vhost_rx_ctx *ctx) {
     for (int i = 0; i < MAX_VHOSTS; i++) {
         ctx->vhost_ap[i].state = VM_ACTIVE;
         ctx->vhost_ap[i].empty_polls = 0;
+        ctx->vhost_ap[i].idle_mask = 0x3; // skip 3 polls for every 4 polls
     }
 }
 
@@ -64,17 +65,6 @@ static inline int flow_pick_tx(uint32_t src_ip, uint32_t dst_ip, uint16_t src_po
 
     uint32_t h = rte_softrss_be(tuple, 4, default_rss_key);
     return h % config.eth_tx_cores;
-    // uint32_t idx = h & (FLOW_TABLE_SIZE - 1);
-
-    // struct flow_entry *entry = &ctx->flow_table[idx];
-
-    // if (likely(entry->key.src_ip == key->src_ip && entry->key.dst_ip == key->dst_ip)) {
-    //     entry->last_seen_tsc = now;
-    //     return entry->eth_tx_core;
-    // }
-
-    // // miss -> slow path
-    // return -1;
 }
 
 void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
@@ -130,7 +120,8 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             struct vhost_dev *vdev = vdev_list_ptr->vdevs[vid];
 
             // Adaptive polling: skip idle vms some of the time
-            // if (ctx->vhost_ap[vid].state == VM_IDLE_RX && (ctx->iteration_counter & idle_mask) != 0) {
+            // if (ctx->vhost_ap[vid].state == VM_IDLE_RX &&
+            //     (ctx->iteration_counter & ctx->vhost_ap[vid].idle_mask) != 0) {
             //     continue;
             // }
 

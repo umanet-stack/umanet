@@ -70,7 +70,6 @@ struct eth_tx_stats {
 };
 
 #define MAX_PKT_BURST 32
-#define FLOW_TABLE_SIZE 1024
 struct flow_key {
     uint32_t src_ip;
     uint32_t dst_ip;
@@ -97,6 +96,7 @@ struct vm_bp {
 struct vhost_ap {
     enum vm_state state;
     uint32_t empty_polls;
+    uint32_t idle_mask;
 };
 
 struct vhost_rx_ctx {
@@ -113,7 +113,6 @@ struct vhost_rx_ctx {
     uint64_t iteration_counter;
 
     struct vdev_rx_stats *vdev_stats[MAX_VHOSTS];
-    struct flow_entry flow_table[FLOW_TABLE_SIZE];
     struct vhost_ap vhost_ap[MAX_VHOSTS];
 };
 
