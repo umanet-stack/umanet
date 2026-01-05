@@ -88,14 +88,6 @@ int vhost_rx_plan_remove(int vid);
 int vhost_tx_plan_add(int vid);
 int vhost_tx_plan_remove(int vid);
 
-int init_route_table();
-int cleanup_route_table();
-int add_route_entry(int vid, struct rte_ether_addr *mac, uint32_t ip);
-int remove_route_entry(int vid, struct rte_ether_addr *mac, uint32_t ip);
-// use vid to get vdev by indexing the vdev_list global variable
-int find_vid_by_mac(struct rte_ether_addr *mac);
-int find_vid_by_ip(uint32_t ip);
-
 #define PERTHREAD_MBUFS 8192
 #define BUFFER_SIZE 2048
 #define MBUF_SIZE (BUFFER_SIZE + RTE_PKTMBUF_HEADROOM)
@@ -118,4 +110,21 @@ static inline struct rte_mempool *vhost_mempool_alloc() {
 
     return mp;
 }
+
+static int ip_last_octet_to_vid[256];
+void init_route_table();
+int add_route_entry(int vid, uint32_t ip);
+int remove_route_entry(uint32_t ip);
+
+static inline int find_vid_by_ip(uint32_t ip) {
+    // last octet (192.168.100.X -> X)
+    uint8_t last_octet = ip & 0xFF;
+    // -1 = not found
+    return ip_last_octet_to_vid[last_octet];
+}
+
+// int cleanup_route_table();
+// int remove_route_entry(int vid, struct rte_ether_addr *mac, uint32_t ip);
+// use vid to get vdev by indexing the vdev_list global variable
+// int find_vid_by_mac(struct rte_ether_addr *mac);
 #endif

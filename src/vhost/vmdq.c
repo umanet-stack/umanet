@@ -49,7 +49,7 @@ int link_vmdq(struct vhost_dev *vdev, struct rte_mbuf *m) {
                  (vdev->ip >> 16) & 0xff, (vdev->ip >> 8) & 0xff, vdev->ip & 0xff);
     }
 
-    ret = add_route_entry(vdev->vid, &vdev->mac, vdev->ip);
+    ret = add_route_entry(vdev->vid, vdev->ip);
     if (ret)
         LOG_ERROR("(%d) failed to add route entry\n", vdev->vid);
 
@@ -71,7 +71,7 @@ void unlink_vmdq(struct vhost_dev *vdev) {
         if (ret)
             LOG_ERROR("(%d) failed to remove MAC address\n", vdev->vid);
 
-        ret = remove_route_entry(vdev->vid, &vdev->mac, vdev->ip);
+        ret = remove_route_entry(vdev->ip);
         if (ret)
             LOG_ERROR("(%d) failed to remove route entry\n", vdev->vid);
 
