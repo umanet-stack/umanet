@@ -4,6 +4,9 @@
 #include <rte_hash.h>
 #include <rte_jhash.h>
 
+// Global route table
+int ip_last_octet_to_vid[256];
+
 void init_route_table() {
     for (int i = 0; i < 256; i++) {
         ip_last_octet_to_vid[i] = -1;
@@ -18,8 +21,8 @@ int add_route_entry(int vid, uint32_t ip) {
         return -1;
     }
     ip_last_octet_to_vid[ip & 0xFF] = vid;
-    LOG_INFO("Added route entry for IP %u.%u.%u.%u\n", (ip >> 24) & 0xff, (ip >> 16) & 0xff, (ip >> 8) & 0xff,
-             ip & 0xff);
+    LOG_INFO("Added route entry for IP %u.%u.%u.%u (vid=%d)", (ip >> 24) & 0xff, (ip >> 16) & 0xff, (ip >> 8) & 0xff,
+             ip & 0xff, vid);
     return 0;
 }
 

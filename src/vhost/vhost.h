@@ -111,7 +111,7 @@ static inline struct rte_mempool *vhost_mempool_alloc() {
     return mp;
 }
 
-static int ip_last_octet_to_vid[256];
+extern int ip_last_octet_to_vid[256];
 void init_route_table();
 int add_route_entry(int vid, uint32_t ip);
 int remove_route_entry(uint32_t ip);
