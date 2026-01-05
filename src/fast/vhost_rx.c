@@ -12,6 +12,14 @@
 #include <stdint.h>
 #include <unistd.h>
 
+struct vhost_ap vhost_ap[MAX_VHOSTS];
+void vhost_ap_init(void) {
+    for (int i = 0; i < MAX_VHOSTS; i++) {
+        vhost_ap[i].state = VM_ACTIVE;
+        vhost_ap[i].empty_polls = 0;
+    }
+}
+
 static const uint8_t default_rss_key[40] = {0x6d, 0x5a, 0x56, 0xda, 0x25, 0x5b, 0x0e, 0xc2, 0x41, 0x67,
                                             0x25, 0x3d, 0x43, 0xa3, 0x8f, 0xb0, 0xd0, 0xca, 0x2b, 0xcb,
                                             0xae, 0x7b, 0x30, 0xb4, 0x77, 0xcb, 0x2d, 0xa3, 0x80, 0x30,
@@ -70,8 +78,6 @@ static inline int flow_pick_tx(uint32_t src_ip, uint32_t dst_ip, uint16_t src_po
     // return -1;
 }
 
-uint32_t idle_mask = 0x3; // poll 3/8 vms
-
 void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
     LOG_IMPT("[%u] Entering vhost_rx loop...\n", ctx->core_id);
     ctx->iteration_counter = 0;
@@ -109,7 +115,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
 
         for (int i = 0; i < plan->num; i++) {
             uint16_t vid = plan->vids[i];
-            if (vid < 0 || vid >= MAX_VHOSTS || vdev_list_ptr->vdevs[vid] == NULL) {
+            if (vid >= MAX_VHOSTS || vdev_list_ptr->vdevs[vid] == NULL) {
                 LOG_WARN("[%d]  Invalid vid %d or vdevs[%d] is NULL\n", ctx->core_id, vid);
                 continue;
             }
@@ -124,19 +130,19 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             struct vhost_dev *vdev = vdev_list_ptr->vdevs[vid];
 
             // Adaptive polling: skip idle vms some of the time
-            // if (vm_bp[vid].rx_state == VM_IDLE_RX && (ctx->iteration_counter & idle_mask) != 0) {
+            // if (vhost_ap[vid].state == VM_IDLE_RX && (ctx->iteration_counter & idle_mask) != 0) {
             //     continue;
             // }
 
             poll_num = vhost_poll(ctx, MAX_PKT_BURST, vid, pkts);
             if (poll_num == 0) {
-                // vm_bp[vid].empty_polls++;
-                // if (vm_bp[vid].empty_polls > EMPTY_THRESH)
-                //     vm_bp[vid].rx_state = VM_IDLE_RX;
+                // vhost_ap[vid].empty_polls++;
+                // if (vhost_ap[vid].empty_polls > EMPTY_THRESH)
+                //     vhost_ap[vid].state = VM_IDLE_RX;
                 continue;
             }
-            // vm_bp[vid].empty_polls = 0;
-            // vm_bp[vid].rx_state = VM_ACTIVE;
+            // vhost_ap[vid].empty_polls = 0;
+            // vhost_ap[vid].state = VM_ACTIVE;
 
             // Prefetch first packets
             // prefetching a small window (like 2–8, commonly 4) gives the CPU time to bring cache lines in before you

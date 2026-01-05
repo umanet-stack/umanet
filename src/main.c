@@ -130,7 +130,8 @@ int main(int argc, char *argv[]) {
     LOG_IMPT("✅ Initialized network\n");
 
     vm_bp_init();
-    LOG_IMPT("✅ Initialized vm backpressure\n");
+    vhost_ap_init();
+    LOG_IMPT("✅ Initialized vm backpressure and adaptive polling\n");
 
     // Start worker threads BEFORE vhost registration
     // This ensures TX queues are initialized before vhost can send packets
