@@ -62,4 +62,6 @@
     } while (0)
 #endif
 
+#define MAX_PKT_BURST 32
+
 #endif /* FASTPATH_H_ */

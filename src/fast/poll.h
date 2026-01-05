@@ -1,3 +1,4 @@
+#include "src/include/fastpath.h"
 #include <rte_cycles.h>
 #include <stdint.h>
 enum rx_state {
@@ -9,6 +10,7 @@ enum rx_state {
 };
 
 #define RX_BACKOFF 10000 // 10us
+#define LOW_PKT_BURST MAX_PKT_BURST / 4
 
 // adaptive polling for vms
 struct vhost_ap {
@@ -18,20 +20,20 @@ struct vhost_ap {
 };
 
 static inline void update_rx_state(struct vhost_ap *vhost_ap, int poll_num) {
-    if (poll_num > 0) {
+    if (poll_num == MAX_PKT_BURST) {
         vhost_ap->state = RX_HOT;
         vhost_ap->empty_polls = 0;
         return;
     }
-    if (poll_num == 0) {
+    if (poll_num < LOW_PKT_BURST) {
         vhost_ap->empty_polls++;
-        if (vhost_ap->empty_polls == 32)
+        if (vhost_ap->empty_polls == 8)
             vhost_ap->state = RX_WARM;
-        else if (vhost_ap->empty_polls == 128)
+        else if (vhost_ap->empty_polls == 16)
             vhost_ap->state = RX_COOL;
-        else if (vhost_ap->empty_polls == 512)
+        else if (vhost_ap->empty_polls == 32)
             vhost_ap->state = RX_COLD;
-        else if (vhost_ap->empty_polls == 2048) {
+        else if (vhost_ap->empty_polls == 64) {
             vhost_ap->state = RX_FROZEN;
             vhost_ap->blocked_until_tsc = rte_rdtsc() + RX_BACKOFF;
         }
