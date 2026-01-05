@@ -127,9 +127,9 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
 
             poll_num = vhost_poll(ctx, MAX_PKT_BURST, vid, pkts);
             if (poll_num == 0) {
-                ctx->vhost_ap[vid].empty_polls++;
-                if (ctx->vhost_ap[vid].empty_polls > EMPTY_THRESH)
-                    ctx->vhost_ap[vid].state = VM_IDLE_RX;
+                // ctx->vhost_ap[vid].empty_polls++;
+                // if (ctx->vhost_ap[vid].empty_polls > EMPTY_THRESH)
+                //     ctx->vhost_ap[vid].state = VM_IDLE_RX;
                 continue;
             }
             // ctx->vhost_ap[vid].empty_polls = 0;
