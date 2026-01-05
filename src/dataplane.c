@@ -94,7 +94,7 @@ int init_dataplane_ctxs() {
                 return -1;
             }
             vhost_rx_ctxs[i]->vhost_ap[j].state = RX_HOT;
-            vhost_rx_ctxs[i]->vhost_ap[j].empty_polls = 0;
+            vhost_rx_ctxs[i]->vhost_ap[j].low_polls = 0;
         }
     }
 

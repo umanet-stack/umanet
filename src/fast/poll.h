@@ -15,25 +15,25 @@ enum rx_state {
 // adaptive polling for vms
 struct vhost_ap {
     enum rx_state state;
-    uint32_t empty_polls;
+    uint32_t low_polls;
     uint64_t blocked_until_tsc;
 };
 
 static inline void update_rx_state(struct vhost_ap *vhost_ap, int poll_num) {
     if (poll_num == MAX_PKT_BURST) {
         vhost_ap->state = RX_HOT;
-        vhost_ap->empty_polls = 0;
+        vhost_ap->low_polls = 0;
         return;
     }
     if (poll_num < LOW_PKT_BURST) {
-        vhost_ap->empty_polls++;
-        if (vhost_ap->empty_polls == 8)
+        vhost_ap->low_polls++;
+        if (vhost_ap->low_polls == 8)
             vhost_ap->state = RX_WARM;
-        else if (vhost_ap->empty_polls == 16)
+        else if (vhost_ap->low_polls == 16)
             vhost_ap->state = RX_COOL;
-        else if (vhost_ap->empty_polls == 32)
+        else if (vhost_ap->low_polls == 32)
             vhost_ap->state = RX_COLD;
-        else if (vhost_ap->empty_polls == 64) {
+        else if (vhost_ap->low_polls == 64) {
             vhost_ap->state = RX_FROZEN;
             vhost_ap->blocked_until_tsc = rte_rdtsc() + RX_BACKOFF;
         }
