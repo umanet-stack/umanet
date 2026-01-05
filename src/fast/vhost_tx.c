@@ -36,19 +36,20 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
             if (vm_bp[vid].state == VM_BLOCKED_TX && rte_rdtsc() < vm_bp[vid].blocked_until_tsc)
                 continue;
 
-            // if (ctx->retry_cnts[vid] > 0) {
-            //     int ret = vhost_send(ctx, ctx->retry_cnts[vid], vid, ctx->retry_pkts[vid]);
-            //     if (ret > 0) {
-            //         free_pkts(ctx->retry_pkts[vid], ret);
-            //         // Shift remaining retry packets to front of array
-            //         for (int k = 0; k < ctx->retry_cnts[vid] - ret; k++) {
-            //             ctx->retry_pkts[vid][k] = ctx->retry_pkts[vid][k + ret];
-            //         }
-            //         ctx->retry_cnts[vid] -= ret;
-            //     }
-            //     STATS_ADD(ctx->vdev_stats[vid], requeue_pkt_count, ret);
-            //     continue;
-            // }
+            if (ctx->retry_cnts[vid] > 0) {
+                int ret = vhost_send(ctx, ctx->retry_cnts[vid], vid, ctx->retry_pkts[vid]);
+                //     if (ret > 0) {
+                //         free_pkts(ctx->retry_pkts[vid], ret);
+                //         // Shift remaining retry packets to front of array
+                //         for (int k = 0; k < ctx->retry_cnts[vid] - ret; k++) {
+                //             ctx->retry_pkts[vid][k] = ctx->retry_pkts[vid][k + ret];
+                //         }
+                //         ctx->retry_cnts[vid] -= ret;
+                //     }
+                ctx->retry_cnts[vid] = 0;
+                STATS_ADD(ctx->vdev_stats[vid], requeue_pkt_count, ret);
+                continue;
+            }
 
             uint16_t num = MAX_PKT_BURST;
             struct rte_mbuf *pkts[num];
@@ -77,19 +78,12 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
     if (ret < num) {
         // pkts[0 .. ret-1]     -> consumed by vhost (free)
         // pkts[ret .. num-1]   -> STILL OWNED BY YOU -> send back to ring (do not free)
-        int enq_num = rte_ring_enqueue_burst(global->vhost_tx_rings[vid], (void **)(pkts + ret), num - ret, NULL);
-        if (enq_num < num - ret) {
-            // LOG_WARN("[%d](%d) failed to requeue %d packets to vhost_tx_ring[%d]\n", ctx->core_id, vid,
-            //          num - ret - enq_num, vid);
-            free_pkts(pkts + ret + enq_num, num - ret - enq_num);
-        }
         vm_bp[vid].state = VM_BLOCKED_TX;
         vm_bp[vid].blocked_until_tsc = rte_rdtsc() + BACKOFF_TSC;
         for (int i = 0; i < num - ret; i++) {
             ctx->retry_pkts[vid][i] = pkts[ret + i];
         }
         ctx->retry_cnts[vid] = num - ret;
-        STATS_ADD(ctx->vdev_stats[vid], requeue_pkt_count, enq_num);
     }
 
     STATS_ADD(ctx->vdev_stats[vid], pkt_count, ret);
