@@ -71,12 +71,14 @@ enum vm_state {
 
 // backpressure for vms
 struct vm_bp {
-    enum vm_state state;
+    enum vm_state rx_state;
+    enum vm_state tx_state;
     uint64_t blocked_until_tsc;
     uint32_t empty_polls;
 };
 
 #define BACKOFF_TSC 100000 // 100 us
+#define EMPTY_THRESH 10
 extern struct vm_bp vm_bp[MAX_VHOSTS];
 void vm_bp_init(void);
 

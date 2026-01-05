@@ -9,7 +9,8 @@ struct vm_bp vm_bp[MAX_VHOSTS];
 
 void vm_bp_init(void) {
     for (int i = 0; i < MAX_VHOSTS; i++) {
-        vm_bp[i].state = VM_ACTIVE;
+        vm_bp[i].rx_state = VM_ACTIVE;
+        vm_bp[i].tx_state = VM_ACTIVE;
         vm_bp[i].blocked_until_tsc = 0;
         vm_bp[i].empty_polls = 0;
     }
@@ -33,7 +34,7 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
                 continue;
             }
 
-            if (vm_bp[vid].state == VM_BLOCKED_TX && rte_rdtsc() < vm_bp[vid].blocked_until_tsc)
+            if (vm_bp[vid].tx_state == VM_BLOCKED_TX && rte_rdtsc() < vm_bp[vid].blocked_until_tsc)
                 continue;
 
             if (ctx->retry_cnts[vid] > 0) {
@@ -81,7 +82,7 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
     if (ret < num) {
         // pkts[0 .. ret-1]     -> consumed by vhost (free)
         // pkts[ret .. num-1]   -> STILL OWNED BY YOU -> send back to ring (do not free)
-        vm_bp[vid].state = VM_BLOCKED_TX;
+        vm_bp[vid].tx_state = VM_BLOCKED_TX;
         vm_bp[vid].blocked_until_tsc = rte_rdtsc() + BACKOFF_TSC;
         for (int i = 0; i < num - ret; i++) {
             ctx->retry_pkts[vid][i] = pkts[ret + i];
@@ -89,7 +90,7 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
         ctx->retry_cnts[vid] = num - ret;
     } else {
         // All packets sent successfully - clear backpressure
-        vm_bp[vid].state = VM_ACTIVE;
+        vm_bp[vid].tx_state = VM_ACTIVE;
     }
 
     STATS_ADD(ctx->vdev_stats[vid], pkt_count, ret);

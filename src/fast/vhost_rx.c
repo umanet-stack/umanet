@@ -70,6 +70,8 @@ static inline int flow_pick_tx(uint32_t src_ip, uint32_t dst_ip, uint16_t src_po
     // return -1;
 }
 
+uint32_t idle_mask = 0x3; // poll 3/8 vms
+
 void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
     LOG_IMPT("[%u] Entering vhost_rx loop...\n", ctx->core_id);
     ctx->iteration_counter = 0;
@@ -107,7 +109,7 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
 
         for (int i = 0; i < plan->num; i++) {
             uint16_t vid = plan->vids[i];
-            if (vid >= MAX_VHOSTS || vdev_list_ptr->vdevs[vid] == NULL) {
+            if (vid < 0 || vid >= MAX_VHOSTS || vdev_list_ptr->vdevs[vid] == NULL) {
                 LOG_WARN("[%d]  Invalid vid %d or vdevs[%d] is NULL\n", ctx->core_id, vid);
                 continue;
             }
@@ -121,22 +123,20 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
 
             struct vhost_dev *vdev = vdev_list_ptr->vdevs[vid];
 
-            // Adaptive polling: Skip iperf servers (even vm_id) some of the time
-            // Servers send ACKs/control packets (important for TCP flow control!), clients send bulk data
-            // Poll servers every OTHER iteration to balance efficiency with TCP ACK latency
-            // Skipping too aggressively (e.g., 7/8) delays ACKs and throttles clients
-            // if ((vdev->vm_id & 0x1) == 0) {
-            //     // This is an iperf server (even vm_id: 0,2,4,6,...)
-            //     // Skip every other poll (only poll on even iterations)
-            //     if ((ctx->iteration_counter & 0x3) != 0) {
-            //         continue; // Skip this poll
-            //     }
+            // Adaptive polling: skip idle vms some of the time
+            // if (vm_bp[vid].rx_state == VM_IDLE_RX && (ctx->iteration_counter & idle_mask) != 0) {
+            //     continue;
             // }
-            // Clients (odd vm_id: 1,3,5,7,...) are polled every iteration
 
             poll_num = vhost_poll(ctx, MAX_PKT_BURST, vid, pkts);
-            if (poll_num == 0)
+            if (poll_num == 0) {
+                // vm_bp[vid].empty_polls++;
+                // if (vm_bp[vid].empty_polls > EMPTY_THRESH)
+                //     vm_bp[vid].rx_state = VM_IDLE_RX;
                 continue;
+            }
+            // vm_bp[vid].empty_polls = 0;
+            // vm_bp[vid].rx_state = VM_ACTIVE;
 
             // Prefetch first packets
             // prefetching a small window (like 2–8, commonly 4) gives the CPU time to bring cache lines in before you
