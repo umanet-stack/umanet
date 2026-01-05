@@ -5,18 +5,10 @@
 #include <stdatomic.h>
 #include <unistd.h>
 
-void vm_bp_init(struct vhost_tx_ctx *ctx) {
-    for (int i = 0; i < MAX_VHOSTS; i++) {
-        ctx->vm_bp[i].state = VM_ACTIVE;
-        ctx->vm_bp[i].blocked_until_tsc = 0;
-    }
-}
-
 static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts);
 
 void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
     LOG_IMPT("[%u] Entering vhost_tx loop...\n", ctx->core_id);
-    vm_bp_init(ctx);
 
     while (1) {
         // STATS_TS(start);

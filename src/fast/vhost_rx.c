@@ -12,14 +12,6 @@
 #include <stdint.h>
 #include <unistd.h>
 
-void vhost_ap_init(struct vhost_rx_ctx *ctx) {
-    for (int i = 0; i < MAX_VHOSTS; i++) {
-        ctx->vhost_ap[i].state = VM_ACTIVE;
-        ctx->vhost_ap[i].empty_polls = 0;
-        ctx->vhost_ap[i].idle_mask = 0x3; // skip 3 polls for every 4 polls
-    }
-}
-
 static const uint8_t default_rss_key[40] = {0x6d, 0x5a, 0x56, 0xda, 0x25, 0x5b, 0x0e, 0xc2, 0x41, 0x67,
                                             0x25, 0x3d, 0x43, 0xa3, 0x8f, 0xb0, 0xd0, 0xca, 0x2b, 0xcb,
                                             0xae, 0x7b, 0x30, 0xb4, 0x77, 0xcb, 0x2d, 0xa3, 0x80, 0x30,
@@ -70,7 +62,6 @@ static inline int flow_pick_tx(uint32_t src_ip, uint32_t dst_ip, uint16_t src_po
 void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
     LOG_IMPT("[%u] Entering vhost_rx loop...\n", ctx->core_id);
     ctx->iteration_counter = 0;
-    vhost_ap_init(ctx);
 
     struct rte_mbuf *pkts[MAX_PKT_BURST];
     struct rte_mbuf *vm_pkts[MAX_VHOSTS][MAX_PKT_BURST];

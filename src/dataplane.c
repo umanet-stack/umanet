@@ -93,6 +93,8 @@ int init_dataplane_ctxs() {
                 LOG_ERROR("init_vhost_rx_ctxs: failed to allocate vhost_rx_ctxs[%d]->vdev_stats[%d]\n", i, j);
                 return -1;
             }
+            vhost_rx_ctxs[i]->vhost_ap[j].state = VM_ACTIVE;
+            vhost_rx_ctxs[i]->vhost_ap[j].empty_polls = 0;
         }
     }
 
@@ -112,6 +114,8 @@ int init_dataplane_ctxs() {
             }
             // retry_pkts is now a static array, no need to initialize
             vhost_tx_ctxs[i]->retry_cnts[j] = 0;
+            vhost_tx_ctxs[i]->vm_bp[j].state = VM_ACTIVE;
+            vhost_tx_ctxs[i]->vm_bp[j].blocked_until_tsc = 0;
         }
     }
     // vhost module takes care of vdev_ids

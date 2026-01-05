@@ -39,7 +39,6 @@
 #include "./config/config.h"
 #include "./include/main.h"
 #include "log.h"
-#include "src/include/fastpath.h"
 #include "src/include/state.h"
 #include "src/network/network.h"
 #include "src/slow/slowpath.h"
@@ -128,10 +127,6 @@ int main(int argc, char *argv[]) {
         goto error_network_cleanup;
     }
     LOG_IMPT("✅ Initialized network\n");
-
-    vm_bp_init();
-    vhost_ap_init();
-    LOG_IMPT("✅ Initialized vm backpressure and adaptive polling\n");
 
     // Start worker threads BEFORE vhost registration
     // This ensures TX queues are initialized before vhost can send packets
