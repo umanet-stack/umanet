@@ -38,9 +38,9 @@ echo "✅ $NIC: removed IP and added to br0"
 # When a physical interface is added to a bridge, the interface becomes a bridge port (no IP).
 # The bridge (br0) gets the IP address. Routes should reference the bridge, not the physical interface
 if [ "$NODE_ID" = "0" ]; then
-  sudo ip route add 192.168.101.0/24 via 192.168.101.1 dev br0 onlink
+  sudo ip route add 192.168.101.0/24 via 192.168.101.1 dev br0 onlink || true
 elif [ "$NODE_ID" = "1" ]; then
-  sudo ip route add 192.168.100.0/24 via 192.168.100.1 dev br0 onlink
+  sudo ip route add 192.168.100.0/24 via 192.168.100.1 dev br0 onlink || true
 fi
 echo "✅ route added to other node"
 

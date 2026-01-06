@@ -47,7 +47,7 @@ c_args = [
 ]
 
 # Build executable
-executable('vhost-switch',
+executable('umanet',
 	sources,
 	c_args: c_args,
 	include_directories: include_dirs,

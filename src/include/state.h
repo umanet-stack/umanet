@@ -1,6 +1,8 @@
 #ifndef STATE_H_
 #define STATE_H_
 
+#include "src/fast/poll.h"
+#include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 #include <rte_ether.h>
 #include <rte_hash.h>
@@ -8,7 +10,6 @@
 #include <stdatomic.h>
 
 #define MAX_VHOSTS 64
-#define RING_SIZE 4096
 
 extern struct dataplane_topology *global;
 extern struct eth_rx_ctx **eth_rx_ctxs;
@@ -22,16 +23,16 @@ extern _Atomic(struct vhost_plan *) *vhost_tx_plans;
 extern uint16_t vhost_rx_core[MAX_VHOSTS];
 extern uint16_t vhost_tx_core[MAX_VHOSTS];
 
-#define MAX_ETH_TX_CORES 4
+#define MAX_ETH_TX_QUEUES 20
 
 struct dataplane_topology {
     uint16_t eth_port_id;
     struct rte_ether_addr eth_addr;
     uint16_t fp_cores;
 
-    // indexed by eth_queue_id
-    // vhost_rx_core i => eth_tx_rings[i] => eth_tx_core i (1:1 mapping)
-    struct rte_ring **eth_tx_rings;
+    // vhost_rx_core i => eth_tx_queue_rings[j] => eth_tx_core k (i:j:k mapping)
+    struct rte_ring **eth_tx_queue_rings;
+
     // indexed by vid
     // vhost/eth_rx_core i => vhost_tx_rings[j] => vhost_tx_core k (i:j:k mapping)
     struct rte_ring *vhost_tx_rings[MAX_VHOSTS];
@@ -40,14 +41,18 @@ struct dataplane_topology {
 
 struct eth_rx_ctx {
     uint16_t core_id;
-    uint16_t eth_queue_id; // same as core_id
+    // e.g. 0 => get pkts from eth_rx_queue_rings[0, n, 2n, ...]
+    // send to NIC tx queue 0, n, 2n, ...
+    uint16_t eth_rx_queue_r;
     struct rte_mempool *mempool;
     struct eth_rx_stats *stats;
 };
 
 struct eth_tx_ctx {
     uint16_t core_id;
-    uint16_t eth_queue_id; // same as core_id
+    // e.g. 0 => get pkts from eth_tx_queue_rings[0, n, 2n, ...]
+    // send to NIC rx queue 0, n, 2n, ...
+    uint16_t eth_tx_queue_r;
     struct eth_tx_stats *stats;
 };
 
@@ -63,25 +68,22 @@ struct eth_rx_stats {
 struct eth_tx_stats {
     uint32_t call_count;
     uint32_t pkt_count;
+    uint32_t requeue_pkt_count;
     uint32_t max_send_count;
-    uint32_t requeue_count;
     uint32_t ring_deq_max_count;
 };
 
-#define MAX_PKT_BURST 32
-#define FLOW_TABLE_SIZE 1024
-struct flow_key {
-    uint32_t src_ip;
-    uint32_t dst_ip;
-    // uint16_t src_port;
-    // uint16_t dst_port;
-    // uint8_t proto;
+enum vm_state {
+    VM_ACTIVE,
+    VM_BLOCKED_TX,
+    VM_IDLE_RX,
 };
 
-struct flow_entry {
-    struct flow_key key;
-    uint16_t eth_tx_core;
-    uint64_t last_seen_tsc;
+#define BACKOFF_TSC 100000 // 100 us
+// backpressure for vms
+struct vm_bp {
+    enum vm_state state;
+    uint64_t blocked_until_tsc;
 };
 
 struct vhost_rx_ctx {
@@ -98,7 +100,10 @@ struct vhost_rx_ctx {
     uint64_t iteration_counter;
 
     struct vdev_rx_stats *vdev_stats[MAX_VHOSTS];
-    struct flow_entry flow_table[FLOW_TABLE_SIZE];
+    struct vhost_ap vhost_ap[MAX_VHOSTS];
+    uint32_t poll_states[5];
+    uint32_t ecn_rr_vhost[MAX_VHOSTS];
+    uint32_t ecn_rr_eth[MAX_ETH_TX_QUEUES];
 };
 
 struct vhost_tx_ctx {
@@ -112,6 +117,10 @@ struct vhost_tx_ctx {
     uint16_t inactive_check_counter;
 
     struct vdev_tx_stats *vdev_stats[MAX_VHOSTS];
+    // Persistent storage for packets waiting to be retried
+    struct rte_mbuf *retry_pkts[MAX_VHOSTS][MAX_PKT_BURST];
+    uint32_t retry_cnts[MAX_VHOSTS];
+    struct vm_bp vm_bp[MAX_VHOSTS];
 };
 
 // Published via atomic pointer swap, Never mutated, RX/TX cores only read

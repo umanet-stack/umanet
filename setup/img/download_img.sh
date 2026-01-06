@@ -18,4 +18,4 @@ cp ~/linux-cloud-hypervisor/arch/x86/boot/compressed/vmlinux.bin /tmp/vmlinux.bi
 cd ~
 wget https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
 qemu-img convert -p -f qcow2 -O raw noble-server-cloudimg-amd64.img noble-server-cloudimg-amd64.raw
-mv noble-server-cloudimg-amd64.raw /tmp/noble-server-cloudimg-amd64.raw
+cp noble-server-cloudimg-amd64.raw /tmp/noble-server-cloudimg-amd64.raw

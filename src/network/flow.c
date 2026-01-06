@@ -17,7 +17,7 @@ int install_eth_rx_flow(struct vhost_dev *vdev) {
         return -1;
     }
 
-    uint16_t eth_queue_id = vdev->vm_id % config.eth_rx_cores;
+    uint16_t eth_queue_id = vdev->vm_id % config.eth_rx_queues;
 
     struct rte_flow_attr attr;
     memset(&attr, 0, sizeof(attr));
@@ -77,7 +77,7 @@ int uninstall_eth_rx_flow(struct vhost_dev *vdev) {
         return -1;
     }
 
-    uint16_t eth_queue_id = vdev->vm_id % config.eth_rx_cores;
+    uint16_t eth_queue_id = vdev->vm_id % config.eth_rx_queues;
     struct rte_flow_error error;
     int ret = rte_flow_destroy(global->eth_port_id, flow, &error);
     if (ret != 0) {

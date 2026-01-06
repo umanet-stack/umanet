@@ -11,9 +11,9 @@ int init_dataplane_topology() {
         LOG_ERROR("dataplane_init: failed to allocate global\n");
         return -1;
     }
-    if (config.eth_tx_cores > MAX_ETH_TX_CORES) {
-        LOG_ERROR("init_dataplane_topology: eth_tx_cores (%d) > MAX_ETH_TX_CORES (%d)\n", config.eth_tx_cores,
-                  MAX_ETH_TX_CORES);
+    if (config.eth_tx_queues > MAX_ETH_TX_QUEUES) {
+        LOG_ERROR("init_dataplane_topology: eth_tx_queues (%d) > MAX_ETH_TX_QUEUES (%d)\n", config.eth_tx_queues,
+                  MAX_ETH_TX_QUEUES);
         return -1;
     }
     global->fp_cores = config.eth_rx_cores + config.eth_tx_cores + config.vhost_rx_cores + config.vhost_tx_cores;
@@ -44,7 +44,7 @@ int init_dataplane_ctxs() {
             LOG_ERROR("init_eth_rx_ctxs: failed to allocate eth_rx_ctxs[%d]\n", i);
             return -1;
         }
-        eth_rx_ctxs[i]->eth_queue_id = i;
+        eth_rx_ctxs[i]->eth_rx_queue_r = i;
 
         if ((eth_rx_ctxs[i]->mempool = network_mempool_alloc()) == NULL) {
             LOG_ERROR("init_eth_rx_ctxs: failed to allocate eth_rx_ctxs[%d]->mempool\n", i);
@@ -64,7 +64,7 @@ int init_dataplane_ctxs() {
             LOG_ERROR("init_eth_tx_ctxs: failed to allocate eth_tx_ctxs[%d]\n", i);
             return -1;
         }
-        eth_tx_ctxs[i]->eth_queue_id = i;
+        eth_tx_ctxs[i]->eth_tx_queue_r = i;
         if ((eth_tx_ctxs[i]->stats = rte_calloc("eth_tx_ctxs[%d]->stats", 1, sizeof(*eth_tx_ctxs[i]->stats), 0)) ==
             NULL) {
             LOG_ERROR("init_eth_tx_ctxs: failed to allocate eth_tx_ctxs[%d]->stats\n", i);
@@ -93,7 +93,13 @@ int init_dataplane_ctxs() {
                 LOG_ERROR("init_vhost_rx_ctxs: failed to allocate vhost_rx_ctxs[%d]->vdev_stats[%d]\n", i, j);
                 return -1;
             }
+            vhost_rx_ctxs[i]->vhost_ap[j].state = RX_HOT;
+            vhost_rx_ctxs[i]->vhost_ap[j].idle_score = 0;
+            vhost_rx_ctxs[i]->vhost_ap[j].blocked_until_tsc = 0;
         }
+        memset(vhost_rx_ctxs[i]->poll_states, 0, sizeof(vhost_rx_ctxs[i]->poll_states));
+        memset(vhost_rx_ctxs[i]->ecn_rr_vhost, 0, sizeof(vhost_rx_ctxs[i]->ecn_rr_vhost));
+        memset(vhost_rx_ctxs[i]->ecn_rr_eth, 0, sizeof(vhost_rx_ctxs[i]->ecn_rr_eth));
     }
 
     for (int i = 0; i < config.vhost_tx_cores; i++) {
@@ -110,6 +116,10 @@ int init_dataplane_ctxs() {
                 LOG_ERROR("init_vhost_tx_ctxs: failed to allocate vhost_tx_ctxs[%d]->vdev_stats[%d]\n", i, j);
                 return -1;
             }
+            // retry_pkts is now a static array, no need to initialize
+            vhost_tx_ctxs[i]->retry_cnts[j] = 0;
+            vhost_tx_ctxs[i]->vm_bp[j].state = VM_ACTIVE;
+            vhost_tx_ctxs[i]->vm_bp[j].blocked_until_tsc = 0;
         }
     }
     // vhost module takes care of vdev_ids

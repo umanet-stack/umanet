@@ -38,6 +38,10 @@ typedef struct {
     struct rte_ether_addr other_node_mac;
     uint16_t eth_rx_cores;
     uint16_t eth_tx_cores;
+    // no. of total nic tx queues that eth rx will poll from
+    uint16_t eth_rx_queues;
+    // no. of total nic rx queues that eth tx will send to
+    uint16_t eth_tx_queues;
     uint16_t vhost_rx_cores;
     uint16_t vhost_tx_cores;
 } config_t;
