@@ -44,7 +44,7 @@ int init_dataplane_ctxs() {
             LOG_ERROR("init_eth_rx_ctxs: failed to allocate eth_rx_ctxs[%d]\n", i);
             return -1;
         }
-        eth_rx_ctxs[i]->eth_queue_id = i;
+        eth_rx_ctxs[i]->eth_rx_queue_r = i;
 
         if ((eth_rx_ctxs[i]->mempool = network_mempool_alloc()) == NULL) {
             LOG_ERROR("init_eth_rx_ctxs: failed to allocate eth_rx_ctxs[%d]->mempool\n", i);

@@ -41,14 +41,16 @@ struct dataplane_topology {
 
 struct eth_rx_ctx {
     uint16_t core_id;
-    uint16_t eth_queue_id; // same as core_id
+    // e.g. 0 => get pkts from eth_rx_queue_rings[0, n, 2n, ...]
+    // send to NIC tx queue 0, n, 2n, ...
+    uint16_t eth_rx_queue_r;
     struct rte_mempool *mempool;
     struct eth_rx_stats *stats;
 };
 
 struct eth_tx_ctx {
     uint16_t core_id;
-    // same as core_id e.g. 0 => get pkts from eth_tx_queue_rings[0, n, 2n, ...]
+    // e.g. 0 => get pkts from eth_tx_queue_rings[0, n, 2n, ...]
     // send to NIC rx queue 0, n, 2n, ...
     uint16_t eth_tx_queue_r;
     struct eth_tx_stats *stats;
