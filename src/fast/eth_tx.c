@@ -59,6 +59,7 @@ void eth_tx_loop(struct eth_tx_ctx *ctx) {
 
 static inline int network_send(struct eth_tx_ctx *ctx, int tx_queue_id, unsigned num, struct rte_mbuf **pkts) {
     STATS_ADD(ctx->stats, call_count, 1);
+    pkts_set_flags(pkts, num);
     int16_t ret = rte_eth_tx_burst(global->eth_port_id, tx_queue_id, pkts, num);
     if (ret < 0)
         ret = 0;
