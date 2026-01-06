@@ -11,9 +11,9 @@ int init_dataplane_topology() {
         LOG_ERROR("dataplane_init: failed to allocate global\n");
         return -1;
     }
-    if (config.eth_tx_cores > MAX_ETH_TX_CORES) {
-        LOG_ERROR("init_dataplane_topology: eth_tx_cores (%d) > MAX_ETH_TX_CORES (%d)\n", config.eth_tx_cores,
-                  MAX_ETH_TX_CORES);
+    if (config.eth_tx_queues > MAX_ETH_TX_QUEUES) {
+        LOG_ERROR("init_dataplane_topology: eth_tx_queues (%d) > MAX_ETH_TX_QUEUES (%d)\n", config.eth_tx_queues,
+                  MAX_ETH_TX_QUEUES);
         return -1;
     }
     global->fp_cores = config.eth_rx_cores + config.eth_tx_cores + config.vhost_rx_cores + config.vhost_tx_cores;
@@ -64,7 +64,7 @@ int init_dataplane_ctxs() {
             LOG_ERROR("init_eth_tx_ctxs: failed to allocate eth_tx_ctxs[%d]\n", i);
             return -1;
         }
-        eth_tx_ctxs[i]->eth_queue_id = i;
+        eth_tx_ctxs[i]->eth_tx_queue_r = i;
         if ((eth_tx_ctxs[i]->stats = rte_calloc("eth_tx_ctxs[%d]->stats", 1, sizeof(*eth_tx_ctxs[i]->stats), 0)) ==
             NULL) {
             LOG_ERROR("init_eth_tx_ctxs: failed to allocate eth_tx_ctxs[%d]->stats\n", i);

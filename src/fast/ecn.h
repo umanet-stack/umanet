@@ -11,7 +11,7 @@
 static inline void ecn_mark_packet(struct rte_mbuf *pkt);
 
 static inline void ecn_mark_packets(struct rte_mbuf **mbufs, int num, int congestion,
-                                    uint32_t *rr) // per-core counter for probabilistic randomness
+                                    uint32_t *rr) // per-ring counter for probabilistic randomness
 {
     if (congestion < ECN_START)
         return;

@@ -23,16 +23,16 @@ extern _Atomic(struct vhost_plan *) *vhost_tx_plans;
 extern uint16_t vhost_rx_core[MAX_VHOSTS];
 extern uint16_t vhost_tx_core[MAX_VHOSTS];
 
-#define MAX_ETH_TX_CORES 4
+#define MAX_ETH_TX_QUEUES 20
 
 struct dataplane_topology {
     uint16_t eth_port_id;
     struct rte_ether_addr eth_addr;
     uint16_t fp_cores;
 
-    // indexed by eth_queue_id
-    // vhost_rx_core i => eth_tx_rings[i] => eth_tx_core i (1:1 mapping)
-    struct rte_ring **eth_tx_rings;
+    // vhost_rx_core i => eth_tx_queue_rings[j] => eth_tx_core k (i:j:k mapping)
+    struct rte_ring **eth_tx_queue_rings;
+
     // indexed by vid
     // vhost/eth_rx_core i => vhost_tx_rings[j] => vhost_tx_core k (i:j:k mapping)
     struct rte_ring *vhost_tx_rings[MAX_VHOSTS];
@@ -48,7 +48,9 @@ struct eth_rx_ctx {
 
 struct eth_tx_ctx {
     uint16_t core_id;
-    uint16_t eth_queue_id; // same as core_id
+    // same as core_id e.g. 0 => get pkts from eth_tx_queue_rings[0, n, 2n, ...]
+    // send to NIC rx queue 0, n, 2n, ...
+    uint16_t eth_tx_queue_r;
     struct eth_tx_stats *stats;
 };
 
@@ -99,7 +101,7 @@ struct vhost_rx_ctx {
     struct vhost_ap vhost_ap[MAX_VHOSTS];
     uint32_t poll_states[5];
     uint32_t ecn_rr_vhost[MAX_VHOSTS];
-    uint32_t ecn_rr_eth[MAX_ETH_TX_CORES];
+    uint32_t ecn_rr_eth[MAX_ETH_TX_QUEUES];
 };
 
 struct vhost_tx_ctx {

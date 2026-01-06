@@ -140,7 +140,7 @@ int network_init() {
     //     port_conf.intr_conf.rxq = 0;
 
     /* initialize port */
-    ret = rte_eth_dev_configure(global->eth_port_id, config.eth_rx_cores, config.eth_tx_cores, &port_conf);
+    ret = rte_eth_dev_configure(global->eth_port_id, config.eth_rx_cores, config.eth_tx_queues, &port_conf);
     if (ret < 0) {
         LOG_ERROR("rte_eth_dev_configure failed\n");
         goto error_exit;
@@ -187,21 +187,22 @@ static volatile uint32_t start_done = 0;
 
 int network_tx_queue_init(struct eth_tx_ctx *ctx) {
     int ret;
+    for (int i = ctx->eth_tx_queue_r; i < config.eth_tx_queues; i += config.eth_tx_cores) {
+        rte_spinlock_lock(&initlock);
+        ret = rte_eth_tx_queue_setup(global->eth_port_id, i, TX_DESCRIPTORS, rte_socket_id(),
+                                     &eth_devinfo.default_txconf);
+        rte_spinlock_unlock(&initlock);
+        if (ret != 0) {
+            LOG_ERROR("network_tx_queue_init: rte_eth_tx_queue_setup failed\n");
+            return -1;
+        }
 
-    rte_spinlock_lock(&initlock);
-    ret = rte_eth_tx_queue_setup(global->eth_port_id, ctx->eth_queue_id, TX_DESCRIPTORS, rte_socket_id(),
-                                 &eth_devinfo.default_txconf);
-    rte_spinlock_unlock(&initlock);
-    if (ret != 0) {
-        LOG_ERROR("network_tx_queue_init: rte_eth_tx_queue_setup failed\n");
-        return -1;
+        /* barrier to make sure tx queues are initialized first */
+        __sync_add_and_fetch(&tx_init_done, 1);
+
+        LOG_IMPT("[%d] NIC TX queue %d initialized\n", ctx->core_id, i);
     }
-
-    /* barrier to make sure tx queues are initialized first */
-    __sync_add_and_fetch(&tx_init_done, 1);
-
-    LOG_IMPT("[%d] NIC TX queue %d initialized\n", ctx->core_id, ctx->eth_queue_id);
-    return ret;
+    return 0;
 }
 
 int network_rx_queue_init(struct eth_rx_ctx *ctx) {

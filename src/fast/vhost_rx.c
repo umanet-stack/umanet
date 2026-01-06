@@ -57,7 +57,7 @@ static inline int flow_pick_tx(uint32_t src_ip, uint32_t dst_ip, uint16_t src_po
     tuple[3] = rte_cpu_to_be_32(proto);
 
     uint32_t h = rte_softrss_be(tuple, 4, default_rss_key);
-    return h % config.eth_tx_cores;
+    return h % config.eth_tx_queues;
 }
 
 void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
@@ -72,9 +72,9 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
     }
     uint16_t dst_vids[MAX_VHOSTS]; // indexed by dst_cnt, no need to init
 
-    struct rte_mbuf *eth_pkts[MAX_ETH_TX_CORES][MAX_PKT_BURST];
-    uint16_t eth_cnt[MAX_ETH_TX_CORES];
-    for (int i = 0; i < MAX_ETH_TX_CORES; i++) {
+    struct rte_mbuf *eth_pkts[MAX_ETH_TX_QUEUES][MAX_PKT_BURST];
+    uint16_t eth_cnt[MAX_ETH_TX_QUEUES];
+    for (int i = 0; i < MAX_ETH_TX_QUEUES; i++) {
         eth_cnt[i] = 0;
     }
 
@@ -232,15 +232,16 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                 }
             }
 
-            for (int j = 0; j < config.eth_tx_cores; j++) {
+            for (int j = 0; j < config.eth_tx_queues; j++) {
                 if (eth_cnt[j] == 0)
                     continue;
 
-                int congestion = RING_SIZE - rte_ring_free_count(global->eth_tx_rings[j]);
+                int congestion = RING_SIZE - rte_ring_free_count(global->eth_tx_queue_rings[j]);
                 ecn_mark_packets(eth_pkts[j], eth_cnt[j], congestion, &ctx->ecn_rr_eth[j]);
 
                 // if ring is full, enqueue < n (possibly 0) = if vhost tx slow, vhost rx will be made slow
-                int enq_num = rte_ring_enqueue_burst(global->eth_tx_rings[j], (void **)eth_pkts[j], eth_cnt[j], NULL);
+                int enq_num =
+                    rte_ring_enqueue_burst(global->eth_tx_queue_rings[j], (void **)eth_pkts[j], eth_cnt[j], NULL);
                 // LOG_INFO("[%d](%d) enqueued %d packets to eth_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
                 //          ctx->vhost_rx_core_id);
                 if (enq_num < eth_cnt[j]) {
