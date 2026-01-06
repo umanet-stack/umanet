@@ -60,6 +60,8 @@ void init_config(config_t *c) {
     c->other_node_mac = (struct rte_ether_addr){{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}};
     c->eth_rx_cores = 0;
     c->eth_tx_cores = 0;
+    c->eth_rx_queues = 0;
+    c->eth_tx_queues = 0;
     c->vhost_rx_cores = 0;
     c->vhost_tx_cores = 0;
 }
@@ -80,6 +82,8 @@ enum cfg_params {
     CP_OTHER_NODE_MAC,
     CP_ETH_RX_CORES,
     CP_ETH_TX_CORES,
+    CP_ETH_RX_QUEUES,
+    CP_ETH_TX_QUEUES,
     CP_VHOST_RX_CORES,
     CP_VHOST_TX_CORES,
 };
@@ -136,6 +140,8 @@ static struct option options[] = {
     {"other-node-mac", required_argument, .val = CP_OTHER_NODE_MAC},
     {"eth-rx-cores", required_argument, .val = CP_ETH_RX_CORES},
     {"eth-tx-cores", required_argument, .val = CP_ETH_TX_CORES},
+    {"eth-rx-queues", required_argument, .val = CP_ETH_RX_QUEUES},
+    {"eth-tx-queues", required_argument, .val = CP_ETH_TX_QUEUES},
     {"vhost-rx-cores", required_argument, .val = CP_VHOST_RX_CORES},
     {"vhost-tx-cores", required_argument, .val = CP_VHOST_TX_CORES},
 };
@@ -251,6 +257,20 @@ int parse_config(config_t *c, int argc, char **argv) {
         case CP_ETH_TX_CORES:
             if (parse_int16(optarg, &c->eth_tx_cores) != 0) {
                 fprintf(stderr, "Invalid argument for eth-tx-cores [0-N]\n");
+                goto failed;
+            }
+            break;
+
+        case CP_ETH_RX_QUEUES:
+            if (parse_int16(optarg, &c->eth_rx_queues) != 0) {
+                fprintf(stderr, "Invalid argument for eth-rx-queues [0-N]\n");
+                goto failed;
+            }
+            break;
+
+        case CP_ETH_TX_QUEUES:
+            if (parse_int16(optarg, &c->eth_tx_queues) != 0) {
+                fprintf(stderr, "Invalid argument for eth-tx-queues [0-N]\n");
                 goto failed;
             }
             break;
