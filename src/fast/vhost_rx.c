@@ -169,6 +169,11 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                     rte_prefetch0(rte_pktmbuf_mtod(pkts[j + 1], void *)); // prefetch packet data
                 }
 
+                // if (unlikely(pkts[j]->pkt_len > 2000))
+                //     LOG_IMPT("[%d](%d) GSO pkt: len=%u\n", ctx->core_id, vid, pkts[j]->pkt_len);
+                // LOG_IMPT("[%d](%d) ol_flags=0x%lx tso=%u\n", ctx->core_id, vid, pkts[j]->ol_flags,
+                // pkts[j]->tso_segsz);
+
                 STATS_ADD(ctx->vdev_stats[vid], byte_wnd[ctx->vdev_stats[vid]->wnd_idx], rte_pktmbuf_pkt_len(pkts[j]));
                 struct rte_mbuf *m = pkts[j];
                 struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);

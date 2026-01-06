@@ -26,6 +26,8 @@
 #define FASTPATH_H_
 
 #include <rte_ether.h>
+#include <rte_ip.h>
+#include <rte_tcp.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -64,5 +66,28 @@
 
 #define MAX_PKT_BURST 32
 #define RING_SIZE 4096
+
+static inline void pkts_set_flags(struct rte_mbuf **pkts, unsigned num) {
+    // flags = tell driver what to do
+    for (unsigned i = 0; i < num; i++) {
+        pkts[i]->ol_flags |=
+            // IPv4 packet, and the IPv4 header checksum must be computed (TSO requires rewriting IP length per segment)
+            RTE_MBUF_F_TX_IPV4 |
+            // TCP checksum is not valid yet — compute it after segmentation
+            RTE_MBUF_F_TX_TCP_CKSUM | RTE_MBUF_F_TX_IP_CKSUM |
+            // TSO enable bit, this mbuf represents multiple TCP segments
+            RTE_MBUF_F_TX_TCP_SEG;
+
+        // Split the payload into chunks of this size
+        // It does not include TCP/IP headers, only TCP payload.
+        // MTU(1500) - IPv4 header(20) - TCP header(20) - TCP timestamp(12) = TCP payload(1448)
+        pkts[i]->tso_segsz = 1448; // typically 1448 or derived from MTU
+
+        // It relies on these offsets to find the headers for checksum computation and segmentation
+        pkts[i]->l2_len = sizeof(struct rte_ether_hdr);
+        pkts[i]->l3_len = sizeof(struct rte_ipv4_hdr);
+        pkts[i]->l4_len = sizeof(struct rte_tcp_hdr);
+    }
+}
 
 #endif /* FASTPATH_H_ */

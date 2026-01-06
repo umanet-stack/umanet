@@ -39,6 +39,7 @@ sudo ./build_and_run.sh test 32
 # do local networking via tap
 ./setup/vm/spawn_vms.sh dpdk-tap 32 vm-vm-internal
 python testing/process_logs/main.py dpdk vm-vm-internal
+ethtool -k ens6
 ```
 ## multinode
 ```bash
