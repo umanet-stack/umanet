@@ -154,6 +154,7 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
                 }
             }
         }
+        ctx->iteration_counter++;
     }
 }
 
@@ -166,11 +167,33 @@ static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, uns
     }
     STATS_ADD(ctx->stats, pkt_count, nb_rx);
 
+    // if (nb_rx > 0 || (ctx->iteration_counter & 1023) == 0) { // force flush every 1024 iterations
+    //     pkts_set_gro_flags(pkts, nb_rx);
+    //     // pkts will be left with unassembled pkts, assembled pkts are moved to gro_ctx table
+    //     int left_cnt = rte_gro_reassemble(pkts, nb_rx, ctx->gro_ctx);
+
+    //     struct rte_mbuf *flush_pkts[num - left_cnt];
+    //     int flush_cnt = 0;
+    //     if ((ctx->iteration_counter & 1023) == 0) {
+    //         flush_cnt = rte_gro_timeout_flush(ctx->gro_ctx, 0, RTE_GRO_TCP_IPV4, flush_pkts, num - left_cnt);
+    //     } else { // flows older than 100us
+    //         flush_cnt = rte_gro_timeout_flush(ctx->gro_ctx, 100000, RTE_GRO_TCP_IPV4, flush_pkts, num - left_cnt);
+    //     }
+
+    //     static int gro_count = 0;
+    //     if (gro_count < 50) {
+    //         LOG_IMPT("ETH RX: GRO reassembled %d packets, flushed %d\n", num - left_cnt, flush_cnt);
+    //         gro_count++;
+    //     }
+
+    //     for (int i = 0; i < flush_cnt; i++) {
+    //         pkts[i + left_cnt] = flush_pkts[i];
+    //     }
+    //     nb_rx = left_cnt + flush_cnt;
+    // }
+
     static int count = 0;
     if (count < 50) {
-        // printf("GRO: %d packets in -> %d packets out\n", nb_rx, gro_cnt);
-        // for (int i = 0; i < gro_cnt; i++)
-        //     printf("  pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
         for (int i = 0; i < nb_rx; i++) {
             if ((pkts[i]->ol_flags & RTE_MBUF_F_TX_TCP_SEG) && pkts[i]->pkt_len <= PKT_MTU) {
                 LOG_ERROR("Invalid TSO packet: pkt_len=%u mtu=%u\n", pkts[i]->pkt_len, PKT_MTU);
