@@ -102,6 +102,9 @@ static inline void pkts_set_flags(struct rte_mbuf **pkts, unsigned num) {
                 m->l2_len = sizeof(struct rte_ether_hdr);
                 m->l3_len = sizeof(struct rte_ipv4_hdr);
                 m->l4_len = sizeof(struct rte_tcp_hdr);
+                m->packet_type = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4 | RTE_PTYPE_L4_TCP;
+                m->outer_l2_len = 0;
+                m->outer_l3_len = 0;
             } else if (ip->next_proto_id == IPPROTO_UDP) {
                 // UDP over IPv4 — only compute checksums, no TSO
                 m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM;
