@@ -46,25 +46,6 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
                 for (int j = 0; j < RTE_MIN(deq_num, 4); j++) {
                     rte_prefetch0(pkts[j]);
                 }
-                for (int j = 0; j < deq_num; j++) {
-                    clear_tx_offloads(pkts[j]);
-                    struct rte_ether_hdr *eth = rte_pktmbuf_mtod(pkts[j], struct rte_ether_hdr *);
-                    if (eth->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
-                        pkts[j]->l2_len = sizeof(*eth);
-                        pkts[j]->l3_len = sizeof(struct rte_ipv4_hdr);
-
-                        struct rte_ipv4_hdr *ip = (void *)(eth + 1);
-                        fix_ipv4_cksum(pkts[j]);
-
-                        if (ip->next_proto_id == IPPROTO_TCP) {
-                            pkts[j]->l4_len = sizeof(struct rte_tcp_hdr);
-                            fix_tcp_cksum(pkts[j]);
-                        } else if (ip->next_proto_id == IPPROTO_UDP) {
-                            pkts[j]->l4_len = sizeof(struct rte_udp_hdr);
-                            fix_udp_cksum(pkts[j]);
-                        }
-                    }
-                }
                 vhost_send(ctx, deq_num, vid, pkts);
             }
         }
