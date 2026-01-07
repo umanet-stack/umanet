@@ -163,18 +163,18 @@ static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, uns
     //     printf("NIC RX: got %d packets from burst\n", nb_rx);
     // }
 
-    pkts_set_gro_flags(pkts, nb_rx);
+    // pkts_set_gro_flags(pkts, nb_rx);
     // Use lightweight GRO - processes packets immediately without buffering
-    uint16_t gro_cnt = rte_gro_reassemble_burst(pkts, nb_rx, &ctx->gro_param);
-    STATS_ADD(ctx->stats, pkt_count, gro_cnt);
+    // uint16_t gro_cnt = rte_gro_reassemble_burst(pkts, nb_rx, &ctx->gro_param);
+    // STATS_ADD(ctx->stats, pkt_count, gro_cnt);
 
     // DEBUG: Show what GRO returned
-    printf("GRO: %d packets in -> %d packets out\n", nb_rx, gro_cnt);
-    for (int i = 0; i < gro_cnt; i++)
-        printf("  pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+    // printf("GRO: %d packets in -> %d packets out\n", nb_rx, gro_cnt);
+    // for (int i = 0; i < gro_cnt; i++)
+    //     printf("  pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
 
-    LOG_ETH_IN("[%d] Received %d packets from physical NIC RX queue %d\n", ctx->core_id, gro_cnt, rx_queue_id);
-    PRINT_PKTS(pkts, gro_cnt, LOG_ETH_IN);
+    LOG_ETH_IN("[%d] Received %d packets from physical NIC RX queue %d\n", ctx->core_id, nb_rx, rx_queue_id);
+    PRINT_PKTS(pkts, nb_rx, LOG_ETH_IN);
 
-    return gro_cnt;
+    return nb_rx;
 }

@@ -60,6 +60,9 @@ void eth_tx_loop(struct eth_tx_ctx *ctx) {
 static inline int network_send(struct eth_tx_ctx *ctx, int tx_queue_id, unsigned num, struct rte_mbuf **pkts) {
     STATS_ADD(ctx->stats, call_count, 1);
     pkts_set_tso_flags(pkts, num);
+    // for (int i = 0; i < num; i++) {
+    //     printf("ETH TX pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+    // }
     int16_t ret = rte_eth_tx_burst(global->eth_port_id, tx_queue_id, pkts, num);
     if (ret < 0)
         ret = 0;
