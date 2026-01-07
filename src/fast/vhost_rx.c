@@ -91,7 +91,6 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
         struct vhost_plan *plan = atomic_load_explicit(&vhost_rx_plans[ctx->vhost_rx_core_id], memory_order_relaxed);
         struct vdev_list *vdev_list_ptr = atomic_load_explicit(&vdev_list, memory_order_relaxed);
         if (vdev_list_ptr == NULL) {
-            LOG_ERROR("[%d] vdev_list is NULL\n", ctx->core_id);
             continue;
         }
 
