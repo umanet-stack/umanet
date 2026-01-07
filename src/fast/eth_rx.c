@@ -106,6 +106,15 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
                     rte_ether_addr_copy(&vdev->mac, &eth_hdr->dst_addr);  // dst MAC = vm MAC
                     rte_ether_addr_copy(&config.mac, &eth_hdr->src_addr); // src MAC = our MAC
 
+                    // DEBUG: pkt ol_flags=0x40001a IP_GOOD=0 L4_GOOD=0 nb_segs=1
+                    // static int debug_count = 0;
+                    // if (debug_count < 5) {
+                    //     printf("[eth_rx] pkt ol_flags=0x%lx IP_GOOD=%d L4_GOOD=%d nb_segs=%u\n", m->ol_flags,
+                    //            !!(m->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_GOOD),
+                    //            !!(m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_GOOD), m->nb_segs);
+                    //     debug_count++;
+                    // }
+
                     // NIC to VM path: clear offload flags and recalculate checksums
                     // Packets from NIC may have pseudo-checksums from sender's TX offload
                     // Virtio requires valid checksums in packet data, not offloaded
