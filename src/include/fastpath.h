@@ -70,6 +70,7 @@
 
 #define GRO_MAX_FLOWS 2048
 #define GRO_MAX_ITEMS_PER_FLOW 32
+#define PKT_MTU 1500
 
 // tells NIC to segment TCP packets into smaller segments
 static inline void pkts_set_tso_flags(struct rte_mbuf **pkts, unsigned num) {
@@ -82,41 +83,39 @@ static inline void pkts_set_tso_flags(struct rte_mbuf **pkts, unsigned num) {
 
         if (eth_type == RTE_ETHER_TYPE_IPV4) {
             struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth + 1);
+            // It relies on these offsets to find the headers for checksum computation and segmentation
+            m->l2_len = sizeof(struct rte_ether_hdr);
+            m->l3_len = ip->ihl * 4;
 
             if (ip->next_proto_id == IPPROTO_TCP) {
-                // struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *)((unsigned char *)ip + sizeof(struct rte_ipv4_hdr));
-                // Only TCP over IPv4 gets TSO
+                struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *)((uint8_t *)ip + (ip->ihl * 4));
                 m->ol_flags |=
                     // IPv4 packet, and the IPv4 header checksum must be computed (TSO requires rewriting IP length per
                     // segment)
                     RTE_MBUF_F_TX_IPV4 |
                     // TCP checksum is not valid yet — compute it after segmentation
-                    RTE_MBUF_F_TX_TCP_CKSUM | RTE_MBUF_F_TX_IP_CKSUM |
+                    RTE_MBUF_F_TX_TCP_CKSUM | RTE_MBUF_F_TX_IP_CKSUM;
+
+                m->l4_len = (tcp->data_off >> 4) * 4;
+
+                if (m->nb_segs > 1) {
                     // TSO enable bit, this mbuf represents multiple TCP segments
-                    RTE_MBUF_F_TX_TCP_SEG;
+                    m->ol_flags |= RTE_MBUF_F_TX_TCP_SEG;
+                    // Split the payload into chunks of this size
+                    // It does not include TCP/IP headers, only TCP payload.
+                    // MTU(1500) - IPv4 header(20) - TCP header(20) - TCP timestamp(12) = TCP payload(1448)
+                    m->tso_segsz = 1500 - m->l3_len - m->l4_len; // TCP payload per segment
+                } else {
+                    m->ol_flags &= ~RTE_MBUF_F_TX_TCP_SEG;
+                    m->tso_segsz = 0;
+                }
 
-                // Split the payload into chunks of this size
-                // It does not include TCP/IP headers, only TCP payload.
-                // MTU(1500) - IPv4 header(20) - TCP header(20) - TCP timestamp(12) = TCP payload(1448)
-                m->tso_segsz = 1448; // TCP payload per segment
-
-                // It relies on these offsets to find the headers for checksum computation and segmentation
-                m->l2_len = sizeof(struct rte_ether_hdr);
-                m->l3_len = sizeof(struct rte_ipv4_hdr);
-                m->l4_len = sizeof(struct rte_tcp_hdr);
-                m->packet_type = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4 | RTE_PTYPE_L4_TCP;
-                m->outer_l2_len = 0;
-                m->outer_l3_len = 0;
             } else if (ip->next_proto_id == IPPROTO_UDP) {
                 // UDP over IPv4 — only compute checksums, no TSO
                 m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM;
-                m->l2_len = sizeof(struct rte_ether_hdr);
-                m->l3_len = sizeof(struct rte_ipv4_hdr);
             } else {
                 // Other IPv4 protocols — just IPv4 checksum
                 m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM;
-                m->l2_len = sizeof(struct rte_ether_hdr);
-                m->l3_len = sizeof(struct rte_ipv4_hdr);
             }
         } else {
             // Non-IPv4 (ARP, etc.) — no flags

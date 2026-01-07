@@ -181,13 +181,17 @@ static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, uns
 
     // DEBUG: Show what GRO returned
     static int count = 0;
-    if (count < 20) {
+    if (count < 50) {
         // printf("GRO: %d packets in -> %d packets out\n", nb_rx, gro_cnt);
         // for (int i = 0; i < gro_cnt; i++)
         //     printf("  pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
         // count++;
-        for (int i = 0; i < nb_rx; i++)
+        for (int i = 0; i < nb_rx; i++) {
+            if ((pkts[i]->ol_flags & RTE_MBUF_F_TX_TCP_SEG) && pkts[i]->pkt_len <= PKT_MTU) {
+                LOG_ERROR("Invalid TSO packet: pkt_len=%u mtu=%u\n", pkts[i]->pkt_len, PKT_MTU);
+            }
             LOG_IMPT("ETH RX: pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+        }
         count++;
     }
 
