@@ -67,6 +67,9 @@
 #define MAX_PKT_BURST 32
 #define RING_SIZE 4096
 
+#define GRO_MAX_FLOWS 2048
+#define GRO_MAX_ITEMS_PER_FLOW 32
+
 static inline void pkts_set_flags(struct rte_mbuf **pkts, unsigned num) {
     // flags = tell driver what to do
     for (unsigned i = 0; i < num; i++) {

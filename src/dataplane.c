@@ -4,6 +4,7 @@
 #include "src/network/network.h"
 #include "src/slow/slowpath.h"
 #include "src/vhost/vhost.h"
+#include <rte_lcore.h>
 #include <rte_malloc.h>
 
 int init_dataplane_topology() {
@@ -49,6 +50,16 @@ int init_dataplane_ctxs() {
         if ((eth_rx_ctxs[i]->mempool = network_mempool_alloc()) == NULL) {
             LOG_ERROR("init_eth_rx_ctxs: failed to allocate eth_rx_ctxs[%d]->mempool\n", i);
             rte_free(eth_rx_ctxs[i]);
+            return -1;
+        }
+
+        eth_rx_ctxs[i]->gro_param = (struct rte_gro_param){.gro_types = RTE_GRO_TCP_IPV4,
+                                                           .max_flow_num = GRO_MAX_FLOWS,
+                                                           .max_item_per_flow = GRO_MAX_ITEMS_PER_FLOW,
+                                                           .socket_id = rte_socket_id()};
+        eth_rx_ctxs[i]->gro_ctx = rte_gro_ctx_create(&eth_rx_ctxs[i]->gro_param);
+        if (eth_rx_ctxs[i]->gro_ctx == NULL) {
+            LOG_ERROR("init_eth_rx_ctxs: failed to create GRO context\n");
             return -1;
         }
 
