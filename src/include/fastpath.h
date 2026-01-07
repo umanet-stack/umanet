@@ -160,30 +160,42 @@ static inline void clear_tx_offloads(struct rte_mbuf *m) {
     m->ol_flags &= ~(RTE_MBUF_F_TX_TCP_SEG | RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM |
                      RTE_MBUF_F_TX_UDP_CKSUM);
 }
-static inline void fix_ipv4_cksum(struct rte_mbuf *m) {
-    struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-    struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth + 1);
+static inline void fix_cksum(struct rte_mbuf *m) {
+    struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+    m->ol_flags &= ~(RTE_MBUF_F_TX_TCP_SEG | RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM |
+                     RTE_MBUF_F_TX_UDP_CKSUM);
+    m->tso_segsz = 0;
 
-    ip->hdr_checksum = 0;
-    ip->hdr_checksum = rte_ipv4_cksum(ip);
-}
-static inline void fix_tcp_cksum(struct rte_mbuf *m) {
-    struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-    struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth + 1);
-    // Use ip->ihl (header length in 4-byte words) to handle IP options
-    struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *)((uint8_t *)ip + (ip->ihl * 4));
+    if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
+        struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth_hdr + 1);
+        m->l2_len = sizeof(*eth_hdr);
+        m->l3_len = sizeof(struct rte_ipv4_hdr);
 
-    tcp->cksum = 0;
-    tcp->cksum = rte_ipv4_udptcp_cksum(ip, tcp);
-}
-static inline void fix_udp_cksum(struct rte_mbuf *m) {
-    struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-    struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth + 1);
-    // Use ip->ihl (header length in 4-byte words) to handle IP options
-    struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((uint8_t *)ip + (ip->ihl * 4));
+        if (!(m->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_GOOD)) {
+            ip->hdr_checksum = 0;
+            ip->hdr_checksum = rte_ipv4_cksum(ip);
+        }
 
-    udp->dgram_cksum = 0;
-    udp->dgram_cksum = rte_ipv4_udptcp_cksum(ip, udp);
+        if (ip->next_proto_id == IPPROTO_TCP) {
+            m->l4_len = sizeof(struct rte_tcp_hdr);
+            // Use ip->ihl (header length in 4-byte words) to handle IP options
+            struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *)((uint8_t *)ip + (ip->ihl * 4));
+            tcp->cksum = 0;
+            tcp->cksum = rte_ipv4_udptcp_cksum(ip, tcp);
+        }
+
+        if (ip->next_proto_id == IPPROTO_UDP) {
+            m->l4_len = sizeof(struct rte_udp_hdr);
+            // Use ip->ihl (header length in 4-byte words) to handle IP options
+            struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((uint8_t *)ip + (ip->ihl * 4));
+            udp->dgram_cksum = 0;
+            udp->dgram_cksum = rte_ipv4_udptcp_cksum(ip, udp);
+        }
+    } else {
+        m->l2_len = 0;
+        m->l3_len = 0;
+        m->l4_len = 0;
+    }
 }
 
 #endif /* FASTPATH_H_ */

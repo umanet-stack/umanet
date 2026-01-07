@@ -109,28 +109,7 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
                     // NIC to VM path: clear offload flags and recalculate checksums
                     // Packets from NIC may have pseudo-checksums from sender's TX offload
                     // Virtio requires valid checksums in packet data, not offloaded
-                    m->ol_flags = 0;
-                    m->tso_segsz = 0;
-
-                    if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
-                        m->l2_len = sizeof(*eth_hdr);
-                        m->l3_len = sizeof(struct rte_ipv4_hdr);
-
-                        struct rte_ipv4_hdr *ip = (void *)(eth_hdr + 1);
-                        fix_ipv4_cksum(m);
-
-                        if (ip->next_proto_id == IPPROTO_TCP) {
-                            m->l4_len = sizeof(struct rte_tcp_hdr);
-                            fix_tcp_cksum(m);
-                        } else if (ip->next_proto_id == IPPROTO_UDP) {
-                            m->l4_len = sizeof(struct rte_udp_hdr);
-                            fix_udp_cksum(m);
-                        }
-                    } else {
-                        m->l2_len = 0;
-                        m->l3_len = 0;
-                        m->l4_len = 0;
-                    }
+                    fix_cksum(m);
 
                     vm_pkts[dst_vid][vm_cnt[dst_vid]++] = m;
                     if (vid_seen_mask & (1ULL << dst_vid))
