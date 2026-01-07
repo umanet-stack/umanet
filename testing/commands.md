@@ -14,6 +14,7 @@ For `vm-vm-internal`, if you run 8 vms = 4 servers + 4 clients = `report-4vm`
 python testing/process_logs/main.py tap vm-vm-internal
 
 ethtool -k tap0
+sudo ip link set dev enp23s0f0np0 mtu 9000
 ```
 ## multinode
 ```bash

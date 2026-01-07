@@ -176,13 +176,13 @@ static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, uns
     //     int flush_cnt = 0;
     //     if ((ctx->iteration_counter & 1023) == 0) {
     //         flush_cnt = rte_gro_timeout_flush(ctx->gro_ctx, 0, RTE_GRO_TCP_IPV4, flush_pkts, num - left_cnt);
-    //     } else { // flows older than 100us
-    //         flush_cnt = rte_gro_timeout_flush(ctx->gro_ctx, 100000, RTE_GRO_TCP_IPV4, flush_pkts, num - left_cnt);
+    //     } else { // flows older than 10us
+    //         flush_cnt = rte_gro_timeout_flush(ctx->gro_ctx, 10000, RTE_GRO_TCP_IPV4, flush_pkts, num - left_cnt);
     //     }
 
     //     static int gro_count = 0;
     //     if (gro_count < 50) {
-    //         LOG_IMPT("ETH RX: GRO reassembled %d packets, flushed %d\n", num - left_cnt, flush_cnt);
+    //         LOG_IMPT("ETH RX: GRO reassembled %d packets, flushed %d\n", nb_rx - left_cnt, flush_cnt);
     //         gro_count++;
     //     }
 
