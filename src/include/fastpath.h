@@ -129,29 +129,29 @@ static inline void pkts_set_gro_flags(struct rte_mbuf **pkts, unsigned num) {
     for (unsigned i = 0; i < num; i++) {
         struct rte_mbuf *m = pkts[i];
 
+        // Reset GRO-relevant metadata
+        m->packet_type = 0;
+        m->l2_len = 0;
+        m->l3_len = 0;
+        m->l4_len = 0;
+        m->outer_l2_len = 0;
+        m->outer_l3_len = 0;
+
         struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
-        uint16_t eth_type = rte_be_to_cpu_16(eth->ether_type);
+        if (rte_be_to_cpu_16(eth->ether_type) != RTE_ETHER_TYPE_IPV4)
+            continue;
 
-        if (eth_type == RTE_ETHER_TYPE_IPV4) {
-            struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth + 1);
+        struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth + 1);
+        if (ip->next_proto_id != IPPROTO_TCP)
+            continue;
 
-            if (ip->next_proto_id == IPPROTO_TCP) {
-                m->l2_len = sizeof(struct rte_ether_hdr);
-                m->l3_len = sizeof(struct rte_ipv4_hdr);
-                m->l4_len = sizeof(struct rte_tcp_hdr);
-                m->packet_type = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4 | RTE_PTYPE_L4_TCP;
-                m->outer_l2_len = 0;
-                m->outer_l3_len = 0;
-            } else if (ip->next_proto_id == IPPROTO_UDP) {
-                // UDP over IPv4 — only compute checksums, no TSO
-                m->l2_len = sizeof(struct rte_ether_hdr);
-                m->l3_len = sizeof(struct rte_ipv4_hdr);
-            } else {
-                // Other IPv4 protocols — just IPv4 checksum
-                m->l2_len = sizeof(struct rte_ether_hdr);
-                m->l3_len = sizeof(struct rte_ipv4_hdr);
-            }
-        }
+        m->l2_len = sizeof(struct rte_ether_hdr);
+        m->l3_len = ip->ihl * 4;
+
+        struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *)((uint8_t *)ip + m->l3_len);
+        m->l4_len = (tcp->data_off >> 4) * 4;
+
+        m->packet_type = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4 | RTE_PTYPE_L4_TCP;
     }
 }
 
