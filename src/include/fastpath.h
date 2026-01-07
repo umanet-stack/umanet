@@ -70,7 +70,8 @@
 #define GRO_MAX_FLOWS 2048
 #define GRO_MAX_ITEMS_PER_FLOW 32
 
-static inline void pkts_set_flags(struct rte_mbuf **pkts, unsigned num) {
+// tells NIC to segment TCP packets into smaller segments
+static inline void pkts_set_tso_flags(struct rte_mbuf **pkts, unsigned num) {
     // flags = tell driver what to do
     for (unsigned i = 0; i < num; i++) {
         struct rte_mbuf *m = pkts[i];
@@ -119,6 +120,37 @@ static inline void pkts_set_flags(struct rte_mbuf **pkts, unsigned num) {
         } else {
             // Non-IPv4 (ARP, etc.) — no flags
             m->ol_flags = 0;
+        }
+    }
+}
+
+// rte_gro_reassemble_burst relies on these flags to merge packets back together
+static inline void pkts_set_gro_flags(struct rte_mbuf **pkts, unsigned num) {
+    for (unsigned i = 0; i < num; i++) {
+        struct rte_mbuf *m = pkts[i];
+
+        struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+        uint16_t eth_type = rte_be_to_cpu_16(eth->ether_type);
+
+        if (eth_type == RTE_ETHER_TYPE_IPV4) {
+            struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth + 1);
+
+            if (ip->next_proto_id == IPPROTO_TCP) {
+                m->l2_len = sizeof(struct rte_ether_hdr);
+                m->l3_len = sizeof(struct rte_ipv4_hdr);
+                m->l4_len = sizeof(struct rte_tcp_hdr);
+                m->packet_type = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4 | RTE_PTYPE_L4_TCP;
+                m->outer_l2_len = 0;
+                m->outer_l3_len = 0;
+            } else if (ip->next_proto_id == IPPROTO_UDP) {
+                // UDP over IPv4 — only compute checksums, no TSO
+                m->l2_len = sizeof(struct rte_ether_hdr);
+                m->l3_len = sizeof(struct rte_ipv4_hdr);
+            } else {
+                // Other IPv4 protocols — just IPv4 checksum
+                m->l2_len = sizeof(struct rte_ether_hdr);
+                m->l3_len = sizeof(struct rte_ipv4_hdr);
+            }
         }
     }
 }

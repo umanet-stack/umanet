@@ -159,10 +159,11 @@ static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, uns
     }
 
     // DEBUG: Show what NIC gave us BEFORE GRO
-    if (nb_rx > 0) {
-        printf("NIC RX: got %d packets from burst\n", nb_rx);
-    }
+    // if (nb_rx > 0) {
+    //     printf("NIC RX: got %d packets from burst\n", nb_rx);
+    // }
 
+    pkts_set_gro_flags(pkts, nb_rx);
     // Use lightweight GRO - processes packets immediately without buffering
     uint16_t gro_cnt = rte_gro_reassemble_burst(pkts, nb_rx, &ctx->gro_param);
     STATS_ADD(ctx->stats, pkt_count, gro_cnt);
