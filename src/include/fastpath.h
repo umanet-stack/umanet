@@ -170,7 +170,8 @@ static inline void fix_ipv4_cksum(struct rte_mbuf *m) {
 static inline void fix_tcp_cksum(struct rte_mbuf *m) {
     struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
     struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth + 1);
-    struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *)((char *)ip + sizeof(*ip));
+    // Use ip->ihl (header length in 4-byte words) to handle IP options
+    struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *)((uint8_t *)ip + (ip->ihl * 4));
 
     tcp->cksum = 0;
     tcp->cksum = rte_ipv4_udptcp_cksum(ip, tcp);
@@ -178,7 +179,8 @@ static inline void fix_tcp_cksum(struct rte_mbuf *m) {
 static inline void fix_udp_cksum(struct rte_mbuf *m) {
     struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
     struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth + 1);
-    struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((char *)ip + sizeof(*ip));
+    // Use ip->ihl (header length in 4-byte words) to handle IP options
+    struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((uint8_t *)ip + (ip->ihl * 4));
 
     udp->dgram_cksum = 0;
     udp->dgram_cksum = rte_ipv4_udptcp_cksum(ip, udp);

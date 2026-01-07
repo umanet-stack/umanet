@@ -106,13 +106,12 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
                     rte_ether_addr_copy(&vdev->mac, &eth_hdr->dst_addr);  // dst MAC = vm MAC
                     rte_ether_addr_copy(&config.mac, &eth_hdr->src_addr); // src MAC = our MAC
 
-                    // NIC to VM path: clear offload flags
-                    // m->ol_flags = 0;
-                    // m->l2_len = 0;
-                    // m->l3_len = 0;
-                    // m->l4_len = 0;
+                    // NIC to VM path: clear offload flags and recalculate checksums
+                    // Packets from NIC may have pseudo-checksums from sender's TX offload
+                    // Virtio requires valid checksums in packet data, not offloaded
+                    m->ol_flags = 0;
                     m->tso_segsz = 0;
-                    // clear_tx_offloads(pkts[j]);
+
                     if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
                         m->l2_len = sizeof(*eth_hdr);
                         m->l3_len = sizeof(struct rte_ipv4_hdr);
@@ -127,6 +126,10 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
                             m->l4_len = sizeof(struct rte_udp_hdr);
                             fix_udp_cksum(m);
                         }
+                    } else {
+                        m->l2_len = 0;
+                        m->l3_len = 0;
+                        m->l4_len = 0;
                     }
 
                     vm_pkts[dst_vid][vm_cnt[dst_vid]++] = m;
@@ -179,10 +182,14 @@ static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, uns
     //     printf("NIC RX: got %d packets from burst\n", nb_rx);
     // }
 
-    pkts_set_gro_flags(pkts, nb_rx);
-    // Use lightweight GRO - processes packets immediately without buffering
-    uint16_t gro_cnt = rte_gro_reassemble_burst(pkts, nb_rx, &ctx->gro_param);
-    STATS_ADD(ctx->stats, pkt_count, gro_cnt);
+    // GRO disabled: it merges packets but invalidates checksums
+    // Virtio VMs require valid checksums in packet data, not offloaded
+    // TODO: Re-enable GRO selectively for packets going back to NIC (not to VMs)
+    // pkts_set_gro_flags(pkts, nb_rx);
+    // uint16_t gro_cnt = rte_gro_reassemble_burst(pkts, nb_rx, &ctx->gro_param);
+    // STATS_ADD(ctx->stats, pkt_count, gro_cnt);
+
+    STATS_ADD(ctx->stats, pkt_count, nb_rx);
 
     // DEBUG: Show what GRO returned
     // printf("GRO: %d packets in -> %d packets out\n", nb_rx, gro_cnt);
