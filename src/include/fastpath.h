@@ -28,6 +28,7 @@
 #include <rte_ether.h>
 #include <rte_ip.h>
 #include <rte_tcp.h>
+#include <rte_udp.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -153,6 +154,34 @@ static inline void pkts_set_gro_flags(struct rte_mbuf **pkts, unsigned num) {
             }
         }
     }
+}
+
+static inline void clear_tx_offloads(struct rte_mbuf *m) {
+    m->ol_flags &= ~(RTE_MBUF_F_TX_TCP_SEG | RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM |
+                     RTE_MBUF_F_TX_UDP_CKSUM);
+}
+static inline void fix_ipv4_cksum(struct rte_mbuf *m) {
+    struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+    struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth + 1);
+
+    ip->hdr_checksum = 0;
+    ip->hdr_checksum = rte_ipv4_cksum(ip);
+}
+static inline void fix_tcp_cksum(struct rte_mbuf *m) {
+    struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+    struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth + 1);
+    struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *)((char *)ip + sizeof(*ip));
+
+    tcp->cksum = 0;
+    tcp->cksum = rte_ipv4_udptcp_cksum(ip, tcp);
+}
+static inline void fix_udp_cksum(struct rte_mbuf *m) {
+    struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+    struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth + 1);
+    struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((char *)ip + sizeof(*ip));
+
+    udp->dgram_cksum = 0;
+    udp->dgram_cksum = rte_ipv4_udptcp_cksum(ip, udp);
 }
 
 #endif /* FASTPATH_H_ */
