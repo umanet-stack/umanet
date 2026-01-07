@@ -156,12 +156,10 @@ static inline void pkts_set_gro_flags(struct rte_mbuf **pkts, unsigned num) {
     }
 }
 
-static inline void clear_tx_offloads(struct rte_mbuf *m) {
-    m->ol_flags &= ~(RTE_MBUF_F_TX_TCP_SEG | RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM |
-                     RTE_MBUF_F_TX_UDP_CKSUM);
-}
 static inline void fix_cksum(struct rte_mbuf *m) {
     struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+
+    // Clear TX offload flags - virtio needs valid checksums in packet data, not offloaded
     m->ol_flags &= ~(RTE_MBUF_F_TX_TCP_SEG | RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM |
                      RTE_MBUF_F_TX_UDP_CKSUM);
     m->tso_segsz = 0;
@@ -169,27 +167,36 @@ static inline void fix_cksum(struct rte_mbuf *m) {
     if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
         struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth_hdr + 1);
         m->l2_len = sizeof(*eth_hdr);
-        m->l3_len = sizeof(struct rte_ipv4_hdr);
+        m->l3_len = ip->ihl * 4; // Actual IP header length (handles options)
 
+        // Only recalculate IP checksum if NIC marked it as bad
         if (!(m->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_GOOD)) {
             ip->hdr_checksum = 0;
             ip->hdr_checksum = rte_ipv4_cksum(ip);
         }
 
         if (ip->next_proto_id == IPPROTO_TCP) {
-            m->l4_len = sizeof(struct rte_tcp_hdr);
             // Use ip->ihl (header length in 4-byte words) to handle IP options
             struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *)((uint8_t *)ip + (ip->ihl * 4));
-            tcp->cksum = 0;
-            tcp->cksum = rte_ipv4_udptcp_cksum(ip, tcp);
-        }
+            m->l4_len = (tcp->data_off >> 4) * 4; // Actual TCP header length (handles options)
 
-        if (ip->next_proto_id == IPPROTO_UDP) {
-            m->l4_len = sizeof(struct rte_udp_hdr);
+            // Only recalculate TCP checksum if NIC marked it as bad or unknown
+            if (!(m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_GOOD)) {
+                tcp->cksum = 0;
+                tcp->cksum = rte_ipv4_udptcp_cksum(ip, tcp);
+            }
+        } else if (ip->next_proto_id == IPPROTO_UDP) {
             // Use ip->ihl (header length in 4-byte words) to handle IP options
             struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((uint8_t *)ip + (ip->ihl * 4));
-            udp->dgram_cksum = 0;
-            udp->dgram_cksum = rte_ipv4_udptcp_cksum(ip, udp);
+            m->l4_len = sizeof(struct rte_udp_hdr);
+
+            // Only recalculate UDP checksum if NIC marked it as bad or unknown
+            if (!(m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_GOOD)) {
+                udp->dgram_cksum = 0;
+                udp->dgram_cksum = rte_ipv4_udptcp_cksum(ip, udp);
+            }
+        } else {
+            m->l4_len = 0;
         }
     } else {
         m->l2_len = 0;
