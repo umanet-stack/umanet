@@ -164,28 +164,13 @@ static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, uns
         STATS_ADD(ctx->stats, empty_poll_count, 1);
         return 0;
     }
-
-    // DEBUG: Show what NIC gave us BEFORE GRO
-    // if (nb_rx > 0) {
-    //     printf("NIC RX: got %d packets from burst\n", nb_rx);
-    // }
-
-    // GRO disabled: it merges packets but invalidates checksums
-    // Virtio VMs require valid checksums in packet data, not offloaded
-    // TODO: Re-enable GRO selectively for packets going back to NIC (not to VMs)
-    // pkts_set_gro_flags(pkts, nb_rx);
-    // uint16_t gro_cnt = rte_gro_reassemble_burst(pkts, nb_rx, &ctx->gro_param);
-    // STATS_ADD(ctx->stats, pkt_count, gro_cnt);
-
     STATS_ADD(ctx->stats, pkt_count, nb_rx);
 
-    // DEBUG: Show what GRO returned
     static int count = 0;
     if (count < 50) {
         // printf("GRO: %d packets in -> %d packets out\n", nb_rx, gro_cnt);
         // for (int i = 0; i < gro_cnt; i++)
         //     printf("  pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
-        // count++;
         for (int i = 0; i < nb_rx; i++) {
             if ((pkts[i]->ol_flags & RTE_MBUF_F_TX_TCP_SEG) && pkts[i]->pkt_len <= PKT_MTU) {
                 LOG_ERROR("Invalid TSO packet: pkt_len=%u mtu=%u\n", pkts[i]->pkt_len, PKT_MTU);

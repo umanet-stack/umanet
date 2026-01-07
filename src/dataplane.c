@@ -53,16 +53,6 @@ int init_dataplane_ctxs() {
             return -1;
         }
 
-        eth_rx_ctxs[i]->gro_param = (struct rte_gro_param){.gro_types = RTE_GRO_TCP_IPV4,
-                                                           .max_flow_num = GRO_MAX_FLOWS,
-                                                           .max_item_per_flow = GRO_MAX_ITEMS_PER_FLOW,
-                                                           .socket_id = rte_socket_id()};
-        eth_rx_ctxs[i]->gro_ctx = rte_gro_ctx_create(&eth_rx_ctxs[i]->gro_param);
-        if (eth_rx_ctxs[i]->gro_ctx == NULL) {
-            LOG_ERROR("init_eth_rx_ctxs: failed to create GRO context\n");
-            return -1;
-        }
-
         if ((eth_rx_ctxs[i]->stats = rte_calloc("eth_rx_ctxs[%d]->stats", 1, sizeof(*eth_rx_ctxs[i]->stats), 0)) ==
             NULL) {
             LOG_ERROR("init_eth_rx_ctxs: failed to allocate eth_rx_ctxs[%d]->stats\n", i);
@@ -76,6 +66,17 @@ int init_dataplane_ctxs() {
             return -1;
         }
         eth_tx_ctxs[i]->eth_tx_queue_r = i;
+
+        eth_tx_ctxs[i]->gro_param = (struct rte_gro_param){.gro_types = RTE_GRO_TCP_IPV4,
+                                                           .max_flow_num = GRO_MAX_FLOWS,
+                                                           .max_item_per_flow = GRO_MAX_ITEMS_PER_FLOW,
+                                                           .socket_id = rte_socket_id()};
+        eth_tx_ctxs[i]->gro_ctx = rte_gro_ctx_create(&eth_tx_ctxs[i]->gro_param);
+        if (eth_tx_ctxs[i]->gro_ctx == NULL) {
+            LOG_ERROR("init_eth_rx_ctxs: failed to create GRO context\n");
+            return -1;
+        }
+
         if ((eth_tx_ctxs[i]->stats = rte_calloc("eth_tx_ctxs[%d]->stats", 1, sizeof(*eth_tx_ctxs[i]->stats), 0)) ==
             NULL) {
             LOG_ERROR("init_eth_tx_ctxs: failed to allocate eth_tx_ctxs[%d]->stats\n", i);
