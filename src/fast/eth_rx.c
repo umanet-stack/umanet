@@ -150,21 +150,20 @@ static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, uns
         STATS_ADD(ctx->stats, empty_poll_count, 1);
         return 0;
     }
-    // if (nb_rx == num) {
-    //     STATS_ADD(ctx->stats, max_poll_count, 1);
-    // }
 
-    // Use stateful GRO with context
-    // uint16_t gro_cnt = rte_gro_reassemble_burst(pkts, nb_rx, &ctx->gro_param);
-    uint16_t gro_cnt = rte_gro_reassemble(pkts, nb_rx, ctx->gro_ctx);
-
-    // Flush timed-out flows periodically (every 1000 calls ~ every few ms)
-    if (unlikely((ctx->stats->call_count % 1000) == 0)) {
-        gro_cnt +=
-            rte_gro_timeout_flush(ctx->gro_ctx, 50000, RTE_GRO_TCP_IPV4, pkts + gro_cnt, MAX_PKT_BURST - gro_cnt);
+    // DEBUG: Show what NIC gave us BEFORE GRO
+    if (nb_rx > 0) {
+        printf("NIC RX: got %d packets from burst\n", nb_rx);
     }
 
+    // Use lightweight GRO - processes packets immediately without buffering
+    uint16_t gro_cnt = rte_gro_reassemble_burst(pkts, nb_rx, &ctx->gro_param);
     STATS_ADD(ctx->stats, pkt_count, gro_cnt);
+
+    // DEBUG: Show what GRO returned
+    printf("GRO: %d packets in -> %d packets out\n", nb_rx, gro_cnt);
+    for (int i = 0; i < gro_cnt; i++)
+        printf("  pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
 
     LOG_ETH_IN("[%d] Received %d packets from physical NIC RX queue %d\n", ctx->core_id, gro_cnt, rx_queue_id);
     PRINT_PKTS(pkts, gro_cnt, LOG_ETH_IN);
