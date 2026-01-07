@@ -49,6 +49,7 @@ struct eth_rx_ctx {
     struct eth_rx_stats *stats;
     struct rte_gro_param gro_param;
     void *gro_ctx;
+    uint64_t iteration_counter;
 };
 
 struct eth_tx_ctx {

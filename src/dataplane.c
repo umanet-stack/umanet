@@ -68,6 +68,7 @@ int init_dataplane_ctxs() {
             LOG_ERROR("init_eth_rx_ctxs: failed to allocate eth_rx_ctxs[%d]->stats\n", i);
             return -1;
         }
+        eth_rx_ctxs[i]->iteration_counter = 0;
     }
 
     for (int i = 0; i < config.eth_tx_cores; i++) {
