@@ -3,12 +3,13 @@
 #include "src/include/state.h"
 #include "src/slow/slowpath.h"
 #include <rte_ethdev.h>
+#include <rte_gro.h>
 #include <rte_ip.h>
 #include <rte_ring.h>
 #include <stdint.h>
 #include <unistd.h>
 
-static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, unsigned num, struct rte_mbuf **pkts);
+static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, unsigned num, struct rte_mbuf **out_pkts);
 
 // returns dst_ip if dst_ip is in the local subnet, else 0
 static inline int dst_is_local_subnet(struct rte_ether_hdr *eth_hdr) {
@@ -144,19 +145,29 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
 
 static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, unsigned num, struct rte_mbuf **pkts) {
     STATS_ADD(ctx->stats, call_count, 1);
-    int16_t ret = rte_eth_rx_burst(global->eth_port_id, rx_queue_id, pkts, num);
-    if (ret == 0) {
+    int16_t nb_rx = rte_eth_rx_burst(global->eth_port_id, rx_queue_id, pkts, num);
+    if (nb_rx == 0) {
         STATS_ADD(ctx->stats, empty_poll_count, 1);
         return 0;
     }
+    // if (nb_rx == num) {
+    //     STATS_ADD(ctx->stats, max_poll_count, 1);
+    // }
 
-    STATS_ADD(ctx->stats, pkt_count, ret);
-    if (ret == num) {
-        STATS_ADD(ctx->stats, max_poll_count, 1);
+    // Use stateful GRO with context
+    // uint16_t gro_cnt = rte_gro_reassemble_burst(pkts, nb_rx, &ctx->gro_param);
+    uint16_t gro_cnt = rte_gro_reassemble(pkts, nb_rx, ctx->gro_ctx);
+
+    // Flush timed-out flows periodically (every 1000 calls ~ every few ms)
+    if (unlikely((ctx->stats->call_count % 1000) == 0)) {
+        gro_cnt +=
+            rte_gro_timeout_flush(ctx->gro_ctx, 50000, RTE_GRO_TCP_IPV4, pkts + gro_cnt, MAX_PKT_BURST - gro_cnt);
     }
 
-    LOG_ETH_IN("[%d] Received %d packets from physical NIC RX queue %d\n", ctx->core_id, ret, rx_queue_id);
-    PRINT_PKTS(pkts, ret, LOG_ETH_IN);
+    STATS_ADD(ctx->stats, pkt_count, gro_cnt);
 
-    return ret;
+    LOG_ETH_IN("[%d] Received %d packets from physical NIC RX queue %d\n", ctx->core_id, gro_cnt, rx_queue_id);
+    PRINT_PKTS(pkts, gro_cnt, LOG_ETH_IN);
+
+    return gro_cnt;
 }
