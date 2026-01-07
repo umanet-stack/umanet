@@ -180,9 +180,16 @@ static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, uns
     STATS_ADD(ctx->stats, pkt_count, nb_rx);
 
     // DEBUG: Show what GRO returned
-    // printf("GRO: %d packets in -> %d packets out\n", nb_rx, gro_cnt);
-    // for (int i = 0; i < gro_cnt; i++)
-    //     printf("  pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+    static int count = 0;
+    if (count < 20) {
+        // printf("GRO: %d packets in -> %d packets out\n", nb_rx, gro_cnt);
+        // for (int i = 0; i < gro_cnt; i++)
+        //     printf("  pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+        // count++;
+        for (int i = 0; i < nb_rx; i++)
+            LOG_IMPT("ETH RX: pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+        count++;
+    }
 
     LOG_ETH_IN("[%d] Received %d packets from physical NIC RX queue %d\n", ctx->core_id, nb_rx, rx_queue_id);
     PRINT_PKTS(pkts, nb_rx, LOG_ETH_IN);
