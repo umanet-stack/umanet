@@ -47,6 +47,8 @@ struct eth_rx_ctx {
     uint16_t eth_rx_queue_r;
     struct rte_mempool *mempool;
     struct eth_rx_stats *stats;
+    struct rte_gro_param gro_param;
+    void *gro_ctx;
 };
 
 struct eth_tx_ctx {
