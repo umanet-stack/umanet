@@ -41,6 +41,7 @@
 
 #include "../include/main.h"
 #include "network.h"
+#include "src/include/fastpath.h"
 #include "src/include/state.h"
 #include <utils.h>
 #include <utils_rng.h>
@@ -157,6 +158,11 @@ int network_init() {
     ret = rte_eth_dev_configure(global->eth_port_id, config.eth_rx_queues, config.eth_tx_queues, &port_conf);
     if (ret < 0) {
         LOG_ERROR("rte_eth_dev_configure failed\n");
+        goto error_exit;
+    }
+
+    if (rte_eth_dev_set_mtu(global->eth_port_id, PKT_MTU) != 0) {
+        LOG_ERROR("rte_eth_dev_set_mtu failed\n");
         goto error_exit;
     }
 

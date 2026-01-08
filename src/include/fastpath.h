@@ -70,7 +70,7 @@
 
 #define GRO_MAX_FLOWS 2048
 #define GRO_MAX_ITEMS_PER_FLOW 32
-#define PKT_MTU 1500
+#define PKT_MTU 9000
 
 // tells NIC to segment TCP packets into smaller segments
 static inline void pkts_set_tso_flags(struct rte_mbuf **pkts, unsigned num) {
