@@ -23,6 +23,13 @@ enum { VIRTIO_RXQ, VIRTIO_TXQ };
 extern const struct rte_vhost_device_ops virtio_net_device_ops;
 extern struct route_table route_table;
 
+struct vhost_feature {
+    uint64_t bit;
+    const char *name;
+};
+
+extern struct vhost_feature features[];
+
 // SP, mutated freely, not cached aligned
 struct vhost_ctrl {
     int vid;
