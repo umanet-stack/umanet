@@ -169,7 +169,8 @@ static int new_device(int vid) {
         if (proto_features & (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD)) {
             LOG_IMPT("(%d) Zero-copy enabled: INFLIGHT_SHMFD protocol feature negotiated\n", vid);
         }
-        if (proto_features & (1ULL << VIRTIO_NET_F_MTU)) {
+        if (proto_features & (1ULL << VIRTIO_NET_F_MTU)) { // Allows the guest to set MTU > 1500
+            // Virtio does NOT split RX packets
             LOG_IMPT("(%d) MTU enabled: MTU protocol feature negotiated\n", vid);
         }
         if (proto_features & (1ULL << VIRTIO_NET_F_HOST_TSO4)) {

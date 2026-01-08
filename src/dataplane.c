@@ -47,7 +47,7 @@ int init_dataplane_ctxs() {
         }
         eth_rx_ctxs[i]->eth_rx_queue_r = i;
 
-        if ((eth_rx_ctxs[i]->mempool = network_mempool_alloc()) == NULL) {
+        if ((eth_rx_ctxs[i]->mempool = mempool_alloc("eth_rx_ctxs_mempool")) == NULL) {
             LOG_ERROR("init_eth_rx_ctxs: failed to allocate eth_rx_ctxs[%d]->mempool\n", i);
             rte_free(eth_rx_ctxs[i]);
             return -1;
@@ -102,7 +102,7 @@ int init_dataplane_ctxs() {
         }
         vhost_rx_ctxs[i]->vhost_rx_core_id = i;
 
-        if ((vhost_rx_ctxs[i]->mempool = vhost_mempool_alloc()) == NULL) {
+        if ((vhost_rx_ctxs[i]->mempool = mempool_alloc("vhost_rx_ctxs_mempool")) == NULL) {
             LOG_ERROR("init_vhost_rx_ctxs: failed to allocate vhost_rx_ctxs[%d]->mempool\n", i);
             rte_free(vhost_rx_ctxs[i]);
             return -1;
@@ -152,9 +152,8 @@ int init_dataplane_ctxs() {
         return -1;
     }
     control_ctx->core_id = 0;
-    if ((control_ctx->msg_pool =
-             rte_mempool_create("control_ctx->msg_pool", PERTHREAD_MBUFS, MBUF_SIZE, 32, sizeof(struct slow_msg),
-                                rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, rte_socket_id(), 0)) == NULL) {
+    if ((control_ctx->msg_pool = rte_mempool_create("control_ctx_msg_pool", 8191, sizeof(struct slow_msg), 32, 0, NULL,
+                                                    NULL, NULL, NULL, rte_socket_id(), 0)) == NULL) {
         LOG_ERROR("init_dataplane_ctxs: failed to create control_ctx->msg_pool\n");
         return -1;
     }
