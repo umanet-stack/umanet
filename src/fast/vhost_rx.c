@@ -306,15 +306,12 @@ static inline unsigned vhost_poll(struct vhost_rx_ctx *ctx, unsigned num, unsign
         STATS_ADD(ctx->vdev_stats[vid], max_poll_count, 1);
     }
 
-    static int count = 0;
-    if (count < 500) {
-        for (int i = 0; i < ret; i++) {
-            LOG_IMPT("VHOST RX: pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
-        }
-        count++;
-    }
-    // for (int i = 0; i < ret; i++) {
-    //     printf("VHOST RX pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+    // static int count = 0;
+    // if (count < 500) {
+    //     for (int i = 0; i < ret; i++) {
+    //         LOG_IMPT("VHOST RX: pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+    //     }
+    //     count++;
     // }
 
     LOG_VM_IN("[%d](%d) Received %d packets from VM\n", ctx->core_id, vid, ret);
