@@ -166,27 +166,10 @@ static int new_device(int vid) {
     uint64_t proto_features;
     if (rte_vhost_get_negotiated_protocol_features(vid, &proto_features) == 0) {
         LOG_IMPT("(%d) Negotiated protocol features: 0x%lx\n", vid, proto_features);
-        if (proto_features & (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD)) {
-            LOG_IMPT("(%d) Zero-copy enabled: INFLIGHT_SHMFD protocol feature negotiated\n", vid);
-        }
-        if (proto_features & (1ULL << VIRTIO_NET_F_MTU)) { // Allows the guest to set MTU > 1500
-            // Virtio does NOT split RX packets
-            LOG_IMPT("(%d) MTU enabled: MTU protocol feature negotiated\n", vid);
-        }
-        if (proto_features & (1ULL << VIRTIO_NET_F_HOST_TSO4)) {
-            LOG_IMPT("(%d) TSO4 enabled: TSO4 protocol feature negotiated\n", vid);
-        }
-        if (proto_features & (1ULL << VIRTIO_NET_F_HOST_TSO6)) {
-            LOG_IMPT("(%d) TSO6 enabled: TSO6 protocol feature negotiated\n", vid);
-        }
-        if (proto_features & (1ULL << VIRTIO_NET_F_GUEST_TSO4)) {
-            LOG_IMPT("(%d) TSO4 enabled: TSO4 protocol feature negotiated\n", vid);
-        }
-        if (proto_features & (1ULL << VIRTIO_NET_F_GUEST_TSO6)) {
-            LOG_IMPT("(%d) TSO6 enabled: TSO6 protocol feature negotiated\n", vid);
-        }
-        if (proto_features & (1ULL << VIRTIO_NET_F_GUEST_ECN)) {
-            LOG_IMPT("(%d) ECN enabled: ECN protocol feature negotiated\n", vid);
+        for (size_t i = 0; i < 34; i++) {
+            if (proto_features & features[i].bit) {
+                LOG_IMPT("(%d) %s protocol feature negotiated\n", vid, features[i].name);
+            }
         }
     }
 
@@ -275,6 +258,13 @@ int register_vhost_drivers() {
         }
 
         // flags describe what the backend (you) and the guest agree on
+        uint64_t features = (1ULL << VIRTIO_NET_F_MTU) | (1ULL << VIRTIO_NET_F_MRG_RXBUF) |
+                            (1ULL << VIRTIO_NET_F_CTRL_VQ) | (1ULL << VIRTIO_NET_F_CSUM) |
+                            (1ULL << VIRTIO_NET_F_GUEST_CSUM) | (1ULL << VIRTIO_NET_F_GUEST_UFO) |
+                            (1ULL << VIRTIO_NET_F_HOST_TSO4) | (1ULL << VIRTIO_NET_F_HOST_TSO6) |
+                            (1ULL << VIRTIO_NET_F_GUEST_TSO4) | (1ULL << VIRTIO_NET_F_GUEST_TSO6);
+
+        rte_vhost_driver_enable_features(file, features);
         // if (config.mergeable == 0) {
         // }
         // Allows the host to place one large packet across multiple guest RX buffers
@@ -350,3 +340,40 @@ int register_vhost_drivers() {
 
     return 0;
 }
+
+struct vhost_feature features[] = {
+    {1ULL << VIRTIO_NET_F_CSUM, "CSUM (host checksum offload)"},
+    {1ULL << VIRTIO_NET_F_GUEST_CSUM, "GUEST_CSUM (guest checksum offload)"},
+    {1ULL << VIRTIO_NET_F_CTRL_GUEST_OFFLOADS, "CTRL_GUEST_OFFLOADS"},
+    {1ULL << VIRTIO_NET_F_MTU, "MTU"},
+    {1ULL << VIRTIO_NET_F_MAC, "MAC"},
+    {1ULL << VIRTIO_NET_F_GSO, "GSO (legacy)"},
+    {1ULL << VIRTIO_NET_F_GUEST_TSO4, "TSO4 (guest)"},
+    {1ULL << VIRTIO_NET_F_GUEST_TSO6, "TSO6 (guest)"},
+    {1ULL << VIRTIO_NET_F_GUEST_ECN, "ECN (guest)"},
+    {1ULL << VIRTIO_NET_F_GUEST_UFO, "UFO (guest)"},
+    {1ULL << VIRTIO_NET_F_HOST_TSO4, "TSO4 (host)"},
+    {1ULL << VIRTIO_NET_F_HOST_TSO6, "TSO6 (host)"},
+    {1ULL << VIRTIO_NET_F_HOST_ECN, "ECN (host)"},
+    {1ULL << VIRTIO_NET_F_HOST_UFO, "UFO (host)"},
+    {1ULL << VIRTIO_NET_F_MRG_RXBUF, "MRG_RXBUF"},
+    {1ULL << VIRTIO_NET_F_STATUS, "STATUS"},
+    {1ULL << VIRTIO_NET_F_CTRL_VQ, "CTRL_VQ"},
+    {1ULL << VIRTIO_NET_F_CTRL_RX, "CTRL_RX"},
+    {1ULL << VIRTIO_NET_F_CTRL_VLAN, "CTRL_VLAN"},
+    {1ULL << VIRTIO_NET_F_CTRL_RX_EXTRA, "CTRL_RX_EXTRA"},
+    {1ULL << VIRTIO_NET_F_GUEST_ANNOUNCE, "GUEST_ANNOUNCE"},
+    {1ULL << VIRTIO_NET_F_MQ, "MQ / RSS"},
+    {1ULL << VIRTIO_NET_F_CTRL_MAC_ADDR, "CTRL_MAC_ADDR"},
+    {1ULL << VIRTIO_NET_F_VQ_NOTF_COAL, "VQ_NOTF_COAL"},
+    {1ULL << VIRTIO_NET_F_NOTF_COAL, "NOTF_COAL"},
+    {1ULL << VIRTIO_NET_F_GUEST_USO4, "USO4 (guest)"},
+    {1ULL << VIRTIO_NET_F_GUEST_USO6, "USO6 (guest)"},
+    {1ULL << VIRTIO_NET_F_HOST_USO, "USO (host)"},
+    {1ULL << VIRTIO_NET_F_HASH_REPORT, "HASH_REPORT"},
+    {1ULL << VIRTIO_NET_F_GUEST_HDRLEN, "GUEST_HDRLEN"},
+    {1ULL << VIRTIO_NET_F_RSS, "RSS"},
+    {1ULL << VIRTIO_NET_F_RSC_EXT, "RSC_EXT"},
+    {1ULL << VIRTIO_NET_F_STANDBY, "STANDBY"},
+    {1ULL << VIRTIO_NET_F_SPEED_DUPLEX, "SPEED_DUPLEX"},
+};
