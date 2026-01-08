@@ -124,7 +124,7 @@ void calculate_vhost_rx_plan() {
         for (int j = 0; j < MAX_VHOSTS; j++) {
             if (is_active[j]) {
                 new_plan->vids[new_plan->num++] = j;
-                LOG_IMPT("[%d](%d) vdev active, add to plan\n", i, j);
+                LOG_INFO("[%d](%d) vdev active, add to plan\n", i, j);
             }
             // else {
             //     LOG_WARN("[%d](%d) vdev inactive, remove from plan\n", i, j);
@@ -177,7 +177,7 @@ void calculate_vhost_tx_plan() {
         for (int j = 0; j < MAX_VHOSTS; j++) {
             if (is_active[j]) {
                 new_plan->vids[new_plan->num++] = j;
-                LOG_IMPT("[%d](%d) vdev active, add to plan\n", i, j);
+                LOG_INFO("[%d](%d) vdev active, add to plan\n", i, j);
             }
         }
 

@@ -3,6 +3,7 @@
  */
 
 #include "../include/main.h"
+#include <linux/virtio_net.h>
 #include <rte_hash.h>
 #include <rte_jhash.h>
 #include <rte_lcore.h>
@@ -257,20 +258,29 @@ int register_vhost_drivers() {
             continue;
         }
 
-        if (config.mergeable == 0) {
-            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_MRG_RXBUF);
-        }
+        // flags describe what the backend (you) and the guest agree on
+        // if (config.mergeable == 0) {
+        // }
+        // Allows the host to place one large packet across multiple guest RX buffers
+        // 1 packet → RX buf 0 + RX buf 1 + RX buf 2
+        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_MRG_RXBUF);
 
-        if (config.enable_tx_csum == 0) {
-            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_CSUM);
-        }
+        // if (config.enable_tx_csum == 0) {
+        // }
+        // guests won’t compute checksums, host will do it
+        // guest sends packets with checksum fields = 0, host fills them later
+        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_CSUM);
+        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_CSUM);
+        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_UFO);
+        // //
+        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_ECN);
 
-        if (config.enable_tso == 0) {
-            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO4);
-            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO6);
-            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO4);
-            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO6);
-        }
+        // if (config.enable_tso == 0) {
+        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO4);
+        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO6);
+        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO4);
+        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO6);
+        // // }
 
         // - RTE_VHOST_USER_EXTBUF_SUPPORT (enables external buffer mbufs)
         // - RTE_VHOST_USER_LINEARBUF_SUPPORT (required for external buffers)
