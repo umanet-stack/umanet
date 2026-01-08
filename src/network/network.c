@@ -46,8 +46,9 @@
 #include <utils.h>
 #include <utils_rng.h>
 
-#define RX_DESCRIPTORS 256
-#define TX_DESCRIPTORS 128
+// Increased for MTU 9000 - larger packets need more descriptors
+#define RX_DESCRIPTORS 2048 // 256 -> 2048 (8x increase)
+#define TX_DESCRIPTORS 2048 // 128 -> 2048 (16x increase)
 
 static struct rte_eth_conf port_conf = {
     .rxmode =

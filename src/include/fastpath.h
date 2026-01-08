@@ -65,8 +65,8 @@
     } while (0)
 #endif
 
-#define MAX_PKT_BURST 32
-#define RING_SIZE 4096
+#define MAX_PKT_BURST 64 // Increased from 32 for better batching with jumbo frames
+#define RING_SIZE 16384  // Increased from 4096 for MTU 9000 (4x larger)
 
 #define GRO_MAX_FLOWS 2048
 #define GRO_MAX_ITEMS_PER_FLOW 32
