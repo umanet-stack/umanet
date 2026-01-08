@@ -10,6 +10,13 @@ source env.sh
 
 NUM_VMS=$1
 
+sudo modprobe vfio-pci
+sudo /usr/bin/chmod a+x /dev/vfio
+sudo /usr/bin/chmod 0666 /dev/vfio/*
+sudo ip link set $NIC down
+sudo dpdk-devbind.py --bind=vfio-pci $NIC
+sudo dpdk-devbind.py --status
+
 modprobe openvswitch
 
 sudo ovs-vsctl init
