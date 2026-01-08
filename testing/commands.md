@@ -80,6 +80,7 @@ python testing/process_logs/main.py ovs_dpdk multinode
 
 ## manual
 ```bash
+# jumbo
 ethtool -k tap0
 sudo ip link set dev enp23s0f0np0 mtu 9000
 sudo ip link set dev ens6 mtu 9000
