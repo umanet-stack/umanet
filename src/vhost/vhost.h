@@ -6,6 +6,7 @@
 #define VHOST_H_
 
 #include "log.h"
+#include "src/include/fastpath.h"
 #include <rte_errno.h>
 #include <rte_ether.h>
 #include <rte_vhost.h>
@@ -90,7 +91,7 @@ int vhost_tx_plan_remove(int vid);
 
 #define PERTHREAD_MBUFS 8192
 #define BUFFER_SIZE 2048
-#define MBUF_SIZE (BUFFER_SIZE + RTE_PKTMBUF_HEADROOM)
+#define MBUF_SIZE (PKT_MTU + RTE_PKTMBUF_HEADROOM)
 
 static inline struct rte_mempool *vhost_mempool_alloc() {
     static _Atomic unsigned pool_id;

@@ -26,6 +26,7 @@
 #define NETWORK_H_
 
 #include "log.h"
+#include "src/include/fastpath.h"
 #include "src/include/state.h"
 #include <rte_config.h>
 #include <rte_ethdev.h>
@@ -45,7 +46,7 @@ static inline void free_pkts(struct rte_mbuf **pkts, uint16_t n) {
 
 #define PERTHREAD_MBUFS 8192
 #define BUFFER_SIZE 2048
-#define MBUF_SIZE (BUFFER_SIZE + RTE_PKTMBUF_HEADROOM)
+#define MBUF_SIZE (PKT_MTU + RTE_PKTMBUF_HEADROOM)
 
 static inline struct rte_mempool *network_mempool_alloc() {
     static _Atomic unsigned pool_id;
