@@ -91,7 +91,6 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
         struct vhost_plan *plan = atomic_load_explicit(&vhost_rx_plans[ctx->vhost_rx_core_id], memory_order_relaxed);
         struct vdev_list *vdev_list_ptr = atomic_load_explicit(&vdev_list, memory_order_relaxed);
         if (vdev_list_ptr == NULL) {
-            LOG_ERROR("[%d] vdev_list is NULL\n", ctx->core_id);
             continue;
         }
 
@@ -168,6 +167,11 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                     rte_prefetch0(pkts[j + 1]);                           // prefetch next mbuf struct
                     rte_prefetch0(rte_pktmbuf_mtod(pkts[j + 1], void *)); // prefetch packet data
                 }
+
+                // if (unlikely(pkts[j]->pkt_len > 2000))
+                //     LOG_IMPT("[%d](%d) GSO pkt: len=%u\n", ctx->core_id, vid, pkts[j]->pkt_len);
+                // LOG_IMPT("[%d](%d) ol_flags=0x%lx tso=%u\n", ctx->core_id, vid, pkts[j]->ol_flags,
+                // pkts[j]->tso_segsz);
 
                 STATS_ADD(ctx->vdev_stats[vid], byte_wnd[ctx->vdev_stats[vid]->wnd_idx], rte_pktmbuf_pkt_len(pkts[j]));
                 struct rte_mbuf *m = pkts[j];
@@ -301,6 +305,10 @@ static inline unsigned vhost_poll(struct vhost_rx_ctx *ctx, unsigned num, unsign
     if (ret == MAX_PKT_BURST) {
         STATS_ADD(ctx->vdev_stats[vid], max_poll_count, 1);
     }
+
+    // for (int i = 0; i < ret; i++) {
+    //     printf("VHOST RX pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+    // }
 
     LOG_VM_IN("[%d](%d) Received %d packets from VM\n", ctx->core_id, vid, ret);
     PRINT_PKTS(pkts, ret, LOG_VM_IN);

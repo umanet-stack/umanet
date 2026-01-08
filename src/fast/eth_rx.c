@@ -3,12 +3,13 @@
 #include "src/include/state.h"
 #include "src/slow/slowpath.h"
 #include <rte_ethdev.h>
+#include <rte_gro.h>
 #include <rte_ip.h>
 #include <rte_ring.h>
 #include <stdint.h>
 #include <unistd.h>
 
-static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, unsigned num, struct rte_mbuf **pkts);
+static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, unsigned num, struct rte_mbuf **out_pkts);
 
 // returns dst_ip if dst_ip is in the local subnet, else 0
 static inline int dst_is_local_subnet(struct rte_ether_hdr *eth_hdr) {
@@ -105,6 +106,20 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
                     rte_ether_addr_copy(&vdev->mac, &eth_hdr->dst_addr);  // dst MAC = vm MAC
                     rte_ether_addr_copy(&config.mac, &eth_hdr->src_addr); // src MAC = our MAC
 
+                    // DEBUG: pkt ol_flags=0x40001a IP_GOOD=0 L4_GOOD=0 nb_segs=1
+                    // static int debug_count = 0;
+                    // if (debug_count < 5) {
+                    //     printf("[eth_rx] pkt ol_flags=0x%lx IP_GOOD=%d L4_GOOD=%d nb_segs=%u\n", m->ol_flags,
+                    //            !!(m->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_GOOD),
+                    //            !!(m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_GOOD), m->nb_segs);
+                    //     debug_count++;
+                    // }
+
+                    // NIC to VM path: clear offload flags and recalculate checksums
+                    // Packets from NIC may have pseudo-checksums from sender's TX offload
+                    // Virtio requires valid checksums in packet data, not offloaded
+                    fix_cksum(m);
+
                     vm_pkts[dst_vid][vm_cnt[dst_vid]++] = m;
                     if (vid_seen_mask & (1ULL << dst_vid))
                         continue;
@@ -139,24 +154,57 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
                 }
             }
         }
+        ctx->iteration_counter++;
     }
 }
 
 static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, unsigned num, struct rte_mbuf **pkts) {
     STATS_ADD(ctx->stats, call_count, 1);
-    int16_t ret = rte_eth_rx_burst(global->eth_port_id, rx_queue_id, pkts, num);
-    if (ret == 0) {
+    int16_t nb_rx = rte_eth_rx_burst(global->eth_port_id, rx_queue_id, pkts, num);
+    if (nb_rx == 0) {
         STATS_ADD(ctx->stats, empty_poll_count, 1);
         return 0;
     }
+    STATS_ADD(ctx->stats, pkt_count, nb_rx);
 
-    STATS_ADD(ctx->stats, pkt_count, ret);
-    if (ret == num) {
-        STATS_ADD(ctx->stats, max_poll_count, 1);
+    // if (nb_rx > 0 || (ctx->iteration_counter & 1023) == 0) { // force flush every 1024 iterations
+    //     pkts_set_gro_flags(pkts, nb_rx);
+    //     // pkts will be left with unassembled pkts, assembled pkts are moved to gro_ctx table
+    //     int left_cnt = rte_gro_reassemble(pkts, nb_rx, ctx->gro_ctx);
+
+    //     struct rte_mbuf *flush_pkts[num - left_cnt];
+    //     int flush_cnt = 0;
+    //     if ((ctx->iteration_counter & 1023) == 0) {
+    //         flush_cnt = rte_gro_timeout_flush(ctx->gro_ctx, 0, RTE_GRO_TCP_IPV4, flush_pkts, num - left_cnt);
+    //     } else { // flows older than 10us
+    //         flush_cnt = rte_gro_timeout_flush(ctx->gro_ctx, 10000, RTE_GRO_TCP_IPV4, flush_pkts, num - left_cnt);
+    //     }
+
+    //     static int gro_count = 0;
+    //     if (gro_count < 50) {
+    //         LOG_IMPT("ETH RX: GRO reassembled %d packets, flushed %d\n", nb_rx - left_cnt, flush_cnt);
+    //         gro_count++;
+    //     }
+
+    //     for (int i = 0; i < flush_cnt; i++) {
+    //         pkts[i + left_cnt] = flush_pkts[i];
+    //     }
+    //     nb_rx = left_cnt + flush_cnt;
+    // }
+
+    static int count = 0;
+    if (count < 50) {
+        for (int i = 0; i < nb_rx; i++) {
+            if ((pkts[i]->ol_flags & RTE_MBUF_F_TX_TCP_SEG) && pkts[i]->pkt_len <= PKT_MTU) {
+                LOG_ERROR("Invalid TSO packet: pkt_len=%u mtu=%u\n", pkts[i]->pkt_len, PKT_MTU);
+            }
+            LOG_IMPT("ETH RX: pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+        }
+        count++;
     }
 
-    LOG_ETH_IN("[%d] Received %d packets from physical NIC RX queue %d\n", ctx->core_id, ret, rx_queue_id);
-    PRINT_PKTS(pkts, ret, LOG_ETH_IN);
+    LOG_ETH_IN("[%d] Received %d packets from physical NIC RX queue %d\n", ctx->core_id, nb_rx, rx_queue_id);
+    PRINT_PKTS(pkts, nb_rx, LOG_ETH_IN);
 
-    return ret;
+    return nb_rx;
 }

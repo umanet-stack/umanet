@@ -93,22 +93,25 @@ if [ "$TEST_MODE" = "vm-vm-internal" ]; then
     for ((i=0; i<NUM_VMS; i++)); do
         if (( i % 2 == 1 )); then
             if [ "$TEST" = "iperf" ]; then
+                ROLE="iperf-client"
                 if [ "$NETWORK" = "tap" ] || [ "$NETWORK" = "dpdk" ]; then
-                    spawn_vm "$i" "iperf-client" "iperf3 -c 192.168.10${NODE_ID}.$((i+1)) -P 4 -t 30 -J"
+                    TEST_COMMAND="iperf3 -c 192.168.10${NODE_ID}.$((i+1)) $IPERF_CLIENT_OPTIONS -J"
                 elif [ "$NETWORK" = "dpdk-tap" ]; then
-                    spawn_vm "$i" "iperf-client" "iperf3 -c 10.10.${NODE_ID+1}.$((i+1)) -P 4 -t 30 -J"
+                    TEST_COMMAND="iperf3 -c 10.10.${NODE_ID+1}.$((i+1)) $IPERF_CLIENT_OPTIONS -J"
                 elif [ "$NETWORK" = "ovs_dpdk" ]; then
-                    spawn_vm "$i" "iperf-client" "iperf3 -c 10.10.1.$((i+9)) -P 4 -t 30 -J"
+                    TEST_COMMAND="iperf3 -c 10.10.1.$((i+9)) $IPERF_CLIENT_OPTIONS -J"
                 fi
             elif [ "$TEST" = "sockperf" ]; then
+                ROLE="sockperf-client"
                 if [ "$NETWORK" = "tap" ] || [ "$NETWORK" = "dpdk" ]; then
-                    spawn_vm "$i" "sockperf-client" "sockperf ping-pong -i 192.168.10${NODE_ID}.$((i+1)) -m 64 -t 30"
+                    TEST_COMMAND="sockperf ping-pong -i 192.168.10${NODE_ID}.$((i+1)) $SOCKPERF_CLIENT_OPTIONS"
                 elif [ "$NETWORK" = "dpdk-tap" ]; then
-                    spawn_vm "$i" "sockperf-client" "sockperf ping-pong -i 10.10.${NODE_ID+1}.$((i+1)) -m 64 -t 30"
+                    TEST_COMMAND="sockperf ping-pong -i 10.10.${NODE_ID+1}.$((i+1)) $SOCKPERF_CLIENT_OPTIONS"
                 elif [ "$NETWORK" = "ovs_dpdk" ]; then
-                    spawn_vm "$i" "sockperf-client" "sockperf ping-pong -i 10.10.1.$((i+9)) -m 64 -t 30"
+                    TEST_COMMAND="sockperf ping-pong -i 10.10.1.$((i+9)) $SOCKPERF_CLIENT_OPTIONS"
                 fi
             fi
+            spawn_vm "$i" "$ROLE" "$TEST_COMMAND"
         fi
     done
 
@@ -116,9 +119,9 @@ elif [ "$TEST_MODE" = "vm-client" ]; then
     echo "Spawning CLIENT VMs... (node 0 only, must run vm-server on node 1 first)"
     for ((i=0; i<NUM_VMS; i++)); do
         if [ "$TEST" = "iperf" ]; then
-            spawn_vm "$i" "iperf-client" "iperf3 -c 192.168.101.$((i+2)) -P 4 -t 30 -J"
+            spawn_vm "$i" "iperf-client" "iperf3 -c 192.168.101.$((i+2)) $IPERF_CLIENT_OPTIONS -J"
         elif [ "$TEST" = "sockperf" ]; then
-            spawn_vm "$i" "sockperf-client" "sockperf ping-pong -i 192.168.101.$((i+2)) -m 64 -t 30"
+            spawn_vm "$i" "sockperf-client" "sockperf ping-pong -i 192.168.101.$((i+2)) $SOCKPERF_CLIENT_OPTIONS"
         fi
         # if [ "$NETWORK" = "ovs_dpdk" ]; then
         #     PORT=$((PORT + 1))

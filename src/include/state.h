@@ -5,6 +5,7 @@
 #include "src/include/fastpath.h"
 #include "src/vhost/vhost.h"
 #include <rte_ether.h>
+#include <rte_gro.h>
 #include <rte_hash.h>
 #include <rte_ring.h>
 #include <stdatomic.h>
@@ -46,6 +47,9 @@ struct eth_rx_ctx {
     uint16_t eth_rx_queue_r;
     struct rte_mempool *mempool;
     struct eth_rx_stats *stats;
+    struct rte_gro_param gro_param;
+    void *gro_ctx;
+    uint64_t iteration_counter;
 };
 
 struct eth_tx_ctx {
@@ -54,6 +58,8 @@ struct eth_tx_ctx {
     // send to NIC rx queue 0, n, 2n, ...
     uint16_t eth_tx_queue_r;
     struct eth_tx_stats *stats;
+    struct rte_gro_param gro_param;
+    void *gro_ctx;
 };
 
 // Per-core runtime state (NO sharing)

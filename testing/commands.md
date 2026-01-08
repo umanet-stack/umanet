@@ -12,6 +12,9 @@ For `vm-vm-internal`, if you run 8 vms = 4 servers + 4 clients = `report-4vm`
 ./setup/vm/setup_br_tap.sh 32
 ./setup/vm/spawn_vms.sh tap 32 vm-vm-internal
 python testing/process_logs/main.py tap vm-vm-internal
+
+ethtool -k tap0
+sudo ip link set dev enp23s0f0np0 mtu 9000
 ```
 ## multinode
 ```bash
@@ -37,6 +40,7 @@ sudo ./build_and_run.sh test 32
 # do local networking via tap
 ./setup/vm/spawn_vms.sh dpdk-tap 32 vm-vm-internal
 python testing/process_logs/main.py dpdk vm-vm-internal
+ethtool -k ens6
 ```
 ## multinode
 ```bash
