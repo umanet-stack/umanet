@@ -258,11 +258,13 @@ int register_vhost_drivers() {
         }
 
         // flags describe what the backend (you) and the guest agree on
+        // NOTE: GUEST_TSO disabled for VM-to-VM - causes multi-segment overhead without benefit
+        // VMs will send normal 9KB packets instead of 62KB TSO packets (1 segment vs 7)
         uint64_t features = (1ULL << VIRTIO_NET_F_MTU) | (1ULL << VIRTIO_NET_F_MRG_RXBUF) |
                             (1ULL << VIRTIO_NET_F_CTRL_VQ) | (1ULL << VIRTIO_NET_F_CSUM) |
                             (1ULL << VIRTIO_NET_F_GUEST_CSUM) | (1ULL << VIRTIO_NET_F_GUEST_UFO) |
-                            (1ULL << VIRTIO_NET_F_HOST_TSO4) | (1ULL << VIRTIO_NET_F_HOST_TSO6) |
-                            (1ULL << VIRTIO_NET_F_GUEST_TSO4) | (1ULL << VIRTIO_NET_F_GUEST_TSO6);
+                            (1ULL << VIRTIO_NET_F_HOST_TSO4) | (1ULL << VIRTIO_NET_F_HOST_TSO6);
+        // GUEST_TSO4 and GUEST_TSO6 removed
 
         rte_vhost_driver_enable_features(file, features);
         // if (config.mergeable == 0) {
