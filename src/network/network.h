@@ -48,13 +48,14 @@ static inline void free_pkts(struct rte_mbuf **pkts, uint16_t n) {
 // #define PERTHREAD_MBUFS 32767
 #define MBUF_SIZE 9728
 
-static inline struct rte_mempool *mempool_alloc(char *name) {
+static inline struct rte_mempool *mempool_alloc(const char *name) {
     static _Atomic unsigned pool_id;
     unsigned n = atomic_fetch_add(&pool_id, 1);
 
-    snprintf(name, sizeof(name), "%s_%u", name, n);
+    char pool_name[64];
+    snprintf(pool_name, sizeof(pool_name), "%s_%u", name, n);
 
-    struct rte_mempool *mp = rte_pktmbuf_pool_create(name, PERTHREAD_MBUFS, 256, 0, MBUF_SIZE, rte_socket_id());
+    struct rte_mempool *mp = rte_pktmbuf_pool_create(pool_name, PERTHREAD_MBUFS, 256, 0, MBUF_SIZE, rte_socket_id());
     // struct rte_mempool *mp =
     // rte_pktmbuf_pool_create(name, PERTHREAD_MBUFS, MBUF_SIZE, 32, sizeof(struct rte_pktmbuf_pool_private),
     //                        rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, rte_socket_id(), 0);
