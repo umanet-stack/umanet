@@ -103,8 +103,8 @@ static inline void pkts_set_tso_flags(struct rte_mbuf **pkts, unsigned num) {
                     m->ol_flags |= RTE_MBUF_F_TX_TCP_SEG;
                     // Split the payload into chunks of this size
                     // It does not include TCP/IP headers, only TCP payload.
-                    // MTU(1500) - IPv4 header(20) - TCP header(20) - TCP timestamp(12) = TCP payload(1448)
-                    m->tso_segsz = 1500 - m->l3_len - m->l4_len; // TCP payload per segment
+                    // Use actual MTU instead of hardcoded 1500 for jumbo frame support
+                    m->tso_segsz = PKT_MTU - m->l3_len - m->l4_len; // TCP payload per segment
                 } else {
                     m->ol_flags &= ~RTE_MBUF_F_TX_TCP_SEG;
                     m->tso_segsz = 0;
