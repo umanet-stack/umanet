@@ -1,8 +1,12 @@
+#!/bin/bash
+
 if [ "$#" -ne 1 ]; then
     echo "Usage: $0 <num_vms>"
     echo "  num_vms: number of VMs"
     exit 1
 fi
+
+source env.sh
 
 NUM_VMS=$1
 
@@ -19,7 +23,7 @@ sudo ovs-vsctl add-br ovsbr0 -- set bridge ovsbr0 datapath_type=netdev
 for i in $(seq 0 $NUM_VMS); do
     sudo ovs-vsctl add-port ovsbr0 vhost-user$i -- set Interface vhost-user$i type=dpdkvhostuserclient options:vhost-server-path=/tmp/vhost-user$i -- set Interface vhost-user$i options:n_rxq=4
 done
-sudo ovs-vsctl add-port ovsbr0 enp65s0f0np0 -- set Interface enp65s0f0np0 type=dpdk options:dpdk-devargs=0000:41:00.0 options:n_rxq=4
+sudo ovs-vsctl add-port ovsbr0 $NIC -- set Interface $NIC type=dpdk options:dpdk-devargs=$NIC_PCI options:n_rxq=4
 
 sudo ovs-vsctl add-port ovsbr0 ovsbr0-int -- set Interface ovsbr0-int type=internal
 sudo ovs-vsctl set Interface ovsbr0-int options:n_rxq=4

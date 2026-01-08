@@ -73,11 +73,11 @@ sudo ./setup/img/build_ovs_image.sh /tmp/noble-server-cloudimg-amd64.raw
 sudo ./setup/img/build_initramfs.sh
 sudo ./setup/img/build_rw_disk.sh 32 512
 
-sudo ./setup/vm/spawn_vms.sh ovs_dpdk 32 /tmp samenode
-python testing/process_logs/main.py ovs_dpdk samenode
+sudo ./setup/vm/spawn_vms.sh ovs-dpdk 32 /tmp samenode
+python testing/process_logs/main.py ovs-dpdk samenode
 
-sudo ./setup/vm/spawn_vms.sh ovs_dpdk 32 /tmp multinode
-python testing/process_logs/main.py ovs_dpdk multinode
+sudo ./setup/vm/spawn_vms.sh ovs-dpdk 32 /tmp multinode
+python testing/process_logs/main.py ovs-dpdk multinode
 ```
 
 ## manual

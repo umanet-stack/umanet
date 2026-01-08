@@ -1,3 +1,7 @@
+#!/bin/bash
+
+source env.sh
+
 sudo apt update
 sudo apt install -y \
   pkg-config \
