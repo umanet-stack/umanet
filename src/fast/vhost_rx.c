@@ -57,6 +57,8 @@ static inline int flow_pick_tx(uint32_t src_ip, uint32_t dst_ip, uint16_t src_po
     tuple[3] = rte_cpu_to_be_32(proto);
 
     uint32_t h = rte_softrss_be(tuple, 4, default_rss_key);
+    // uint16_t eth_tx_core = h % config.eth_tx_cores;
+    // return config.eth_tx_cores * (h % eth_tx_ctxs[eth_tx_core]->num_queues) + eth_tx_core;
     return h % config.eth_tx_queues;
 }
 

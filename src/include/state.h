@@ -25,6 +25,7 @@ extern uint16_t vhost_rx_core[MAX_VHOSTS];
 extern uint16_t vhost_tx_core[MAX_VHOSTS];
 
 #define MAX_ETH_TX_QUEUES 20
+#define MAX_ETH_RX_QUEUES 20
 
 struct dataplane_topology {
     uint16_t eth_port_id;
@@ -42,9 +43,10 @@ struct dataplane_topology {
 
 struct eth_rx_ctx {
     uint16_t core_id;
-    // e.g. 0 => get pkts from eth_rx_queue_rings[0, n, 2n, ...]
-    // send to NIC tx queue 0, n, 2n, ...
+    // poll from NIC tx queue 0, n, 2n, ...
     uint16_t eth_rx_queue_r;
+    uint16_t num_queues;
+    uint16_t flow_cnt;
     struct rte_mempool *mempool;
     struct eth_rx_stats *stats;
     struct rte_gro_param gro_param;
@@ -57,6 +59,7 @@ struct eth_tx_ctx {
     // e.g. 0 => get pkts from eth_tx_queue_rings[0, n, 2n, ...]
     // send to NIC rx queue 0, n, 2n, ...
     uint16_t eth_tx_queue_r;
+    uint16_t num_queues;
     struct eth_tx_stats *stats;
     struct rte_gro_param gro_param;
     void *gro_ctx;
