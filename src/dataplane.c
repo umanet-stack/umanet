@@ -12,10 +12,9 @@ int init_dataplane_topology() {
         LOG_ERROR("dataplane_init: failed to allocate global\n");
         return -1;
     }
-    if (config.eth_tx_queues > MAX_ETH_TX_QUEUES || config.eth_rx_queues > MAX_ETH_RX_QUEUES) {
-        LOG_ERROR("init_dataplane_topology: eth_tx_queues (%d) > MAX_ETH_TX_QUEUES or eth_rx_queues (%d) > "
-                  "MAX_ETH_RX_QUEUES \n",
-                  config.eth_tx_queues, config.eth_rx_queues);
+    if (config.eth_tx_queues > MAX_ETH_TX_QUEUES) {
+        LOG_ERROR("init_dataplane_topology: eth_tx_queues (%d) > MAX_ETH_TX_QUEUES (%d)\n", config.eth_tx_queues,
+                  MAX_ETH_TX_QUEUES);
         return -1;
     }
     global->fp_cores = config.eth_rx_cores + config.eth_tx_cores + config.vhost_rx_cores + config.vhost_tx_cores;
@@ -41,18 +40,12 @@ int init_dataplane_ctxs() {
         return -1;
     }
 
-    uint16_t queues_per_eth_rx = config.eth_rx_queues / config.eth_rx_cores;
     for (int i = 0; i < config.eth_rx_cores; i++) {
         if ((eth_rx_ctxs[i] = rte_calloc("eth_rx_ctxs[%d]", 1, sizeof(*eth_rx_ctxs[i]), 0)) == NULL) {
             LOG_ERROR("init_eth_rx_ctxs: failed to allocate eth_rx_ctxs[%d]\n", i);
             return -1;
         }
         eth_rx_ctxs[i]->eth_rx_queue_r = i;
-        eth_rx_ctxs[i]->num_queues = queues_per_eth_rx;
-        if (config.eth_rx_queues % config.eth_rx_cores > i) { // 8 % 3 = 2, give core0, 1 extra queue
-            eth_rx_ctxs[i]->num_queues++;
-        }
-        eth_rx_ctxs[i]->flow_cnt = 0;
 
         if ((eth_rx_ctxs[i]->mempool = mempool_alloc("eth_rx_ctxs_mempool")) == NULL) {
             LOG_ERROR("init_eth_rx_ctxs: failed to allocate eth_rx_ctxs[%d]->mempool\n", i);
@@ -78,17 +71,12 @@ int init_dataplane_ctxs() {
         eth_rx_ctxs[i]->iteration_counter = 0;
     }
 
-    uint16_t queues_per_eth_tx = config.eth_tx_queues / config.eth_tx_cores;
     for (int i = 0; i < config.eth_tx_cores; i++) {
         if ((eth_tx_ctxs[i] = rte_calloc("eth_tx_ctxs[%d]", 1, sizeof(*eth_tx_ctxs[i]), 0)) == NULL) {
             LOG_ERROR("init_eth_tx_ctxs: failed to allocate eth_tx_ctxs[%d]\n", i);
             return -1;
         }
         eth_tx_ctxs[i]->eth_tx_queue_r = i;
-        eth_tx_ctxs[i]->num_queues = queues_per_eth_tx;
-        if (config.eth_tx_queues % config.eth_tx_cores > i) { // 8 % 3 = 2, give core0, 1 extra queue
-            eth_tx_ctxs[i]->num_queues++;
-        }
 
         eth_tx_ctxs[i]->gro_param = (struct rte_gro_param){.gro_types = RTE_GRO_TCP_IPV4,
                                                            .max_flow_num = GRO_MAX_FLOWS,

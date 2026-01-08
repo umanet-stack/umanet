@@ -10,7 +10,6 @@
 
 // indexed by vm_id, not vid
 struct rte_flow *eth_rx_flows[MAX_VHOSTS] = {NULL};
-uint16_t flows_per_rx_queue[MAX_ETH_RX_QUEUES] = {0};
 
 int install_eth_rx_flow(struct vhost_dev *vdev) {
     if (eth_rx_flows[vdev->vm_id] != NULL) {
@@ -18,27 +17,7 @@ int install_eth_rx_flow(struct vhost_dev *vdev) {
         return -1;
     }
 
-    // select eth_rx_core with least flows
-    uint16_t eth_rx_core = 0, min_flows = MAX_VHOSTS;
-    for (int i = 0; i < config.eth_rx_cores; i++) {
-        if (eth_rx_ctxs[i]->flow_cnt < min_flows) {
-            min_flows = eth_rx_ctxs[i]->flow_cnt;
-            eth_rx_core = i;
-        }
-    }
-
-    // select queue from that core with least flows
-    uint16_t eth_queue_id = 0;
-    min_flows = MAX_VHOSTS;
-    for (int i = eth_rx_ctxs[eth_rx_core]->eth_rx_queue_r; i < config.eth_rx_queues; i += config.eth_rx_cores) {
-        if (flows_per_rx_queue[i] < min_flows) {
-            min_flows = flows_per_rx_queue[i];
-            eth_queue_id = i;
-        }
-    }
-
-    eth_rx_ctxs[eth_rx_core]->flow_cnt++;
-    flows_per_rx_queue[eth_queue_id]++;
+    uint16_t eth_queue_id = vdev->vm_id % config.eth_rx_queues;
 
     struct rte_flow_attr attr;
     memset(&attr, 0, sizeof(attr));
