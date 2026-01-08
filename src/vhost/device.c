@@ -165,27 +165,27 @@ static int new_device(int vid) {
     // Check negotiated protocol features after device connection
     uint64_t proto_features;
     if (rte_vhost_get_negotiated_protocol_features(vid, &proto_features) == 0) {
-        LOG_INFO("(%d) Negotiated protocol features: 0x%lx\n", vid, proto_features);
+        LOG_IMPT("(%d) Negotiated protocol features: 0x%lx\n", vid, proto_features);
         if (proto_features & (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD)) {
-            LOG_INFO("(%d) Zero-copy enabled: INFLIGHT_SHMFD protocol feature negotiated\n", vid);
+            LOG_IMPT("(%d) Zero-copy enabled: INFLIGHT_SHMFD protocol feature negotiated\n", vid);
         }
         if (proto_features & (1ULL << VIRTIO_NET_F_MTU)) {
-            LOG_INFO("(%d) MTU enabled: MTU protocol feature negotiated\n", vid);
+            LOG_IMPT("(%d) MTU enabled: MTU protocol feature negotiated\n", vid);
         }
         if (proto_features & (1ULL << VIRTIO_NET_F_HOST_TSO4)) {
-            LOG_INFO("(%d) TSO4 enabled: TSO4 protocol feature negotiated\n", vid);
+            LOG_IMPT("(%d) TSO4 enabled: TSO4 protocol feature negotiated\n", vid);
         }
         if (proto_features & (1ULL << VIRTIO_NET_F_HOST_TSO6)) {
-            LOG_INFO("(%d) TSO6 enabled: TSO6 protocol feature negotiated\n", vid);
+            LOG_IMPT("(%d) TSO6 enabled: TSO6 protocol feature negotiated\n", vid);
         }
         if (proto_features & (1ULL << VIRTIO_NET_F_GUEST_TSO4)) {
-            LOG_INFO("(%d) TSO4 enabled: TSO4 protocol feature negotiated\n", vid);
+            LOG_IMPT("(%d) TSO4 enabled: TSO4 protocol feature negotiated\n", vid);
         }
         if (proto_features & (1ULL << VIRTIO_NET_F_GUEST_TSO6)) {
-            LOG_INFO("(%d) TSO6 enabled: TSO6 protocol feature negotiated\n", vid);
+            LOG_IMPT("(%d) TSO6 enabled: TSO6 protocol feature negotiated\n", vid);
         }
         if (proto_features & (1ULL << VIRTIO_NET_F_GUEST_ECN)) {
-            LOG_INFO("(%d) ECN enabled: ECN protocol feature negotiated\n", vid);
+            LOG_IMPT("(%d) ECN enabled: ECN protocol feature negotiated\n", vid);
         }
     }
 
