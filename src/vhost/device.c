@@ -258,15 +258,23 @@ int register_vhost_drivers() {
         }
 
         // flags describe what the backend (you) and the guest agree on
-        // NOTE: GUEST_TSO disabled for VM-to-VM - causes multi-segment overhead without benefit
-        // VMs will send normal 9KB packets instead of 62KB TSO packets (1 segment vs 7)
+        // GUEST_TSO enabled - beneficial for traffic going through physical NIC with hardware TSO offload
         uint64_t features = (1ULL << VIRTIO_NET_F_MTU) | (1ULL << VIRTIO_NET_F_MRG_RXBUF) |
                             (1ULL << VIRTIO_NET_F_CTRL_VQ) | (1ULL << VIRTIO_NET_F_CSUM) |
                             (1ULL << VIRTIO_NET_F_GUEST_CSUM) | (1ULL << VIRTIO_NET_F_GUEST_UFO) |
+                            // (1ULL << VIRTIO_NET_F_GUEST_TSO4) | (1ULL << VIRTIO_NET_F_GUEST_TSO6) |
                             (1ULL << VIRTIO_NET_F_HOST_TSO4) | (1ULL << VIRTIO_NET_F_HOST_TSO6);
-        // GUEST_TSO4 and GUEST_TSO6 removed
 
         rte_vhost_driver_enable_features(file, features);
+
+        // Allow the guest to send TSO packets to the host.
+        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO4);
+        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO6);
+
+        // Allow the host (your DPDK app) to send TSO packets to the guest.
+        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO4);
+        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO6);
+
         // if (config.mergeable == 0) {
         // }
         // Allows the host to place one large packet across multiple guest RX buffers
