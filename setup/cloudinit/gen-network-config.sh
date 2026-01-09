@@ -32,6 +32,7 @@ ethernets:
         via: 192.168.10${NODE_ID}.1
     nameservers:
       addresses: [8.8.8.8, 8.8.4.4]
+    mtu: 9000
     optional: true
   
   ens5:

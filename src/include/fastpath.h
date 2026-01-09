@@ -65,12 +65,12 @@
     } while (0)
 #endif
 
-#define MAX_PKT_BURST 32
-#define RING_SIZE 4096
+#define MAX_PKT_BURST 64 // Increased from 32 for better batching with jumbo frames
+#define RING_SIZE 16384  // Increased from 4096 for MTU 9000 (4x larger)
 
 #define GRO_MAX_FLOWS 2048
 #define GRO_MAX_ITEMS_PER_FLOW 32
-#define PKT_MTU 1500
+#define PKT_MTU 9000
 
 // tells NIC to segment TCP packets into smaller segments
 static inline void pkts_set_tso_flags(struct rte_mbuf **pkts, unsigned num) {
@@ -104,7 +104,7 @@ static inline void pkts_set_tso_flags(struct rte_mbuf **pkts, unsigned num) {
                     // Split the payload into chunks of this size
                     // It does not include TCP/IP headers, only TCP payload.
                     // MTU(1500) - IPv4 header(20) - TCP header(20) - TCP timestamp(12) = TCP payload(1448)
-                    m->tso_segsz = 1500 - m->l3_len - m->l4_len; // TCP payload per segment
+                    m->tso_segsz = PKT_MTU - m->l3_len - m->l4_len; // TCP payload per segment
                 } else {
                     m->ol_flags &= ~RTE_MBUF_F_TX_TCP_SEG;
                     m->tso_segsz = 0;
