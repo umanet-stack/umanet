@@ -42,11 +42,11 @@ ethtool -k ens6
 ```
 ## multinode
 ```bash
-# node 1
+# both nodes
 sudo ./build_and_run.sh test 32
+# node 1
 ./setup/vm/spawn_vms.sh dpdk 32 vm-server
 # node 0
-sudo ./build_and_run.sh test 32
 ./setup/vm/spawn_vms.sh dpdk 32 vm-client
 python testing/process_logs/main.py dpdk vm-client
 ```

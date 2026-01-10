@@ -15,7 +15,13 @@ iperf3 -c 192.168.101.2 -u -b 0 -l 64 -P 4 --get-server-output
 ```
 # dpdk
 ```bash
+# both nodes
+sudo ./build_and_run.sh test 32
+# node 1
+./setup/vm/spawn_vms.sh dpdk 32 vm-server
+# node 0
+./setup/vm/spawn_vms.sh dpdk 32 vm-client
 
-
+python testing/process_logs/main.py dpdk vm-client
 
 ```
