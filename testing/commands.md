@@ -9,7 +9,7 @@ The tests (iperf, sockperf) are configured in `.env` file.
 For `vm-vm-internal`, if you run 8 vms = 4 servers + 4 clients = `report-4vm`
 ```bash
 # need to rerun br/tap setup after dpdk test
-./setup/vm/setup_br_tap.sh 32 normal
+./setup/vm/setup_br_tap.sh 32
 ./setup/vm/spawn_vms.sh tap 32 vm-vm-internal
 python testing/process_logs/main.py tap vm-vm-internal
 
@@ -17,7 +17,7 @@ python testing/process_logs/main.py tap vm-vm-internal
 ## multinode
 ```bash
 # both nodes
-./setup/vm/setup_br_tap.sh 32 normal
+./setup/vm/setup_br_tap.sh 32
 # node 1
 ./setup/vm/spawn_vms.sh tap 32 vm-server
 # node 0
