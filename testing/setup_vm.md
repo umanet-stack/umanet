@@ -17,7 +17,7 @@ sudo cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm-img.raw
 ./setup/setup_node.sh
 
 # first run: let it install packages + setup services (use tap to access internet)
-./setup/vm/setup_br_tap.sh 32
+./setup/vm/setup_br_tap.sh 32 normal
 ./setup/vm/spawn_vms.sh tap 32 vm-vm-internal
 
 # kill all vms when done

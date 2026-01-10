@@ -2,13 +2,20 @@
 set -eu
 source env.sh
 
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 <num_vms>"
+if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 <num_vms> <pkt_mode>"
     echo "  num_vms: number of VMs"
+    echo "  pkt_mode: pkt_mode: normal or pps"
     exit 1
 fi
 
 NUM_VMS=$1
+PKT_MODE=$2
+
+if [ "$PKT_MODE" != "normal" ] && [ "$PKT_MODE" != "pps" ]; then
+  echo "Error: pkt_mode must be normal or pps"
+  exit 1
+fi
 
 # delete tap0, br0
 for ((i=0; i<NUM_VMS; i++)); do
@@ -49,8 +56,10 @@ for ((i=0; i<NUM_VMS; i++)); do
   sudo ip tuntap add dev tap$i mode tap user $USER || true
   sudo ip link set tap$i master br0 || true
   sudo ip link set tap$i up || true
-  # disable TSO, GSO, GRO, scatter gather offloads
-  # sudo ethtool -K tap$i tso off gso off gro off sg off || true
-  # sudo ethtool -K tap$i gro off || true
+  if [ "$PKT_MODE" = "pps" ]; then
+    # disable TSO, GSO, GRO, scatter gather offloads
+    sudo ethtool -K tap$i tso off gso off gro off sg off || true
+    # sudo ethtool -K tap$i gro off || true
+  fi
 done
 echo "✅ taps created"
