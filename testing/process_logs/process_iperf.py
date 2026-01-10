@@ -130,8 +130,12 @@ def parse_udp_results(log_content: str) -> dict:
         # This is more accurate than using the bitrate from log, which may be estimated/sending rate
         bits_per_second = (bytes_transferred * 8) / duration if duration > 0 else 0
         
-        # Calculate PPS (packets per second) from actual received datagrams
-        pps = total_datagrams / duration if duration > 0 else 0
+        # Calculate PPS (packets per second)
+        # Sender PPS = total datagrams / duration (what was sent)
+        # Receiver PPS = (total - lost) / duration (what was actually received)
+        received_datagrams = total_datagrams - lost_datagrams
+        sender_pps = total_datagrams / duration if duration > 0 else 0
+        receiver_pps = received_datagrams / duration if duration > 0 else 0
         
         result['end'] = {
             'sum_received': {
@@ -141,8 +145,10 @@ def parse_udp_results(log_content: str) -> dict:
                 'jitter_ms': jitter_ms,
                 'lost_datagrams': lost_datagrams,
                 'total_datagrams': total_datagrams,
+                'received_datagrams': received_datagrams,
                 'loss_percent': loss_percent,
-                'pps': pps
+                'sender_pps': sender_pps,
+                'receiver_pps': receiver_pps
             },
             'cpu_utilization_percent': {
                 'host_total': 0.0,
@@ -179,7 +185,9 @@ def parse_udp_results(log_content: str) -> dict:
         # Calculate actual throughput from bytes transferred and duration
         # This ensures consistency between bytes and throughput
         bits_per_second = (bytes_transferred * 8) / interval_duration if interval_duration > 0 else 0
-        pps = total_datagrams / interval_duration if interval_duration > 0 else 0
+        received_datagrams = total_datagrams - lost_datagrams
+        sender_pps = total_datagrams / interval_duration if interval_duration > 0 else 0
+        receiver_pps = received_datagrams / interval_duration if interval_duration > 0 else 0
         
         result['intervals'].append({
             'sum': {
@@ -190,7 +198,9 @@ def parse_udp_results(log_content: str) -> dict:
                 'jitter_ms': jitter_ms,
                 'lost_datagrams': lost_datagrams,
                 'total_datagrams': total_datagrams,
-                'pps': pps
+                'received_datagrams': received_datagrams,
+                'sender_pps': sender_pps,
+                'receiver_pps': receiver_pps
             }
         })
     
@@ -334,8 +344,10 @@ def extract_per_vm_stats(results: Dict[str, dict]) -> Dict[str, dict]:
                     'jitter_ms': sum_received.get('jitter_ms', 0),
                     'lost_datagrams': sum_received.get('lost_datagrams', 0),
                     'total_datagrams': sum_received.get('total_datagrams', 0),
+                    'received_datagrams': sum_received.get('received_datagrams', sum_received.get('total_datagrams', 0) - sum_received.get('lost_datagrams', 0)),
                     'loss_percent': sum_received.get('loss_percent', 0),
-                    'pps': sum_received.get('pps', 0),
+                    'sender_pps': sum_received.get('sender_pps', 0),
+                    'receiver_pps': sum_received.get('receiver_pps', 0),
                     'cpu_host_total': cpu.get('host_total', 0),
                     'cpu_host_user': cpu.get('host_user', 0),
                     'cpu_host_system': cpu.get('host_system', 0),
@@ -390,7 +402,9 @@ def extract_timeseries(results: Dict[str, dict]) -> Dict[str, List[dict]]:
                 entry['jitter_ms'] = sum_data.get('jitter_ms', 0)
                 entry['lost_datagrams'] = sum_data.get('lost_datagrams', 0)
                 entry['total_datagrams'] = sum_data.get('total_datagrams', 0)
-                entry['pps'] = sum_data.get('pps', 0)
+                entry['received_datagrams'] = sum_data.get('received_datagrams', 0)
+                entry['sender_pps'] = sum_data.get('sender_pps', 0)
+                entry['receiver_pps'] = sum_data.get('receiver_pps', 0)
             
             ts_data.append(entry)
         
@@ -427,16 +441,21 @@ def calculate_overall_stats(per_vm_stats: Dict[str, dict]) -> dict:
         total_bytes = sum(s.get('bytes_received', 0) for s in per_vm_stats.values())
         total_lost = sum(s.get('lost_datagrams', 0) for s in per_vm_stats.values())
         total_datagrams = sum(s.get('total_datagrams', 0) for s in per_vm_stats.values())
-        total_pps = sum(s.get('pps', 0) for s in per_vm_stats.values())
+        total_received_datagrams = sum(s.get('received_datagrams', 0) for s in per_vm_stats.values())
+        total_sender_pps = sum(s.get('sender_pps', 0) for s in per_vm_stats.values())
+        total_receiver_pps = sum(s.get('receiver_pps', 0) for s in per_vm_stats.values())
         avg_jitter = np.mean([s.get('jitter_ms', 0) for s in per_vm_stats.values()])
         
         stats.update({
             'total_bytes_received_gb': total_bytes / 1e9,
             'total_lost_datagrams': total_lost,
             'total_datagrams': total_datagrams,
+            'total_received_datagrams': total_received_datagrams,
             'overall_loss_percent': (total_lost / total_datagrams * 100) if total_datagrams > 0 else 0,
-            'total_pps': total_pps,
-            'avg_pps_per_vm': total_pps / len(per_vm_stats),
+            'total_sender_pps': total_sender_pps,
+            'avg_sender_pps_per_vm': total_sender_pps / len(per_vm_stats),
+            'total_receiver_pps': total_receiver_pps,
+            'avg_receiver_pps_per_vm': total_receiver_pps / len(per_vm_stats),
             'avg_jitter_ms': avg_jitter,
         })
     else:
@@ -580,9 +599,12 @@ def generate_markdown_report(per_vm_stats: Dict[str, dict], overall: dict, outpu
         report += f"""| **Total Data Received** | {overall.get('total_bytes_received_gb', 0):.2f} GB |
 | **Total Datagrams** | {overall.get('total_datagrams', 0):,} |
 | **Lost Datagrams** | {overall.get('total_lost_datagrams', 0):,} |
+| **Received Datagrams** | {overall.get('total_received_datagrams', 0):,} |
 | **Loss Percentage** | {overall.get('overall_loss_percent', 0):.2f}% |
-| **Total PPS** | {overall.get('total_pps', 0):,.0f} packets/sec |
-| **Avg PPS per VM** | {overall.get('avg_pps_per_vm', 0):,.0f} packets/sec |
+| **Sender PPS (Total)** | {overall.get('total_sender_pps', 0):,.0f} packets/sec |
+| **Avg Sender PPS per VM** | {overall.get('avg_sender_pps_per_vm', 0):,.0f} packets/sec |
+| **Receiver PPS (Total)** | {overall.get('total_receiver_pps', 0):,.0f} packets/sec |
+| **Avg Receiver PPS per VM** | {overall.get('avg_receiver_pps_per_vm', 0):,.0f} packets/sec |
 | **Average Jitter** | {overall.get('avg_jitter_ms', 0):.3f} ms |
 """
     else:
@@ -601,13 +623,13 @@ def generate_markdown_report(per_vm_stats: Dict[str, dict], overall: dict, outpu
 """
     
     if is_udp:
-        report += """| VM | Throughput (Gbps) | Throughput (Mbps) | Data Received (GB) | Jitter (ms) | Lost Datagrams | Total Datagrams | Loss % | PPS |
-|----|-------------------|-------------------|-------------------|-------------|----------------|-----------------|--------|-----|
+        report += """| VM | Throughput (Gbps) | Throughput (Mbps) | Data Received (GB) | Jitter (ms) | Lost Datagrams | Total Datagrams | Loss % | Sender PPS | Receiver PPS |
+|----|-------------------|-------------------|-------------------|-------------|----------------|-----------------|--------|------------|--------------|
 """
         for vm in sorted(per_vm_stats.keys(), key=lambda x: int(x[2:])):
             stats = per_vm_stats[vm]
             data_key = 'bytes_received' if 'bytes_received' in stats else 'bytes_sent'
-            report += f"| {vm} | {stats['throughput_gbps']:.3f} | {stats['throughput_mbps']:.2f} | {stats.get(data_key, 0)/1e9:.3f} | {stats.get('jitter_ms', 0):.3f} | {stats.get('lost_datagrams', 0):,} | {stats.get('total_datagrams', 0):,} | {stats.get('loss_percent', 0):.2f}% | {stats.get('pps', 0):,.0f} |\n"
+            report += f"| {vm} | {stats['throughput_gbps']:.3f} | {stats['throughput_mbps']:.2f} | {stats.get(data_key, 0)/1e9:.3f} | {stats.get('jitter_ms', 0):.3f} | {stats.get('lost_datagrams', 0):,} | {stats.get('total_datagrams', 0):,} | {stats.get('loss_percent', 0):.2f}% | {stats.get('sender_pps', 0):,.0f} | {stats.get('receiver_pps', 0):,.0f} |\n"
     else:
         report += """| VM | Throughput (Gbps) | Throughput (Mbps) | Data Sent (GB) | Retransmits |
 |----|-------------------|-------------------|----------------|-------------|
@@ -660,9 +682,10 @@ See the following plots for detailed analysis:
 """
     
     if is_udp:
-        report += """- **PPS** = Packets Per Second (calculated from total datagrams / test duration)
+        report += """- **Sender PPS** = Packets Per Second sent (calculated from total datagrams / test duration)
+- **Receiver PPS** = Packets Per Second received (calculated from received datagrams / test duration)
 - **Jitter** = Inter-packet delay variation (measured in milliseconds)
-- **Loss %** = Percentage of datagrams lost during transmission
+- **Loss %** = Percentage of datagrams lost during transmission (1 - Receiver PPS / Sender PPS)
 """
     
     with open(output_path, 'w') as f:
@@ -748,9 +771,12 @@ def process_iperf_results(logs_dir: Path, reports_dir: Path, mode: str):
         print(f"Total Data Received:  {overall_stats.get('total_bytes_received_gb', 0):.2f} GB")
         print(f"Total Datagrams:      {overall_stats.get('total_datagrams', 0):,}")
         print(f"Lost Datagrams:       {overall_stats.get('total_lost_datagrams', 0):,}")
+        print(f"Received Datagrams:   {overall_stats.get('total_received_datagrams', 0):,}")
         print(f"Loss Percentage:      {overall_stats.get('overall_loss_percent', 0):.2f}%")
-        print(f"Total PPS:            {overall_stats.get('total_pps', 0):,.0f} packets/sec")
-        print(f"Avg PPS per VM:       {overall_stats.get('avg_pps_per_vm', 0):,.0f} packets/sec")
+        print(f"Sender PPS (Total):   {overall_stats.get('total_sender_pps', 0):,.0f} packets/sec")
+        print(f"Avg Sender PPS/VM:    {overall_stats.get('avg_sender_pps_per_vm', 0):,.0f} packets/sec")
+        print(f"Receiver PPS (Total): {overall_stats.get('total_receiver_pps', 0):,.0f} packets/sec")
+        print(f"Avg Receiver PPS/VM:  {overall_stats.get('avg_receiver_pps_per_vm', 0):,.0f} packets/sec")
         print(f"Average Jitter:       {overall_stats.get('avg_jitter_ms', 0):.3f} ms")
     else:
         print(f"Total Data Sent:      {overall_stats.get('total_bytes_sent_gb', 0):.2f} GB")
