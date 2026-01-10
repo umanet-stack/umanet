@@ -2,7 +2,7 @@
 set -eu
 source env.sh
 
-if [ "$#" -ne 2 ]; then
+if [ "$#" -ne 1 ]; then
     echo "Usage: $0 <num_vms>"
     echo "  num_vms: number of VMs"
     exit 1
