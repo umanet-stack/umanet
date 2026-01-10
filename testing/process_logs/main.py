@@ -70,7 +70,7 @@ def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
         description="Process test results and generate reports",
-        epilog="Set TEST environment variable to 'iperf' or 'sockperf' to specify test type"
+        epilog="Set TEST environment variable to 'iperf', 'iperf-udp', or 'sockperf' to specify test type"
     )
     parser.add_argument(
         "folder",
@@ -136,19 +136,21 @@ def detect_test_type() -> str:
     
     Returns:
         'iperf' or 'sockperf'
+        Note: 'iperf-udp' is accepted and treated as 'iperf' (UDP mode is auto-detected from logs)
     """
     test_env = os.environ.get('TEST', '').lower()
     
-    if test_env in ['iperf', 'iperf3']:
+    if test_env in ['iperf', 'iperf3', 'iperf-udp']:
         return 'iperf'
     elif test_env in ['sockperf', 'latency']:
         return 'sockperf'
     else:
-        print(f"❌ ERROR: TEST environment variable must be set to 'iperf' or 'sockperf'")
+        print(f"❌ ERROR: TEST environment variable must be set to 'iperf', 'iperf-udp', or 'sockperf'")
         print(f"   Current value: TEST='{os.environ.get('TEST', '(not set)')}'")
         print()
         print("Usage:")
-        print("  export TEST=iperf")
+        print("  export TEST=iperf       # For TCP iperf tests")
+        print("  export TEST=iperf-udp   # For UDP iperf tests (auto-detected from logs)")
         print("  python testing/process_logs/main.py dpdk vm-client")
         print()
         print("  export TEST=sockperf")
