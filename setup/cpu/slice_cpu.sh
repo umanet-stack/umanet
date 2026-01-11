@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -eu
 
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <network>"
+    echo "  network: tap or dpdk"
+    exit 1
+fi
+NETWORK="$1"
+
 # disable Simultaneous multithreading (2 threads/core => 1 thread/core), SMT hurts latency and predictability
 # before:
 # core 0:
@@ -16,7 +23,7 @@ sudo cp ~/code/umanet/setup/cpu/system.conf /etc/systemd/system/system.slice.d/o
 
 # TAP/DPDK/vm can use cores 0-23
 sudo mkdir -p /etc/systemd/system/vms.slice.d
-sudo cp ~/code/umanet/setup/cpu/vms.conf /etc/systemd/system/vms.slice.d/override.conf
+sudo cp ~/code/umanet/setup/cpu/${NETWORK}.conf /etc/systemd/system/vms.slice.d/override.conf
 
 sudo systemctl daemon-reload
 sudo systemctl daemon-reexec

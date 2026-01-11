@@ -8,21 +8,21 @@ The tests (iperf, sockperf) are configured in `.env` file.
 ## vm-vm-internal
 For `vm-vm-internal`, if you run 8 vms = 4 servers + 4 clients = `report-4vm`
 ```bash
+./setup/cpu/slice_cpu.sh tap
 # need to rerun br/tap setup after dpdk test
 ./setup/vm/setup_br_tap.sh 32
 ./setup/vm/spawn_vms.sh tap 32 vm-vm-internal
 python testing/process_logs/main.py tap vm-vm-internal
 
-ethtool -k tap0
-sudo ip link set dev enp23s0f0np0 mtu 9000
 ```
 ## multinode
 ```bash
-# node 1
+# both nodes
+./setup/cpu/slice_cpu.sh tap
 ./setup/vm/setup_br_tap.sh 32
+# node 1
 ./setup/vm/spawn_vms.sh tap 32 vm-server
 # node 0
-./setup/vm/setup_br_tap.sh 32
 ./setup/vm/spawn_vms.sh tap 32 vm-client
 python testing/process_logs/main.py tap vm-client
 ```
@@ -31,9 +31,10 @@ python testing/process_logs/main.py tap vm-client
 - vm user-data has ping service that will ping 3 times to make dpdk app learn IP of vm
 ## vm-vm-internal
 ```bash
+./setup/cpu/slice_cpu.sh dpdk
 # run TAP once before DPDK to make it download iperf
 # no. of vhost must match no. of VMs!
-sudo ./build_and_run.sh test 32
+sudo ./run.sh 32
 
 # do local networking via dpdk
 ./setup/vm/spawn_vms.sh dpdk 32 vm-vm-internal
@@ -44,11 +45,12 @@ ethtool -k ens6
 ```
 ## multinode
 ```bash
+# both nodes (make sure to build as test mode first)
+./setup/cpu/slice_cpu.sh dpdk
+sudo ./run.sh 32
 # node 1
-sudo ./build_and_run.sh test 32
 ./setup/vm/spawn_vms.sh dpdk 32 vm-server
 # node 0
-sudo ./build_and_run.sh test 32
 ./setup/vm/spawn_vms.sh dpdk 32 vm-client
 python testing/process_logs/main.py dpdk vm-client
 ```
@@ -57,6 +59,11 @@ python testing/process_logs/main.py dpdk vm-client
 # kill all vms to end/reset experiment
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
 sudo bash -c "ps aux | grep umanet | grep -v grep | awk '{print \$2}' | xargs kill -9"
+
+# overall report
+./testing/plot_reports/main.py iperf
+./testing/plot_reports/main.py iperf-udp
+./testing/plot_reports/main.py sockperf
 ```
 
 # OVS DPDK
@@ -82,6 +89,15 @@ python testing/process_logs/main.py ovs-dpdk multinode
 
 ## manual
 ```bash
+# jumbo
+ethtool -k tap0
+sudo ip link set dev enp23s0f0np0 mtu 9000
+sudo ip link set dev ens6 mtu 9000
+sudo ip link set dev ens6 mtu 1500
+# work even with mtu 1500
+ping -M do -s 8972 192.168.100.3
+iperf3 -c 192.168.100.2 -M 8972
+
 # testing
 iperf -s
 iperf -c 192.168.100.2

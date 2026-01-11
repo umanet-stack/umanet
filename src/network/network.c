@@ -41,12 +41,14 @@
 
 #include "../include/main.h"
 #include "network.h"
+#include "src/include/fastpath.h"
 #include "src/include/state.h"
 #include <utils.h>
 #include <utils_rng.h>
 
-#define RX_DESCRIPTORS 256
-#define TX_DESCRIPTORS 128
+// Increased for MTU 9000 - larger packets need more descriptors
+#define RX_DESCRIPTORS 2048 // 256 -> 2048 (8x increase)
+#define TX_DESCRIPTORS 2048 // 128 -> 2048 (16x increase)
 
 static struct rte_eth_conf port_conf = {
     .rxmode =
@@ -157,6 +159,11 @@ int network_init() {
     ret = rte_eth_dev_configure(global->eth_port_id, config.eth_rx_queues, config.eth_tx_queues, &port_conf);
     if (ret < 0) {
         LOG_ERROR("rte_eth_dev_configure failed\n");
+        goto error_exit;
+    }
+
+    if (rte_eth_dev_set_mtu(global->eth_port_id, PKT_MTU) != 0) {
+        LOG_ERROR("rte_eth_dev_set_mtu failed\n");
         goto error_exit;
     }
 
