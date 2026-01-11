@@ -22,6 +22,7 @@ fi
 
 ninja -C build
 
+sudo systemctl stop ovs-dpdk
 # delete all taps, br0
 for ((i=0; i<MAX_VM_COUNT; i++)); do
   sudo ip link delete tap$i 2>/dev/null || true
