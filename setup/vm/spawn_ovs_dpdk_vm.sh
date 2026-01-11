@@ -26,9 +26,9 @@ cloud-hypervisor \
     --memory size=512M,hugepages=on,shared=on,prefault=on \
     --kernel "$TMPDIR/vmlinux.bin" \
     --initramfs /tmp/initramfs-overlay.img \
-    --cmdline "console=ttyS0 console=hvc0 rdinit=/init VM_INDEX=$i ROLE=$ROLE TEST_COMMAND_B64=$TEST_COMMAND_B64" \
-    --disk path="$TMPDIR/noble-server-cloudimg-amd64-customized.raw",readonly=on path="$TMPDIR/disks/state-$i.img" \
-    --net "mac=${NODE_ID}2:34:56:78:90:$(printf '%02X' $i),vhost_user=true,socket=/mnt/huge/sock$i,num_queues=2,vhost_mode=server,socket=/tmp/vhost-user$i,queue_size=4096" \
+    --cmdline "console=ttyS0 console=hvc0 rdinit=/init ROLE=$ROLE TEST_COMMAND_B64=$TEST_COMMAND_B64" \
+    --disk path="$TMPDIR/vm-img.raw",readonly=on path="$TMPDIR/disks/state-$i.img" path="$TMPDIR/cloudinit/cloudinit-vm$i.img" \
+    --net "mac=${NODE_ID}2:34:56:78:90:$(printf '%02X' $i),vhost_user=on,socket=/mnt/huge/sock$i,num_queues=2,vhost_mode=server,socket=/tmp/vhost-user$i,queue_size=4096" \
     > "$logfile" 2>&1 &
 
 echo "  VM$i -> $COMMAND"
