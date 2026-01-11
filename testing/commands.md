@@ -88,7 +88,7 @@ sudo ./setup/ovs/setup_interfaces.sh 32
 python testing/process_logs/main.py ovs-dpdk vm-client
 
 sudo ./setup/vm/spawn_vms.sh ovs-dpdk 32 /tmp multinode
-python testing/process_logs/main.py ovs-dpdk multinode
+python testing/process_logs/main.py ovs-dpdk vm-client
 
 # exit ovs
 sudo systemctl stop ovs-dpdk

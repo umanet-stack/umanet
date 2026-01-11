@@ -74,8 +74,8 @@ def parse_arguments():
     )
     parser.add_argument(
         "folder",
-        choices=["dpdk", "tap", "dpdk-tap"],
-        help="Folder name: 'dpdk', 'tap', or 'dpdk-tap'"
+        choices=["dpdk", "tap", "dpdk-tap", "ovs-dpdk"],
+        help="Folder name: 'dpdk', 'tap', 'dpdk-tap', or 'ovs-dpdk'"
     )
     parser.add_argument(
         "mode",
