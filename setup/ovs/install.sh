@@ -29,9 +29,10 @@ cd /usr/src/
 wget https://fast.dpdk.org/rel/dpdk-25.11.tar.xz
 tar xf dpdk-25.11.tar.xz
 export DPDK_DIR=/usr/src/dpdk-25.11
+export DPDK_PREFIX=/usr/src/dpdk-25.11-install
 cd $DPDK_DIR
 export DPDK_BUILD=$DPDK_DIR/build
-meson build
+meson build --prefix=$DPDK_PREFIX
 ninja -C build
 sudo ninja -C build install
 sudo ldconfig
@@ -40,6 +41,7 @@ cd /usr/src
 git clone https://github.com/openvswitch/ovs.git --filter=blob:none --depth=1 --branch v3.6.1
 cd ovs
 ./boot.sh
+export PKG_CONFIG_PATH=$DPDK_PREFIX/lib/pkgconfig:$DPDK_PREFIX/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
 ./configure --with-dpdk=shared CFLAGS="-Ofast -msse4.2 -mpopcnt" # TODO: static
 make -j$(nproc)
 sudo make install
