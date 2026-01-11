@@ -9,6 +9,13 @@ fi
 source env.sh
 NUM_VMS=$1
 
+# delete all taps, br0
+for ((i=0; i<MAX_VM_COUNT; i++)); do
+  sudo ip link delete tap$i 2>/dev/null || true
+done
+sudo ip link delete br0 2>/dev/null || true
+echo "✅ br0 and taps deleted"
+
 echo "[1/6] Start OVS-DPDK"
 sudo systemctl start ovs-dpdk
 sleep 2
