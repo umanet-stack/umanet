@@ -68,7 +68,8 @@ spawn_vm() {
     elif [ "$NETWORK" = "dpdk" ] || [ "$NETWORK" = "dpdk-tap" ]; then
         $SCRIPT_DIR/spawn_dpdk_vm.sh "$i" "$VM_ROLE" "$TEST_COMMAND"
     elif [ "$NETWORK" = "ovs-dpdk" ]; then
-        $SCRIPT_DIR/spawn_ovs_dpdk_vm.sh "$i" "$VM_ROLE" "$TEST_COMMAND"
+        SET_MTU="sudo ip link set eth0 mtu 1500 &&"
+        $SCRIPT_DIR/spawn_ovs_dpdk_vm.sh "$i" "$VM_ROLE" "$SET_MTU $TEST_COMMAND"
     fi
 }
 
@@ -125,10 +126,6 @@ elif [ "$TEST_MODE" = "vm-client" ]; then
         elif [ "$TEST" = "sockperf" ]; then
             spawn_vm "$i" "sockperf-client" "sockperf ping-pong -i 192.168.101.$((i+2)) $SOCKPERF_CLIENT_OPTIONS"
         fi
-        # if [ "$NETWORK" = "ovs-dpdk" ]; then
-        #     PORT=$((PORT + 1))
-        #     IPERF_COMMAND="iperf3 -c 10.10.1.1 -p $PORT -P 4 -t 30 -J"
-        # fi
     done
 
 elif [ "$TEST_MODE" = "vm-server" ]; then
