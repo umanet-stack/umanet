@@ -91,7 +91,7 @@ sudo ./setup/vm/spawn_vms.sh ovs-dpdk 32 /tmp multinode
 python testing/process_logs/main.py ovs-dpdk multinode
 
 # exit ovs
-sudo systemctl stop openvswitch
+sudo systemctl stop ovs-dpdk
 # show interfaces
 sudo ovs-vsctl show
 ```

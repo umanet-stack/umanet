@@ -17,6 +17,14 @@ done
 sudo ip link delete br0 2>/dev/null || true
 echo "✅ br0 and taps deleted"
 
+# remove any existing routes for the other node's network (e.g., from ovsbr0-int)
+if [ "$NODE_ID" = "0" ]; then
+  sudo ip route del 192.168.100.0/24 2>/dev/null || true
+elif [ "$NODE_ID" = "1" ]; then
+  sudo ip route del 192.168.101.0/24 2>/dev/null || true
+fi
+echo "✅ removed existing routes for other node's network"
+
 # create br0
 sudo ip link add name br0 type bridge || true
 sudo ip link set br0 up || true
