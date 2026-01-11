@@ -91,14 +91,20 @@ def setup_directories(folder: str, mode: str, test_type: str) -> Dict[str, Path]
     Args:
         folder: Base folder name (dpdk, tap, dpdk-tap)
         mode: Processing mode (vm-vm-internal, vm-client)
-        test_type: Test type (iperf, sockperf)
+        test_type: Test type (iperf, iperf-udp, sockperf)
         
     Returns:
         Dictionary with 'base_dir', 'logs_dir', 'reports_dir' paths
     """
     base_dir = SCRIPT_DIR.parent / folder
     logs_dir = base_dir / "logs"
-    reports_base_dir = base_dir / test_type / mode
+    # Use 'iperf-udp' folder when test_type is 'iperf' but TEST=iperf-udp
+    test_env = os.environ.get('TEST', '').lower()
+    if test_type == 'iperf' and test_env == 'iperf-udp':
+        report_folder = 'iperf-udp'
+    else:
+        report_folder = test_type
+    reports_base_dir = base_dir / report_folder / mode
     
     # Create report directory if it doesn't exist
     reports_base_dir.mkdir(exist_ok=True, parents=True)

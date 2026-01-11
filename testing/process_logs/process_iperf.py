@@ -811,16 +811,36 @@ def main():
     # Set up directories relative to script
     base_dir = SCRIPT_DIR.parent / args.folder
     logs_dir = base_dir / "logs"
-    reports_base_dir = base_dir / "iperf" / args.mode
-    
-    # Create base directory if it doesn't exist
-    reports_base_dir.mkdir(exist_ok=True, parents=True)
     
     # Check if logs directory exists
     if not logs_dir.exists():
         print(f"❌ Logs directory not found: {logs_dir}")
         print(f"   Please ensure log files are in: {logs_dir}/")
         return
+    
+    # Detect UDP mode by checking log files
+    is_udp_detected = False
+    for log_file in sorted(logs_dir.glob("vm*.log")):
+        vm_name = log_file.stem
+        vm_num = int(vm_name[2:])
+        if not process_all_vms and vm_num % 2 == 0:
+            continue  # Skip even-numbered VMs in vm-vm-internal mode
+        
+        try:
+            with open(log_file, 'r') as f:
+                log_content = f.read()
+            if is_udp_mode(log_content):
+                is_udp_detected = True
+                break
+        except Exception:
+            continue
+    
+    # Use 'iperf-udp' folder if UDP mode is detected, otherwise 'iperf'
+    report_folder = 'iperf-udp' if is_udp_detected else 'iperf'
+    reports_base_dir = base_dir / report_folder / args.mode
+    
+    # Create base directory if it doesn't exist
+    reports_base_dir.mkdir(exist_ok=True, parents=True)
     
     # Count VMs to determine report directory name
     num_vms = 0
@@ -835,7 +855,7 @@ def main():
     # Get next report number to avoid overwriting existing reports
     report_num = get_next_report_number(reports_base_dir)
     
-    # Create report directory: iperf/{mode}/report-{n}vm-{num}
+    # Create report directory: {report_folder}/{mode}/report-{n}vm-{num}
     reports_dir = reports_base_dir / f"report-{num_vms}vm-{report_num}"
     reports_dir.mkdir(exist_ok=True, parents=True)
     
