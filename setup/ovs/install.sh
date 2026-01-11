@@ -1,78 +1,51 @@
 #!/bin/bash
+set -e
 
 source env.sh
 
+echo "[1/6] Install dependencies"
 sudo apt update
 sudo apt install -y \
-  pkg-config \
-  build-essential \
-  libnuma-dev \
-  python3-pyelftools \
-  libelf-dev \
-  libarchive-dev \
-  ninja-build \
-  meson \
+  pkg-config build-essential libnuma-dev python3-pyelftools \
+  libelf-dev libarchive-dev ninja-build meson \
   libssl-dev libcap-ng-dev libunbound-dev \
   linux-headers-$(uname -r) \
   autoconf automake libtool \
-  wget curl netcat-traditional graphviz python3-pyftpdlib \
-  net-tools sparse flake8 rdma-core ibverbs-providers libibverbs-dev libpcap-dev \
+  wget curl net-tools sparse \
+  rdma-core ibverbs-providers libibverbs-dev libpcap-dev \
   libsystemd-dev \
   qemu-kvm libvirt-daemon-system libvirt-clients \
-  virtinst bridge-utils dh-python debhelper sphinx-common \
-  fakeroot dh-autoreconf python3-pip libguestfs-tools \
+  virtinst bridge-utils \
   flex bison
 
 sudo chown $(id -u):$(id -g) /usr/src
 
-cd /usr/src/
-wget https://fast.dpdk.org/rel/dpdk-25.11.tar.xz
+# ------------------------------------------------------------
+
+echo "[2/6] Build & install DPDK 25.11"
+cd /usr/src
+wget -nc https://fast.dpdk.org/rel/dpdk-25.11.tar.xz
 tar xf dpdk-25.11.tar.xz
+
 export DPDK_DIR=/usr/src/dpdk-25.11
-export DPDK_PREFIX=/usr/src/dpdk-25.11-install
+export DPDK_PREFIX=/usr/local/dpdk
+
 cd $DPDK_DIR
-export DPDK_BUILD=$DPDK_DIR/build
-meson build --prefix=$DPDK_PREFIX
+meson setup build --prefix=$DPDK_PREFIX
 ninja -C build
 sudo ninja -C build install
 sudo ldconfig
 
+# ------------------------------------------------------------
+
+echo "[3/6] Build & install Open vSwitch 3.6.1 (DPDK)"
 cd /usr/src
-git clone https://github.com/openvswitch/ovs.git --filter=blob:none --depth=1 --branch v3.6.1
+git clone https://github.com/openvswitch/ovs.git --branch v3.6.1 --depth=1
 cd ovs
+
 ./boot.sh
-export PKG_CONFIG_PATH=$DPDK_PREFIX/lib/pkgconfig:$DPDK_PREFIX/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
-./configure --with-dpdk=shared CFLAGS="-Ofast -msse4.2 -mpopcnt" # TODO: static
+export PKG_CONFIG_PATH=$DPDK_PREFIX/lib/pkgconfig:$DPDK_PREFIX/lib/x86_64-linux-gnu/pkgconfig
+./configure --with-dpdk=shared CFLAGS="-O3 -march=native"
 make -j$(nproc)
 sudo make install
-
-sudo tee /etc/systemd/system/openvswitch.service >/dev/null << 'EOF'
-[Unit]
-Description=Open vSwitch (from source)
-After=network.target
-Wants=network.target
-
-[Service]
-CPUAffinity=0-7
-Slice=ovs.slice
-CPUAccounting=yes
-Type=forking
-ExecStart=/usr/local/share/openvswitch/scripts/ovs-ctl start --system-id=random
-ExecStop=/usr/local/share/openvswitch/scripts/ovs-ctl stop
-ExecReload=/usr/local/share/openvswitch/scripts/ovs-ctl restart
-PIDFile=/usr/local/var/run/openvswitch/ovs-vswitchd.pid
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl enable --now openvswitch
-
-cd /usr/src
-curl -O https://downloads.es.net/pub/iperf/iperf-3.19.tar.gz
-tar zxvf iperf-3.19.tar.gz
-cd iperf-3.19
-./configure --enable-static --disable-shared
-make -j$(nproc)
-sudo make install
+sudo ldconfig
