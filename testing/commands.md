@@ -94,6 +94,9 @@ python testing/process_logs/main.py ovs-dpdk multinode
 sudo systemctl stop ovs-dpdk
 # show interfaces
 sudo ovs-vsctl show
+
+sudo ovs-appctl dpif-netdev/pmd-rxq-show
+
 ```
 
 ## manual

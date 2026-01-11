@@ -15,9 +15,25 @@ sleep 2
 
 echo "[2/6] Enable DPDK in OVS"
 sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-init=true
+# cores 0-3 for DPDK main threads
 sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-lcore-mask=0x0f
+# cores 4-7 for PMD polling threads
 sudo ovs-vsctl set Open_vSwitch . other_config:pmd-cpu-mask=0xf0
-sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-socket-mem=1024
+sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-socket-mem=4096
+
+ovs-vsctl set Open_vSwitch . other_config:hw-offload=false
+echo "✅ OvS-DPDK configured"
+
+sudo service ovs-dpdk restart
+sudo ovs-vsctl get Open_vSwitch . other_config
+echo "✅ OVS restarted"
+
+# Enable EMC (Exact Match Cache) for fast path packet processing
+# sudo ovs-vsctl set Open_vSwitch . other_config:emc-enable=true
+# Increase max-idle timeout to keep flows in fast path longer (300 seconds)
+# sudo ovs-vsctl set Open_vSwitch . other_config:max-idle=300000
+# Enable PMD auto-load balancing for better distribution
+# sudo ovs-vsctl set Open_vSwitch . other_config:pmd-auto-lb=true
 # Note: vhost-sock-dir doesn't work correctly (treats /tmp/ as relative path)
 # With dpdkvhostuser, sockets are created in /usr/local/var/run/openvswitch/
 
@@ -30,25 +46,34 @@ sudo modprobe vfio-pci
 sudo chmod 666 /dev/vfio/*
 sudo ip link set $NIC down || true
 sudo dpdk-devbind.py --bind=vfio-pci $NIC_PCI
-sudo dpdk-devbind.py --status
+# sudo dpdk-devbind.py --status
 
 # ------------------------------------------------------------
 
 echo "[4/6] Recreate bridge"
 sudo ovs-vsctl --if-exists del-br ovsbr0
 sudo ovs-vsctl add-br ovsbr0 -- set bridge ovsbr0 datapath_type=netdev
+echo "✅ OVS bridge 'ovsbr0' created"
+
+# Configure bridge for better performance
+# sudo ovs-vsctl set Bridge ovsbr0 other_config:mac-table-size=10000
+# sudo ovs-vsctl set Bridge ovsbr0 other_config:disable-in-band=false
+# # Set fail_mode to standalone for proper L2 learning
+# sudo ovs-vsctl set Bridge ovsbr0 fail_mode=standalone
+# # Ensure NORMAL action works for L2 forwarding
+# sudo ovs-ofctl add-flow ovsbr0 "priority=0,actions=NORMAL"
 
 # NIC port
 sudo ovs-vsctl add-port ovsbr0 $NIC \
-  -- set Interface $NIC type=dpdk options:dpdk-devargs=$NIC_PCI options:n_rxq=4
+  -- set Interface $NIC type=dpdk options:dpdk-devargs=$NIC_PCI options:n_rxq=4 options:n_rxq_desc=4096 options:n_txq_desc=4096
 
 # ------------------------------------------------------------
 
 echo "[5/6] Create vhost-user ports"
 for i in $(seq 0 $((NUM_VMS - 1))); do
   sudo ovs-vsctl add-port ovsbr0 vhost-user$i -- \
-    set Interface vhost-user$i type=dpdkvhostuser \
-    options:n_rxq=4
+    set Interface vhost-user$i type=dpdkvhostuserclient \
+    options:n_rxq=1 options:n_txq=1 options:vhost-server-path=/tmp/vhost-user$i
 done
 
 # ------------------------------------------------------------
@@ -73,4 +98,5 @@ elif [ "$NODE_ID" = "1" ]; then
   sudo ip route add 192.168.100.0/24 via 192.168.100.1 dev ovsbr0-int onlink || true
 fi
 
-echo "OVS-DPDK ready."
+sudo ovs-vsctl show
+echo "✅ OVS-DPDK ready."
