@@ -294,6 +294,12 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
 static inline unsigned vhost_poll(struct vhost_rx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
     STATS_ADD(ctx->vdev_stats[vid], call_count, 1);
     int16_t ret = rte_vhost_dequeue_burst(vid, VIRTIO_TXQ, ctx->mempool, pkts, num);
+    // CRITICAL: Handle error case (negative return = -1 on error in DPDK 25)
+    if (ret < 0) {
+        STATS_ADD(ctx->vdev_stats[vid], empty_poll_count, 1);
+        STATS_ADD(ctx->vdev_stats[vid], empty_wnd[ctx->vdev_stats[vid]->wnd_idx], 1);
+        return 0;
+    }
     if (ret == 0) {
         STATS_ADD(ctx->vdev_stats[vid], empty_poll_count, 1);
         STATS_ADD(ctx->vdev_stats[vid], empty_wnd[ctx->vdev_stats[vid]->wnd_idx], 1);
