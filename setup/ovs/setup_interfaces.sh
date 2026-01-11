@@ -34,11 +34,11 @@ sudo ovs-vsctl get Open_vSwitch . other_config
 echo "✅ OVS restarted"
 
 # Enable EMC (Exact Match Cache) for fast path packet processing
-# sudo ovs-vsctl set Open_vSwitch . other_config:emc-enable=true
+sudo ovs-vsctl set Open_vSwitch . other_config:emc-enable=true
 # Increase max-idle timeout to keep flows in fast path longer (300 seconds)
-# sudo ovs-vsctl set Open_vSwitch . other_config:max-idle=300000
+sudo ovs-vsctl set Open_vSwitch . other_config:max-idle=300000
 # Enable PMD auto-load balancing for better distribution
-# sudo ovs-vsctl set Open_vSwitch . other_config:pmd-auto-lb=true
+sudo ovs-vsctl set Open_vSwitch . other_config:pmd-auto-lb=true
 # Note: vhost-sock-dir doesn't work correctly (treats /tmp/ as relative path)
 # With dpdkvhostuser, sockets are created in /usr/local/var/run/openvswitch/
 
@@ -61,12 +61,12 @@ sudo ovs-vsctl add-br ovsbr0 -- set bridge ovsbr0 datapath_type=netdev
 echo "✅ OVS bridge 'ovsbr0' created"
 
 # Configure bridge for better performance
-# sudo ovs-vsctl set Bridge ovsbr0 other_config:mac-table-size=10000
-# sudo ovs-vsctl set Bridge ovsbr0 other_config:disable-in-band=false
-# # Set fail_mode to standalone for proper L2 learning
-# sudo ovs-vsctl set Bridge ovsbr0 fail_mode=standalone
-# # Ensure NORMAL action works for L2 forwarding
-# sudo ovs-ofctl add-flow ovsbr0 "priority=0,actions=NORMAL"
+sudo ovs-vsctl set Bridge ovsbr0 other_config:mac-table-size=10000
+sudo ovs-vsctl set Bridge ovsbr0 other_config:disable-in-band=false
+# Set fail_mode to standalone for proper L2 learning
+sudo ovs-vsctl set Bridge ovsbr0 fail_mode=standalone
+# Ensure NORMAL action works for L2 forwarding
+sudo ovs-ofctl add-flow ovsbr0 "priority=0,actions=NORMAL"
 
 # NIC port
 sudo ovs-vsctl add-port ovsbr0 $NIC \
@@ -76,10 +76,12 @@ sudo ovs-vsctl add-port ovsbr0 $NIC \
 # ------------------------------------------------------------
 
 echo "[5/6] Create vhost-user ports"
+# VMs use num_queues=2 (2 queue pairs = 2 RX + 2 TX queues)
+# Configure OVS to match for better performance
 for i in $(seq 0 $((NUM_VMS - 1))); do
   sudo ovs-vsctl add-port ovsbr0 vhost-user$i -- \
     set Interface vhost-user$i type=dpdkvhostuser \
-    options:n_rxq=1 options:n_txq=1
+    options:n_rxq=2 options:n_txq=2
     # options:mtu_request=9000
 done
 
