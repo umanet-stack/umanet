@@ -7,6 +7,7 @@ import argparse
 import re
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
+from datetime import datetime, timezone, timedelta
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -383,9 +384,14 @@ Examples:
         print("❌ No reports found!")
         return
     
-    # Create output directory (in plot_reports folder)
-    output_dir = SCRIPT_DIR
+    # Create output directory with timestamp (in plot_reports folder, GMT+7 timezone)
+    gmt7 = timezone(timedelta(hours=7))
+    now = datetime.now(gmt7)
+    timestamp = now.strftime("%Y%m%d_%H")
+    output_dir = SCRIPT_DIR / f"plots_{timestamp}"
     output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"📁 Output directory: {output_dir}")
+    print()
     
     # Plot based on test type
     if args.test_type == 'iperf':
