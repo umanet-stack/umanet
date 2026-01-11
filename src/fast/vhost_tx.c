@@ -17,12 +17,6 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
         sleep(1);
 #endif
 
-        struct vdev_list *vdev_list_ptr = atomic_load_explicit(&vdev_list, memory_order_relaxed);
-        if (vdev_list_ptr == NULL) {
-            LOG_ERROR("vdev_list_ptr is NULL\n");
-            continue;
-        }
-
         struct vhost_plan *plan = atomic_load_explicit(&vhost_tx_plans[ctx->vhost_tx_core_id], memory_order_relaxed);
         for (int i = 0; i < plan->num; i++) {
             uint16_t vid = plan->vids[i];

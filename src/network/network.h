@@ -44,7 +44,7 @@ static inline void free_pkts(struct rte_mbuf **pkts, uint16_t n) {
         rte_pktmbuf_free(pkts[n]);
 }
 
-#define PERTHREAD_MBUFS 32767
+#define PERTHREAD_MBUFS 131071
 #define MBUF_SIZE 9728
 
 static inline struct rte_mempool *mempool_alloc(const char *name) {
