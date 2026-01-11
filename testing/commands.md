@@ -8,6 +8,7 @@ The tests (iperf, sockperf) are configured in `.env` file.
 ## vm-vm-internal
 For `vm-vm-internal`, if you run 8 vms = 4 servers + 4 clients = `report-4vm`
 ```bash
+./setup/cpu/slice_cpu.sh tap
 # need to rerun br/tap setup after dpdk test
 ./setup/vm/setup_br_tap.sh 32
 ./setup/vm/spawn_vms.sh tap 32 vm-vm-internal
@@ -17,6 +18,7 @@ python testing/process_logs/main.py tap vm-vm-internal
 ## multinode
 ```bash
 # both nodes
+./setup/cpu/slice_cpu.sh tap
 ./setup/vm/setup_br_tap.sh 32
 # node 1
 ./setup/vm/spawn_vms.sh tap 32 vm-server
@@ -29,6 +31,7 @@ python testing/process_logs/main.py tap vm-client
 - vm user-data has ping service that will ping 3 times to make dpdk app learn IP of vm
 ## vm-vm-internal
 ```bash
+./setup/cpu/slice_cpu.sh dpdk
 # run TAP once before DPDK to make it download iperf
 # no. of vhost must match no. of VMs!
 sudo ./run.sh 32
@@ -43,6 +46,7 @@ ethtool -k ens6
 ## multinode
 ```bash
 # both nodes (make sure to build as test mode first)
+./setup/cpu/slice_cpu.sh dpdk
 sudo ./run.sh 32
 # node 1
 ./setup/vm/spawn_vms.sh dpdk 32 vm-server

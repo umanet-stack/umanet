@@ -24,7 +24,7 @@ systemctl show vms.slice | grep -E "CPUQuota"
 # remove slice
 sudo systemctl stop vms.slice
 
-./setup/cpu/slice_cpu.sh
+./setup/cpu/slice_cpu.sh tap
 ```
 
 | Cores     | Purpose                    |
