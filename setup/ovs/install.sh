@@ -3,7 +3,7 @@ set -e
 
 source env.sh
 
-echo "[1/6] Install dependencies"
+echo "[1/3] Install dependencies"
 sudo apt update
 sudo apt install -y \
   pkg-config build-essential libnuma-dev python3-pyelftools \
@@ -22,7 +22,7 @@ sudo chown $(id -u):$(id -g) /usr/src
 
 # ------------------------------------------------------------
 
-echo "[2/6] Build & install DPDK 25.11"
+echo "[2/3] Build & install DPDK 25.11"
 cd /usr/src
 wget -nc https://fast.dpdk.org/rel/dpdk-25.11.tar.xz
 tar xf dpdk-25.11.tar.xz
@@ -38,7 +38,7 @@ sudo ldconfig
 
 # ------------------------------------------------------------
 
-echo "[3/6] Build & install Open vSwitch 3.6.1 (DPDK)"
+echo "[3/3] Build & install Open vSwitch 3.6.1 (DPDK)"
 cd /usr/src
 git clone https://github.com/openvswitch/ovs.git --branch v3.6.1 --depth=1
 cd ovs
