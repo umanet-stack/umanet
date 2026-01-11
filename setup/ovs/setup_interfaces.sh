@@ -87,7 +87,7 @@ done
 
 echo "[6/6] Internal management interface"
 sudo ovs-vsctl add-port ovsbr0 ovsbr0-int \
-  -- set Interface ovsbr0-int type=internal options:n_rxq=1
+  -- set Interface ovsbr0-int type=internal options:n_rxq=4 options:n_txq=4
 
 sudo ip link set ovsbr0-int up
 sudo ip addr flush dev ovsbr0-int
