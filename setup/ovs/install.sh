@@ -53,6 +53,9 @@ After=network.target
 Wants=network.target
 
 [Service]
+CPUAffinity=0-7
+Slice=ovs.slice
+CPUAccounting=yes
 Type=forking
 ExecStart=/usr/local/share/openvswitch/scripts/ovs-ctl start --system-id=random
 ExecStop=/usr/local/share/openvswitch/scripts/ovs-ctl stop
