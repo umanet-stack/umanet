@@ -18,6 +18,8 @@ sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-init=true
 sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-lcore-mask=0x0f
 sudo ovs-vsctl set Open_vSwitch . other_config:pmd-cpu-mask=0xf0
 sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-socket-mem=1024
+# Note: vhost-sock-dir doesn't work correctly (treats /tmp/ as relative path)
+# With dpdkvhostuser, sockets are created in /usr/local/var/run/openvswitch/
 
 ovs-vsctl get Open_vSwitch . dpdk_initialized
 
@@ -45,8 +47,7 @@ sudo ovs-vsctl add-port ovsbr0 $NIC \
 echo "[5/6] Create vhost-user ports"
 for i in $(seq 0 $((NUM_VMS - 1))); do
   sudo ovs-vsctl add-port ovsbr0 vhost-user$i -- \
-    set Interface vhost-user$i type=dpdkvhostuserclient \
-    options:vhost-server-path=/tmp/vhost-user$i \
+    set Interface vhost-user$i type=dpdkvhostuser \
     options:n_rxq=4
 done
 
