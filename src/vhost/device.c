@@ -259,7 +259,10 @@ int register_vhost_drivers() {
 
         // flags describe what the backend (you) and the guest agree on
         // GUEST_TSO enabled - beneficial for traffic going through physical NIC with hardware TSO offload
-        uint64_t features = (1ULL << VIRTIO_NET_F_MTU) | (1ULL << VIRTIO_NET_F_MRG_RXBUF) |
+        // NOTE: MRG_RXBUF disabled due to DPDK 25 multi-segment packet handling issues
+        // Disabling mergeable buffers forces single-segment packets, avoiding "is not a head" errors
+        uint64_t features = (1ULL << VIRTIO_NET_F_MTU) |
+                            // (1ULL << VIRTIO_NET_F_MRG_RXBUF) |  // Disabled: causes "is not a head" errors in DPDK 25
                             (1ULL << VIRTIO_NET_F_CTRL_VQ) | (1ULL << VIRTIO_NET_F_CSUM) |
                             (1ULL << VIRTIO_NET_F_GUEST_CSUM) | (1ULL << VIRTIO_NET_F_GUEST_UFO) |
                             // (1ULL << VIRTIO_NET_F_GUEST_TSO4) | (1ULL << VIRTIO_NET_F_GUEST_TSO6) |
