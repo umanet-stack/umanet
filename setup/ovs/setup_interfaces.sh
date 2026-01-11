@@ -61,4 +61,7 @@ sudo ip link set ovsbr0-int up
 sudo ip addr flush dev ovsbr0-int
 sudo ip addr add 192.168.10${NODE_ID}.1/24 dev ovsbr0-int
 
+# Remove any conflicting routes from br0 (TAP bridge) that might interfere
+sudo ip route del 192.168.10${NODE_ID}.0/24 dev br0 2>/dev/null || true
+
 echo "OVS-DPDK ready."
