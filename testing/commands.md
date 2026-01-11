@@ -97,6 +97,9 @@ sudo ovs-vsctl show
 
 sudo ovs-appctl dpif-netdev/pmd-rxq-show
 
+# ovs-dpdk uses 1500 MTU, so need to set it, else 0 throughput
+sudo ip link set eth0 mtu 1500 && iperf3 -s
+sudo ip link set eth0 mtu 1500 && iperf3 -c 192.168.100.2 -P 4 -t 10
 ```
 
 ## manual
