@@ -37,7 +37,8 @@ cd /usr/src
 git clone https://github.com/openvswitch/ovs.git --filter=blob:none --depth=1 --branch v3.6.1
 cd ovs
 ./boot.sh
-./configure --with-dpdk=$DPDK_PREFIX CFLAGS="-Ofast -msse4.2 -mpopcnt" # TODO: static
+export PKG_CONFIG_PATH=$DPDK_PREFIX/lib/pkgconfig:$DPDK_PREFIX/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
+./configure --with-dpdk=shared CFLAGS="-Ofast -msse4.2 -mpopcnt" # TODO: static
 make -j$(nproc)
 sudo make install
 
