@@ -27,8 +27,6 @@ sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-lcore-mask=0x0f
 # cores 4-7 for PMD polling threads
 sudo ovs-vsctl set Open_vSwitch . other_config:pmd-cpu-mask=0xf0
 sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-socket-mem=4096
-
-ovs-vsctl set Open_vSwitch . other_config:hw-offload=false
 echo "✅ OvS-DPDK configured"
 
 sudo service ovs-dpdk restart
@@ -73,14 +71,16 @@ echo "✅ OVS bridge 'ovsbr0' created"
 # NIC port
 sudo ovs-vsctl add-port ovsbr0 $NIC \
   -- set Interface $NIC type=dpdk options:dpdk-devargs=$NIC_PCI options:n_rxq=4 options:n_rxq_desc=4096 options:n_txq_desc=4096
+  # options:mtu_request=9000
 
 # ------------------------------------------------------------
 
 echo "[5/6] Create vhost-user ports"
 for i in $(seq 0 $((NUM_VMS - 1))); do
   sudo ovs-vsctl add-port ovsbr0 vhost-user$i -- \
-    set Interface vhost-user$i type=dpdkvhostuserclient \
-    options:n_rxq=1 options:n_txq=1 options:vhost-server-path=/tmp/vhost-user$i
+    set Interface vhost-user$i type=dpdkvhostuser \
+    options:n_rxq=1 options:n_txq=1
+    # options:mtu_request=9000
 done
 
 # ------------------------------------------------------------
@@ -88,6 +88,7 @@ done
 echo "[6/6] Internal management interface"
 sudo ovs-vsctl add-port ovsbr0 ovsbr0-int \
   -- set Interface ovsbr0-int type=internal options:n_rxq=4 options:n_txq=4
+# options:mtu_request=9000
 
 sudo ip link set ovsbr0-int up
 sudo ip addr flush dev ovsbr0-int
@@ -104,6 +105,10 @@ elif [ "$NODE_ID" = "1" ]; then
   sudo ip route del 192.168.100.0/24 via 192.168.100.1 dev br0 onlink 2>/dev/null || true
   sudo ip route add 192.168.100.0/24 via 192.168.100.1 dev ovsbr0-int onlink || true
 fi
+
+# sudo ip link set ovsbr0-int mtu 9000
+# sudo ip link set ovsbr0 mtu 9000
+# echo "✅ OVS interfaces mtu set to 9000"
 
 sudo ovs-vsctl show
 echo "✅ OVS-DPDK ready."
