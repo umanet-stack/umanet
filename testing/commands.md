@@ -31,7 +31,7 @@ python testing/process_logs/main.py tap vm-client
 ```bash
 # run TAP once before DPDK to make it download iperf
 # no. of vhost must match no. of VMs!
-sudo ./build_and_run.sh test 32
+sudo ./run.sh 32
 
 # do local networking via dpdk
 ./setup/vm/spawn_vms.sh dpdk 32 vm-vm-internal
@@ -42,8 +42,8 @@ ethtool -k ens6
 ```
 ## multinode
 ```bash
-# both nodes
-sudo ./build_and_run.sh test 32
+# both nodes (make sure to build as test mode first)
+sudo ./run.sh 32
 # node 1
 ./setup/vm/spawn_vms.sh dpdk 32 vm-server
 # node 0
