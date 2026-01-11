@@ -70,7 +70,7 @@ sudo bash -c "ps aux | grep umanet | grep -v grep | awk '{print \$2}' | xargs ki
 
 Note that OVS DPDK requires DPDK version 24.11.3 so probably incompatible with other test.
 
-```
+```bash
 command -v cloud-hypervisor || (curl -L https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v50.0/cloud-hypervisor-static -o ch && sudo install ch -m 0755 /usr/bin/cloud-hypervisor)
 [ -f /tmp/noble-server-cloudimg-amd64.raw -a -f /tmp/vmlinux.bin ] || ./setup/img/download_img.sh
 sudo sysctl -w vm.nr_hugepages=24576
@@ -85,6 +85,9 @@ python testing/process_logs/main.py ovs-dpdk samenode
 
 sudo ./setup/vm/spawn_vms.sh ovs-dpdk 32 /tmp multinode
 python testing/process_logs/main.py ovs-dpdk multinode
+
+# exit ovs
+sudo systemctl stop openvswitch
 ```
 
 ## manual
