@@ -22,10 +22,10 @@ sleep 2
 
 echo "[2/6] Enable DPDK in OVS"
 sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-init=true
-# cores 0-3 for DPDK main threads
-sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-lcore-mask=0x0f
-# cores 4-7 for PMD polling threads
-sudo ovs-vsctl set Open_vSwitch . other_config:pmd-cpu-mask=0xf0
+# cores 0 for slow path
+sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-lcore-mask=0x01
+# cores 1-7 for fast path
+sudo ovs-vsctl set Open_vSwitch . other_config:pmd-cpu-mask=0xfe
 sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-socket-mem=4096
 echo "✅ OvS-DPDK configured"
 
