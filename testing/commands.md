@@ -59,6 +59,11 @@ python testing/process_logs/main.py dpdk vm-client
 # kill all vms to end/reset experiment
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
 sudo bash -c "ps aux | grep umanet | grep -v grep | awk '{print \$2}' | xargs kill -9"
+
+# overall report
+./testing/plot_reports/main.py iperf
+./testing/plot_reports/main.py iperf-udp
+./testing/plot_reports/main.py sockperf
 ```
 
 # OVS DPDK
