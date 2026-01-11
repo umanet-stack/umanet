@@ -58,6 +58,6 @@ sudo ovs-vsctl add-port ovsbr0 ovsbr0-int \
 
 sudo ip link set ovsbr0-int up
 sudo ip addr flush dev ovsbr0-int
-sudo ip addr add 10.10.1.2/24 dev ovsbr0-int
+sudo ip addr add 192.168.10${NODE_ID}.1/24 dev ovsbr0-int
 
 echo "OVS-DPDK ready."
