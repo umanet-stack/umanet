@@ -72,7 +72,7 @@ command -v cloud-hypervisor || (curl -L https://github.com/cloud-hypervisor/clou
 [ -f /tmp/noble-server-cloudimg-amd64.raw -a -f /tmp/vmlinux.bin ] || ./setup/img/download_img.sh
 sudo sysctl -w vm.nr_hugepages=24576
 sudo ./setup/ovs/install.sh
-sudo ./setup/ovs/setup.sh 32
+sudo ./setup/ovs/setup_service.sh
 # sudo ./setup/img/build_ovs_image.sh /tmp/noble-server-cloudimg-amd64.raw
 # sudo ./setup/img/build_initramfs.sh
 # sudo ./setup/img/build_rw_disk.sh 32 512
@@ -80,7 +80,7 @@ sudo ./setup/ovs/setup.sh 32
 ## multinode
 ```bash
 ./setup/cpu/slice_cpu.sh dpdk
-sudo ./setup/ovs/setup.sh 32
+sudo ./setup/ovs/setup_interfaces.sh 32
 # node 1
 ./setup/vm/spawn_vms.sh ovs-dpdk 32 vm-server
 # node 0

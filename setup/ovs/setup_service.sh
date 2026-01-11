@@ -40,7 +40,6 @@ ExecStart=/usr/local/sbin/ovsdb-server \
 
 ExecStartPost=/usr/local/sbin/ovs-vswitchd \
   unix:/usr/local/var/run/openvswitch/db.sock \
-  --dpdk \
   --mlockall \
   --no-chdir \
   --log-file=/usr/local/var/log/openvswitch/ovs-vswitchd.log \
