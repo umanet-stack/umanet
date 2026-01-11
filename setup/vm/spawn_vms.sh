@@ -17,7 +17,7 @@ TEST_MODE=$3
 
 VALID_NETWORKS=("tap" "dpdk-tap" "dpdk" "ovs_dpdk")
 VALID_TEST_MODES=("vm-vm-internal" "vm-client" "vm-server")
-VALID_TESTS=("iperf" "sockperf")
+VALID_TESTS=("iperf" "sockperf" "iperf-udp")
 
 in_array() {
     local value="$1"; shift
@@ -120,6 +120,8 @@ elif [ "$TEST_MODE" = "vm-client" ]; then
     for ((i=0; i<NUM_VMS; i++)); do
         if [ "$TEST" = "iperf" ]; then
             spawn_vm "$i" "iperf-client" "iperf3 -c 192.168.101.$((i+2)) $IPERF_CLIENT_OPTIONS -J"
+        elif [ "$TEST" = "iperf-udp" ]; then
+            spawn_vm "$i" "iperf-client-udp" "iperf3 -c 192.168.101.$((i+2)) $IPERF_CLIENT_OPTIONS"
         elif [ "$TEST" = "sockperf" ]; then
             spawn_vm "$i" "sockperf-client" "sockperf ping-pong -i 192.168.101.$((i+2)) $SOCKPERF_CLIENT_OPTIONS"
         fi
@@ -132,7 +134,7 @@ elif [ "$TEST_MODE" = "vm-client" ]; then
 elif [ "$TEST_MODE" = "vm-server" ]; then
     echo "Spawning SERVER VMs... (node 1 only)"
     for ((i=0; i<NUM_VMS; i++)); do
-        if [ "$TEST" = "iperf" ]; then
+        if [ "$TEST" = "iperf" ] || [ "$TEST" = "iperf-udp" ]; then
             spawn_vm "$i" "iperf-server" "iperf3 -s"
         elif [ "$TEST" = "sockperf" ]; then
             spawn_vm "$i" "sockperf-server" "sockperf server -i 192.168.101.$((i+2))"

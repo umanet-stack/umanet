@@ -21,7 +21,7 @@ The switch worker loop continuously:
 - for vm setup, see `setup/setup_vm.md`
 ```bash
 # make sure to run this, even if it's TAP, ovs-dpdk (there's CPU settings + Intel NIC config)
-./setup/cpu/slice_cpu.sh
+./setup/cpu/slice_cpu.sh tap
 ./setup/init-dpdk.sh
 
 # reserve hugepages
