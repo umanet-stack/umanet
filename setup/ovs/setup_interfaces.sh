@@ -64,4 +64,13 @@ sudo ip addr add 192.168.10${NODE_ID}.1/24 dev ovsbr0-int
 # Remove any conflicting routes from br0 (TAP bridge) that might interfere
 sudo ip route del 192.168.10${NODE_ID}.0/24 dev br0 2>/dev/null || true
 
+# Remove route to other node via br0 and add it via ovsbr0-int instead
+if [ "$NODE_ID" = "0" ]; then
+  sudo ip route del 192.168.101.0/24 via 192.168.101.1 dev br0 onlink 2>/dev/null || true
+  sudo ip route add 192.168.101.0/24 via 192.168.101.1 dev ovsbr0-int onlink || true
+elif [ "$NODE_ID" = "1" ]; then
+  sudo ip route del 192.168.100.0/24 via 192.168.100.1 dev br0 onlink 2>/dev/null || true
+  sudo ip route add 192.168.100.0/24 via 192.168.100.1 dev ovsbr0-int onlink || true
+fi
+
 echo "OVS-DPDK ready."
