@@ -128,13 +128,6 @@ int main(int argc, char *argv[]) {
     }
     LOG_IMPT("✅ Initialized network\n");
 
-    // if (init_mac_flow_table() != 0) {
-    //     res = EXIT_FAILURE;
-    //     LOG_ERROR("init_mac_flow_table failed\n");
-    //     goto error_network_cleanup;
-    // }
-    // LOG_IMPT("✅ Initialized mac flow table\n");
-
     // Start worker threads BEFORE vhost registration
     // This ensures TX queues are initialized before vhost can send packets
     if (start_threads() != 0) {

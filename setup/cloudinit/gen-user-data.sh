@@ -31,17 +31,17 @@ write_files:
       DNS=8.8.8.8 8.8.4.4
     permissions: '0644'
 
-  - path: /etc/systemd/system/iperf.service
+  - path: /etc/systemd/system/test.service
     permissions: '0644'
     content: |
       [Unit]
-      Description=iperf role
+      Description=test service
       After=network-online.target
       Wants=network-online.target
 
       [Service]
       Type=simple
-      ExecStart=/usr/local/bin/start-iperf.sh
+      ExecStart=/usr/local/bin/start-test.sh
       Restart=no
       StandardOutput=journal+console
       StandardError=journal+console
@@ -66,7 +66,7 @@ write_files:
       [Install]
       WantedBy=multi-user.target
 
-  - path: /usr/local/bin/start-iperf.sh
+  - path: /usr/local/bin/start-test.sh
     permissions: '0755'
     content: |
       #!/bin/bash
@@ -74,31 +74,25 @@ write_files:
       for param in \$(cat /proc/cmdline); do
           case \$param in
               ROLE=*) export ROLE="\${param#ROLE=}";;
-              IPERF_COMMAND_B64=*) export IPERF_COMMAND_B64="\${param#IPERF_COMMAND_B64=}";;
+              TEST_COMMAND_B64=*) export TEST_COMMAND_B64="\${param#TEST_COMMAND_B64=}";;
           esac
       done
       
       # Decode the base64-encoded command
-      if [ -n "\$IPERF_COMMAND_B64" ]; then
-          export IPERF_COMMAND=\$(echo -n "\$IPERF_COMMAND_B64" | base64 -d)
+      if [ -n "\$TEST_COMMAND_B64" ]; then
+          export TEST_COMMAND=\$(echo -n "\$TEST_COMMAND_B64" | base64 -d)
       fi
       
       log() {
           echo "[\$(date '+%Y-%m-%d %H:%M:%S')] vm: \$1"
       }
 
-      if [ "\$ROLE" = "server" ]; then
-          log "starting iperf server (\$IPERF_COMMAND)"
-          exec \$IPERF_COMMAND
-      else
-          log "starting iperf client (\$IPERF_COMMAND)"
-          
-          # Wait for server to be ready
-          sleep 5
+      if [ "\$ROLE" = "iperf-client" ]; then
+          log "starting iperf client: \$TEST_COMMAND"
           
           # Run iperf test normally (shows progress in logs) and capture JSON output
           log "running iperf3 test..."
-          IPERF_OUTPUT=\$(\$IPERF_COMMAND 2>&1)
+          IPERF_OUTPUT=\$(\$TEST_COMMAND 2>&1)
           IPERF_EXIT=\$?
           
           if [ \$IPERF_EXIT -ne 0 ]; then
@@ -125,6 +119,9 @@ write_files:
           fi
           
           log "finished iperf client"
+      else
+          log "starting test: \$TEST_COMMAND"
+          exec \$TEST_COMMAND
       fi
 
 # Fix sudoers issues
@@ -140,7 +137,7 @@ runcmd:
   - systemctl daemon-reload
   - systemctl enable ping
   - systemctl start ping
-  - systemctl enable iperf
-  - systemctl start iperf
+  - systemctl enable test
+  - systemctl start test
 
 EOF

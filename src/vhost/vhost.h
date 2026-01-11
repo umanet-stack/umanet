@@ -6,6 +6,7 @@
 #define VHOST_H_
 
 #include "log.h"
+#include "src/include/fastpath.h"
 #include <rte_errno.h>
 #include <rte_ether.h>
 #include <rte_vhost.h>
@@ -21,6 +22,13 @@ enum { VIRTIO_RXQ, VIRTIO_TXQ };
 
 extern const struct rte_vhost_device_ops virtio_net_device_ops;
 extern struct route_table route_table;
+
+struct vhost_feature {
+    uint64_t bit;
+    const char *name;
+};
+
+extern struct vhost_feature features[];
 
 // SP, mutated freely, not cached aligned
 struct vhost_ctrl {
@@ -66,7 +74,7 @@ struct vdev_tx_stats {
     uint32_t call_count;
     uint32_t pkt_count;
     uint32_t max_send_count;
-    uint32_t requeue_count;
+    uint32_t requeue_pkt_count;
     uint32_t ring_deq_max_count;
 };
 
@@ -88,34 +96,20 @@ int vhost_rx_plan_remove(int vid);
 int vhost_tx_plan_add(int vid);
 int vhost_tx_plan_remove(int vid);
 
-int init_route_table();
-int cleanup_route_table();
-int add_route_entry(int vid, struct rte_ether_addr *mac, uint32_t ip);
-int remove_route_entry(int vid, struct rte_ether_addr *mac, uint32_t ip);
-// use vid to get vdev by indexing the vdev_list global variable
-int find_vid_by_mac(struct rte_ether_addr *mac);
-int find_vid_by_ip(uint32_t ip);
+extern int ip_last_octet_to_vid[256];
+void init_route_table();
+int add_route_entry(int vid, uint32_t ip);
+int remove_route_entry(uint32_t ip);
 
-#define PERTHREAD_MBUFS 8192
-#define BUFFER_SIZE 2048
-#define MBUF_SIZE (BUFFER_SIZE + RTE_PKTMBUF_HEADROOM)
-
-static inline struct rte_mempool *vhost_mempool_alloc() {
-    static _Atomic unsigned pool_id;
-    unsigned n = atomic_fetch_add(&pool_id, 1);
-
-    char name[32];
-    snprintf(name, sizeof(name), "mempool_vhost_%u", n);
-
-    struct rte_mempool *mp =
-        rte_mempool_create(name, PERTHREAD_MBUFS, MBUF_SIZE, 32, sizeof(struct rte_pktmbuf_pool_private),
-                           rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, rte_socket_id(), 0);
-
-    if (mp == NULL) {
-        LOG_ERROR("Failed to create mempool %s: %s\n", name, rte_strerror(rte_errno));
-        return NULL;
-    }
-
-    return mp;
+static inline int find_vid_by_ip(uint32_t ip) {
+    // last octet (192.168.100.X -> X)
+    uint8_t last_octet = ip & 0xFF;
+    // -1 = not found
+    return ip_last_octet_to_vid[last_octet];
 }
+
+// int cleanup_route_table();
+// int remove_route_entry(int vid, struct rte_ether_addr *mac, uint32_t ip);
+// use vid to get vdev by indexing the vdev_list global variable
+// int find_vid_by_mac(struct rte_ether_addr *mac);
 #endif

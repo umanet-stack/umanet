@@ -41,23 +41,26 @@
 
 #include "../include/main.h"
 #include "network.h"
+#include "src/include/fastpath.h"
 #include "src/include/state.h"
 #include <utils.h>
 #include <utils_rng.h>
 
-#define RX_DESCRIPTORS 256
-#define TX_DESCRIPTORS 128
+// Increased for MTU 9000 - larger packets need more descriptors
+#define RX_DESCRIPTORS 2048 // 256 -> 2048 (8x increase)
+#define TX_DESCRIPTORS 2048 // 128 -> 2048 (16x increase)
 
 static struct rte_eth_conf port_conf = {
     .rxmode =
         {
             .mq_mode = RTE_ETH_MQ_RX_RSS,
-            .offloads = 0,
+            .offloads = RTE_ETH_RX_OFFLOAD_IPV4_CKSUM | RTE_ETH_RX_OFFLOAD_TCP_CKSUM | RTE_ETH_RX_OFFLOAD_RSS_HASH,
         },
     .txmode =
         {
             .mq_mode = RTE_ETH_MQ_TX_NONE,
-            .offloads = 0,
+            .offloads = RTE_ETH_TX_OFFLOAD_TCP_TSO | RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM |
+                        RTE_ETH_TX_OFFLOAD_MULTI_SEGS,
         },
     .rx_adv_conf =
         {
@@ -109,6 +112,19 @@ int network_init() {
     rte_eth_macaddr_get(global->eth_port_id, &global->eth_addr);
     rte_eth_dev_info_get(global->eth_port_id, &eth_devinfo);
 
+    uint64_t rx_offloads = 0;
+
+    // Check if NIC supports these features
+    if (eth_devinfo.rx_offload_capa & RTE_ETH_RX_OFFLOAD_IPV4_CKSUM)
+        rx_offloads |= RTE_ETH_RX_OFFLOAD_IPV4_CKSUM;
+    if (eth_devinfo.rx_offload_capa & RTE_ETH_RX_OFFLOAD_TCP_CKSUM)
+        rx_offloads |= RTE_ETH_RX_OFFLOAD_TCP_CKSUM;
+    port_conf.rxmode.offloads = rx_offloads;
+
+    // TSO
+    eth_devinfo.default_txconf.offloads = port_conf.txmode.offloads;
+    eth_devinfo.default_rxconf.offloads = port_conf.rxmode.offloads;
+
     if (eth_devinfo.max_rx_queues < config.eth_rx_cores || eth_devinfo.max_tx_queues < config.eth_tx_cores) {
         LOG_ERROR("Error: NIC does not support enough hw queues (rx=%u tx=%u)"
                   " for the requested number of cores (%u)\n",
@@ -140,16 +156,21 @@ int network_init() {
     //     port_conf.intr_conf.rxq = 0;
 
     /* initialize port */
-    ret = rte_eth_dev_configure(global->eth_port_id, config.eth_rx_cores, config.eth_tx_cores, &port_conf);
+    ret = rte_eth_dev_configure(global->eth_port_id, config.eth_rx_queues, config.eth_tx_queues, &port_conf);
     if (ret < 0) {
         LOG_ERROR("rte_eth_dev_configure failed\n");
         goto error_exit;
     }
 
-    eth_devinfo.default_rxconf.offloads = 0;
+    if (rte_eth_dev_set_mtu(global->eth_port_id, PKT_MTU) != 0) {
+        LOG_ERROR("rte_eth_dev_set_mtu failed\n");
+        goto error_exit;
+    }
+
+    // eth_devinfo.default_rxconf.offloads = 0;
 
     /* enable per-queue checksum offload if requested */
-    eth_devinfo.default_txconf.offloads = 0;
+    // eth_devinfo.default_txconf.offloads = 0;
     // if (config.fp_xsumoffload) {
     //     uint64_t requested_offloads = RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
     //     /* mask unsupported TX offloads (use same mask as port-level) */
@@ -187,21 +208,22 @@ static volatile uint32_t start_done = 0;
 
 int network_tx_queue_init(struct eth_tx_ctx *ctx) {
     int ret;
+    for (int i = ctx->eth_tx_queue_r; i < config.eth_tx_queues; i += config.eth_tx_cores) {
+        rte_spinlock_lock(&initlock);
+        ret = rte_eth_tx_queue_setup(global->eth_port_id, i, TX_DESCRIPTORS, rte_socket_id(),
+                                     &eth_devinfo.default_txconf);
+        rte_spinlock_unlock(&initlock);
+        if (ret != 0) {
+            LOG_ERROR("network_tx_queue_init: rte_eth_tx_queue_setup failed\n");
+            return -1;
+        }
 
-    rte_spinlock_lock(&initlock);
-    ret = rte_eth_tx_queue_setup(global->eth_port_id, ctx->eth_queue_id, TX_DESCRIPTORS, rte_socket_id(),
-                                 &eth_devinfo.default_txconf);
-    rte_spinlock_unlock(&initlock);
-    if (ret != 0) {
-        LOG_ERROR("network_tx_queue_init: rte_eth_tx_queue_setup failed\n");
-        return -1;
+        /* barrier to make sure tx queues are initialized first */
+        __sync_add_and_fetch(&tx_init_done, 1);
+
+        LOG_IMPT("[%d] NIC TX queue %d initialized\n", ctx->core_id, i);
     }
-
-    /* barrier to make sure tx queues are initialized first */
-    __sync_add_and_fetch(&tx_init_done, 1);
-
-    LOG_IMPT("[%d] NIC TX queue %d initialized\n", ctx->core_id, ctx->eth_queue_id);
-    return ret;
+    return 0;
 }
 
 int network_rx_queue_init(struct eth_rx_ctx *ctx) {
@@ -209,20 +231,22 @@ int network_rx_queue_init(struct eth_rx_ctx *ctx) {
         ;
 
     int ret;
-    rte_spinlock_lock(&initlock);
-    ret = rte_eth_rx_queue_setup(global->eth_port_id, ctx->eth_queue_id, RX_DESCRIPTORS, rte_socket_id(),
-                                 &eth_devinfo.default_rxconf, ctx->mempool);
-    rte_spinlock_unlock(&initlock);
-    if (ret != 0) {
-        LOG_ERROR("network_rx_queue_init: rte_eth_rx_queue_setup failed\n");
-        return -1;
+    for (int i = ctx->eth_rx_queue_r; i < config.eth_rx_queues; i += config.eth_rx_cores) {
+        rte_spinlock_lock(&initlock);
+        ret = rte_eth_rx_queue_setup(global->eth_port_id, i, RX_DESCRIPTORS, rte_socket_id(),
+                                     &eth_devinfo.default_rxconf, ctx->mempool);
+        rte_spinlock_unlock(&initlock);
+        if (ret != 0) {
+            LOG_ERROR("network_rx_queue_init: rte_eth_rx_queue_setup failed\n");
+            return -1;
+        }
+
+        /* barrier to make sure rx queues are initialized first */
+        __sync_add_and_fetch(&rx_init_done, 1);
+
+        LOG_IMPT("[%d] NIC RX queue %d initialized\n", ctx->core_id, i);
     }
-
-    /* barrier to make sure rx queues are initialized first */
-    __sync_add_and_fetch(&rx_init_done, 1);
-
-    LOG_IMPT("[%d] NIC RX queue %d initialized\n", ctx->core_id, ctx->eth_queue_id);
-    return ret;
+    return 0;
 }
 
 int network_start_eth() {

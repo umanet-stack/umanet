@@ -38,9 +38,9 @@ echo "✅ $NIC: removed IP and added to br0"
 # When a physical interface is added to a bridge, the interface becomes a bridge port (no IP).
 # The bridge (br0) gets the IP address. Routes should reference the bridge, not the physical interface
 if [ "$NODE_ID" = "0" ]; then
-  sudo ip route add 192.168.101.0/24 via 192.168.101.1 dev br0 onlink
+  sudo ip route add 192.168.101.0/24 via 192.168.101.1 dev br0 onlink || true
 elif [ "$NODE_ID" = "1" ]; then
-  sudo ip route add 192.168.100.0/24 via 192.168.100.1 dev br0 onlink
+  sudo ip route add 192.168.100.0/24 via 192.168.100.1 dev br0 onlink || true
 fi
 echo "✅ route added to other node"
 
@@ -49,5 +49,8 @@ for ((i=0; i<NUM_VMS; i++)); do
   sudo ip tuntap add dev tap$i mode tap user $USER || true
   sudo ip link set tap$i master br0 || true
   sudo ip link set tap$i up || true
+  # disable TSO, GSO, GRO, scatter gather offloads
+  # sudo ethtool -K tap$i tso off gso off gro off sg off || true
+  # sudo ethtool -K tap$i gro off || true
 done
 echo "✅ taps created"

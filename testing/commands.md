@@ -3,55 +3,67 @@
 sudo apt update && sudo apt install -y python3-matplotlib python3-numpy 2>&1 | tail -15
 ```
 
+The tests (iperf, sockperf) are configured in `.env` file.
 # tap
 ## vm-vm-internal
 For `vm-vm-internal`, if you run 8 vms = 4 servers + 4 clients = `report-4vm`
 ```bash
+./setup/cpu/slice_cpu.sh tap
 # need to rerun br/tap setup after dpdk test
 ./setup/vm/setup_br_tap.sh 32
 ./setup/vm/spawn_vms.sh tap 32 vm-vm-internal
-python testing/process_results.py tap vm-vm-internal
+python testing/process_logs/main.py tap vm-vm-internal
+
 ```
 ## multinode
 ```bash
-# node 1
+# both nodes
+./setup/cpu/slice_cpu.sh tap
 ./setup/vm/setup_br_tap.sh 32
+# node 1
 ./setup/vm/spawn_vms.sh tap 32 vm-server
 # node 0
-./setup/vm/setup_br_tap.sh 32
 ./setup/vm/spawn_vms.sh tap 32 vm-client
-python testing/process_results.py tap vm-client
+python testing/process_logs/main.py tap vm-client
 ```
 
 # dpdk
+- vm user-data has ping service that will ping 3 times to make dpdk app learn IP of vm
 ## vm-vm-internal
 ```bash
+./setup/cpu/slice_cpu.sh dpdk
 # run TAP once before DPDK to make it download iperf
 # no. of vhost must match no. of VMs!
-sudo ./build_and_run.sh test 32
+sudo ./run.sh 32
 
 # do local networking via dpdk
 ./setup/vm/spawn_vms.sh dpdk 32 vm-vm-internal
 # do local networking via tap
 ./setup/vm/spawn_vms.sh dpdk-tap 32 vm-vm-internal
-python testing/process_results.py dpdk vm-vm-internal
+python testing/process_logs/main.py dpdk vm-vm-internal
+ethtool -k ens6
 ```
 ## multinode
-- vm user-data has ping service that will ping 3 times to make dpdk app learn IP of vm
 ```bash
+# both nodes (make sure to build as test mode first)
+./setup/cpu/slice_cpu.sh dpdk
+sudo ./run.sh 32
 # node 1
-sudo ./build_and_run.sh test 32
 ./setup/vm/spawn_vms.sh dpdk 32 vm-server
 # node 0
-sudo ./build_and_run.sh test 32
 ./setup/vm/spawn_vms.sh dpdk 32 vm-client
-python testing/process_results.py dpdk vm-client
+python testing/process_logs/main.py dpdk vm-client
 ```
 
 ```bash
 # kill all vms to end/reset experiment
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
-sudo bash -c "ps aux | grep vhost-switch | grep -v grep | awk '{print \$2}' | xargs kill -9"
+sudo bash -c "ps aux | grep umanet | grep -v grep | awk '{print \$2}' | xargs kill -9"
+
+# overall report
+./testing/plot_reports/main.py iperf
+./testing/plot_reports/main.py iperf-udp
+./testing/plot_reports/main.py sockperf
 ```
 
 # OVS DPDK
@@ -69,14 +81,23 @@ sudo ./setup/img/build_initramfs.sh
 sudo ./setup/img/build_rw_disk.sh 32 512
 
 sudo ./setup/vm/spawn_vms.sh ovs_dpdk 32 /tmp samenode
-python testing/process_results.py ovs_dpdk samenode
+python testing/process_logs/main.py ovs_dpdk samenode
 
 sudo ./setup/vm/spawn_vms.sh ovs_dpdk 32 /tmp multinode
-python testing/process_results.py ovs_dpdk multinode
+python testing/process_logs/main.py ovs_dpdk multinode
 ```
 
 ## manual
 ```bash
+# jumbo
+ethtool -k tap0
+sudo ip link set dev enp23s0f0np0 mtu 9000
+sudo ip link set dev ens6 mtu 9000
+sudo ip link set dev ens6 mtu 1500
+# work even with mtu 1500
+ping -M do -s 8972 192.168.100.3
+iperf3 -c 192.168.100.2 -M 8972
+
 # testing
 iperf -s
 iperf -c 192.168.100.2
@@ -89,6 +110,11 @@ iperf3 -c 192.168.100.99 -P 4 -t 10
 iperf3 -c 192.168.100.2 -P 4 -t 10 -J \
 | jq --arg vm "vm7" '. + {vm: $vm}' \
 | nc -N 192.168.100.1 9000
+
+# server
+sockperf server -i 192.168.100.2
+# client
+sockperf ping-pong -i 192.168.100.2 -m 64 -t 10
 
 # vCPU usage
 # Poll cores → ~100% usr
@@ -137,6 +163,8 @@ sudo sysctl -w kernel.perf_event_paranoid=0
 perf top
 # hot functions per thread
 perf top -H
+
+htop
 
 # no. of TX/RX queues in NIC e.g. combined 32 = 32TX + 32RX
 # canonical: 1 core uses 1TX + 1RX

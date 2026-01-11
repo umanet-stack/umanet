@@ -1,3 +1,4 @@
+#include "src/fast/ecn.h"
 #include "src/include/fastpath.h"
 #include "src/include/main.h"
 #include "src/include/state.h"
@@ -56,23 +57,12 @@ static inline int flow_pick_tx(uint32_t src_ip, uint32_t dst_ip, uint16_t src_po
     tuple[3] = rte_cpu_to_be_32(proto);
 
     uint32_t h = rte_softrss_be(tuple, 4, default_rss_key);
-    return h % config.eth_tx_cores;
-    // uint32_t idx = h & (FLOW_TABLE_SIZE - 1);
-
-    // struct flow_entry *entry = &ctx->flow_table[idx];
-
-    // if (likely(entry->key.src_ip == key->src_ip && entry->key.dst_ip == key->dst_ip)) {
-    //     entry->last_seen_tsc = now;
-    //     return entry->eth_tx_core;
-    // }
-
-    // // miss -> slow path
-    // return -1;
+    return h % config.eth_tx_queues;
 }
 
 void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
     LOG_IMPT("[%u] Entering vhost_rx loop...\n", ctx->core_id);
-    // ctx->iteration_counter = 0;
+    ctx->iteration_counter = 0;
 
     struct rte_mbuf *pkts[MAX_PKT_BURST];
     struct rte_mbuf *vm_pkts[MAX_VHOSTS][MAX_PKT_BURST];
@@ -82,9 +72,9 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
     }
     uint16_t dst_vids[MAX_VHOSTS]; // indexed by dst_cnt, no need to init
 
-    struct rte_mbuf *eth_pkts[MAX_ETH_TX_CORES][MAX_PKT_BURST];
-    uint16_t eth_cnt[MAX_ETH_TX_CORES];
-    for (int i = 0; i < MAX_ETH_TX_CORES; i++) {
+    struct rte_mbuf *eth_pkts[MAX_ETH_TX_QUEUES][MAX_PKT_BURST];
+    uint16_t eth_cnt[MAX_ETH_TX_QUEUES];
+    for (int i = 0; i < MAX_ETH_TX_QUEUES; i++) {
         eth_cnt[i] = 0;
     }
 
@@ -96,12 +86,11 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
 #ifdef DEBUG
         sleep(1);
 #endif
-        // ctx->iteration_counter++;
+        ctx->iteration_counter++;
 
         struct vhost_plan *plan = atomic_load_explicit(&vhost_rx_plans[ctx->vhost_rx_core_id], memory_order_relaxed);
         struct vdev_list *vdev_list_ptr = atomic_load_explicit(&vdev_list, memory_order_relaxed);
         if (vdev_list_ptr == NULL) {
-            LOG_ERROR("[%d] vdev_list is NULL\n", ctx->core_id);
             continue;
         }
 
@@ -121,22 +110,34 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
 
             struct vhost_dev *vdev = vdev_list_ptr->vdevs[vid];
 
-            // Adaptive polling: Skip iperf servers (even vm_id) some of the time
-            // Servers send ACKs/control packets (important for TCP flow control!), clients send bulk data
-            // Poll servers every OTHER iteration to balance efficiency with TCP ACK latency
-            // Skipping too aggressively (e.g., 7/8) delays ACKs and throttles clients
-            // if (vdev->vm_id >= 0 && (vdev->vm_id % 2 == 0)) {
-            //     // This is an iperf server (even vm_id: 0,2,4,6,...)
-            //     // Skip every other poll (only poll on even iterations)
-            //     if ((ctx->iteration_counter & 0x3) != 0) {
-            //         continue; // Skip this poll
-            //     }
-            // }
-            // // Clients (odd vm_id: 1,3,5,7,...) are polled every iteration
+            // Adaptive polling: skip idle vms some of the time
+            switch (ctx->vhost_ap[vid].state) {
+            case RX_HOT:
+                break; // poll always
+            case RX_WARM:
+                if (ctx->iteration_counter & 3) // skip 3/4
+                    continue;
+                break;
+            case RX_COOL:
+                if (ctx->iteration_counter & 7) // skip 7/8
+                    continue;
+                break;
+            case RX_COLD:
+                if (ctx->iteration_counter & 15) // skip 15/16
+                    continue;
+                break;
+            case RX_FROZEN:
+                if (rte_rdtsc() < ctx->vhost_ap[vid].blocked_until_tsc)
+                    continue;
+                ctx->vhost_ap[vid].idle_score = 8;
+                ctx->vhost_ap[vid].state = RX_COOL; // thaw gradually
+            }
 
             poll_num = vhost_poll(ctx, MAX_PKT_BURST, vid, pkts);
-            if (poll_num == 0)
+            update_rx_state(&ctx->vhost_ap[vid], poll_num, ctx->poll_states);
+            if (poll_num == 0) {
                 continue;
+            }
 
             // Prefetch first packets
             // prefetching a small window (like 2–8, commonly 4) gives the CPU time to bring cache lines in before you
@@ -166,6 +167,11 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                     rte_prefetch0(pkts[j + 1]);                           // prefetch next mbuf struct
                     rte_prefetch0(rte_pktmbuf_mtod(pkts[j + 1], void *)); // prefetch packet data
                 }
+
+                // if (unlikely(pkts[j]->pkt_len > 2000))
+                //     LOG_IMPT("[%d](%d) GSO pkt: len=%u\n", ctx->core_id, vid, pkts[j]->pkt_len);
+                // LOG_IMPT("[%d](%d) ol_flags=0x%lx tso=%u\n", ctx->core_id, vid, pkts[j]->ol_flags,
+                // pkts[j]->tso_segsz);
 
                 STATS_ADD(ctx->vdev_stats[vid], byte_wnd[ctx->vdev_stats[vid]->wnd_idx], rte_pktmbuf_pkt_len(pkts[j]));
                 struct rte_mbuf *m = pkts[j];
@@ -230,10 +236,16 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
                 }
             }
 
-            for (int j = 0; j < config.eth_tx_cores; j++) {
+            for (int j = 0; j < config.eth_tx_queues; j++) {
                 if (eth_cnt[j] == 0)
                     continue;
-                int enq_num = rte_ring_enqueue_burst(global->eth_tx_rings[j], (void **)eth_pkts[j], eth_cnt[j], NULL);
+
+                int congestion = RING_SIZE - rte_ring_free_count(global->eth_tx_queue_rings[j]);
+                ecn_mark_packets(eth_pkts[j], eth_cnt[j], congestion, &ctx->ecn_rr_eth[j]);
+
+                // if ring is full, enqueue < n (possibly 0) = if vhost tx slow, vhost rx will be made slow
+                int enq_num =
+                    rte_ring_enqueue_burst(global->eth_tx_queue_rings[j], (void **)eth_pkts[j], eth_cnt[j], NULL);
                 // LOG_INFO("[%d](%d) enqueued %d packets to eth_tx_ring[%d]\n", ctx->core_id, vid, enq_num,
                 //          ctx->vhost_rx_core_id);
                 if (enq_num < eth_cnt[j]) {
@@ -249,6 +261,10 @@ void vhost_rx_loop(struct vhost_rx_ctx *ctx) {
             for (int j = 0; j < dst_cnt; j++) {
                 if (vm_cnt[dst_vids[j]] == 0)
                     break;
+
+                int congestion = RING_SIZE - rte_ring_free_count(global->vhost_tx_rings[dst_vids[j]]);
+                ecn_mark_packets(vm_pkts[dst_vids[j]], vm_cnt[dst_vids[j]], congestion,
+                                 &ctx->ecn_rr_vhost[dst_vids[j]]);
 
                 int enq_num = rte_ring_enqueue_burst(global->vhost_tx_rings[dst_vids[j]], (void **)vm_pkts[dst_vids[j]],
                                                      vm_cnt[dst_vids[j]], NULL);
@@ -289,6 +305,14 @@ static inline unsigned vhost_poll(struct vhost_rx_ctx *ctx, unsigned num, unsign
     if (ret == MAX_PKT_BURST) {
         STATS_ADD(ctx->vdev_stats[vid], max_poll_count, 1);
     }
+
+    // static int count = 0;
+    // if (count < 500) {
+    //     for (int i = 0; i < ret; i++) {
+    //         LOG_IMPT("VHOST RX: pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+    //     }
+    //     count++;
+    // }
 
     LOG_VM_IN("[%d](%d) Received %d packets from VM\n", ctx->core_id, vid, ret);
     PRINT_PKTS(pkts, ret, LOG_VM_IN);

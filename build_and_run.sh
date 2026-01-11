@@ -115,7 +115,7 @@ echo "✅ Running DPDK on cores $FIRST_CORE-$LAST_CORE, num_vms: $NUM_VMS"
 
 DPDK_DEV_ARG="-a $NIC_PCI"
 
-sudo ./build/vhost-switch \
+sudo ./build/umanet \
   -l $FIRST_CORE-$LAST_CORE -n 4 \
   --file-prefix=vhost \
   $DPDK_DEV_ARG \
@@ -125,5 +125,7 @@ sudo ./build/vhost-switch \
   --no-hpet \
   --no-telemetry \
   -- --ip-addr 192.168.10${NODE_ID}.1/24 --socket-dir /mnt/huge --nb-sockets $NUM_VMS --other-node-mac $OTHER_NODE_MAC \
-  --eth-rx-cores $ETH_RX_CORES --eth-tx-cores $ETH_TX_CORES --vhost-rx-cores $VHOST_RX_CORES --vhost-tx-cores $VHOST_TX_CORES \
+  --eth-rx-cores $ETH_RX_CORES --eth-tx-cores $ETH_TX_CORES \
+  --eth-rx-queues $ETH_RX_QUEUES --eth-tx-queues $ETH_TX_QUEUES \
+  --vhost-rx-cores $VHOST_RX_CORES --vhost-tx-cores $VHOST_TX_CORES \
   > switch.log 2>&1
