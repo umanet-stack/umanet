@@ -94,6 +94,7 @@ sudo systemctl stop ovs-dpdk
 sudo ovs-vsctl show
 
 sudo ovs-appctl dpif-netdev/pmd-rxq-show
+sudo ovs-vsctl list Interface vhost-user0
 
 # ovs-dpdk uses 1500 MTU, so need to set it, else 0 throughput
 sudo ip link set eth0 mtu 1500 && iperf3 -s
