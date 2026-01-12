@@ -78,78 +78,20 @@ sudo ovs-vsctl add-port ovsbr0 $NIC \
   -- set Interface $NIC type=dpdk options:dpdk-devargs=$NIC_PCI options:n_rxq=4 options:n_rxq_desc=4096 options:n_txq_desc=4096 
   # options:mtu_request=9000
 
-# ROUTER_MAC=aa:bb:cc:dd:ee:ff
-# # ARP responder for gateway
-# # This makes OVS pretend to be the gateway 192.168.10x.1
-# if [ "$NODE_ID" = "0" ]; then 
-#   ovs-ofctl add-flow ovsbr0 \
-#   "priority=200,arp,arp_op=1,arp_tpa=192.168.100.1,actions=\
-#   move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[],\
-#   set_field:$ROUTER_MAC->eth_src,\
-#   load:0x2->NXM_OF_ARP_OP[],\
-#   move:NXM_NX_ARP_SHA[]->NXM_NX_ARP_THA[],\
-#   move:NXM_OF_ARP_SPA[]->NXM_OF_ARP_TPA[],\
-#   set_field:$ROUTER_MAC->arp_sha,\
-#   set_field:192.168.100.1->arp_spa,\
-#   IN_PORT"
-
-#   # VM to NIC
-#   ovs-ofctl add-flow ovsbr0 \
-#   "priority=100,ip,nw_dst=192.168.101.0/24,actions=dec_ttl,output:$NIC"
-#   # NIC to VM
-#   ovs-ofctl add-flow ovsbr0 \
-#   "priority=100,in_port=$NIC,ip,nw_dst=192.168.100.0/24,actions=NORMAL"
-# elif [ "$NODE_ID" = "1" ]; then
-#   ovs-ofctl add-flow ovsbr0 \
-#   "priority=200,arp,arp_op=1,arp_tpa=192.168.101.1,actions=\
-#   move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[],\
-#   set_field:$ROUTER_MAC->eth_src,\
-#   load:0x2->NXM_OF_ARP_OP[],\
-#   move:NXM_NX_ARP_SHA[]->NXM_NX_ARP_THA[],\
-#   move:NXM_OF_ARP_SPA[]->NXM_OF_ARP_TPA[],\
-#   set_field:$ROUTER_MAC->arp_sha,\
-#   set_field:192.168.101.1->arp_spa,\
-#   IN_PORT"
-
-#   # VM to NIC
-#   ovs-ofctl add-flow ovsbr0 \
-#   "priority=100,ip,nw_dst=192.168.100.0/24,actions=dec_ttl,output:$NIC"
-#   # NIC to VM
-#   ovs-ofctl add-flow ovsbr0 \
-#   "priority=100,in_port=$NIC,ip,nw_dst=192.168.101.0/24,actions=NORMAL"
-# fi
-# ------------------------------------------------------------
-
 echo "[5/6] Create vhost-user ports"
-# VMs use num_queues=2 (2 queue pairs = 2 RX + 2 TX queues)
-# Configure OVS to match for better performance
 for i in $(seq 0 $((NUM_VMS - 1))); do
   sudo ovs-vsctl add-port ovsbr0 vhost-user$i -- \
-    set Interface vhost-user$i type=dpdkvhostuser
-    # options:n_rxq=1 options:n_txq=1 
-    # options:mtu_request=9000
+    set Interface vhost-user$i type=dpdkvhostuser \
+    options:n_rxq=1 options:n_txq=1 
     # other_config:tx-tcp-segmentation=true \
     # other_config:tx-ipv4-checksum=true \
     # other_config:tx-ipv6-checksum=true \
-  sudo ovs-vsctl set Interface vhost-user$i options:n_rxq=8 options:n_txq=8
   sudo ovs-vsctl set Interface vhost-user$i other_config:tx-tcp-segmentation=true
   sudo ovs-vsctl set Interface vhost-user$i other_config:tx-ipv4-checksum=true
   sudo ovs-vsctl set Interface vhost-user$i other_config:tx-ipv6-checksum=true
-  # ovs-ofctl add-flow ovsbr0 "ip,nw_dst=192.168.10${NODE_ID}.0/24,actions=dec_ttl,output:vhost-user$i"
   # important to set for MTU
   # sudo ovs-vsctl set Interface vhost-user$i mtu_request=9000
 done
-
-# ------------------------------------------------------------
-
-# echo "[6/6] Internal management interface"
-# sudo ovs-vsctl add-port ovsbr0 ovsbr0-int \
-#   -- set Interface ovsbr0-int type=internal options:n_rxq=4 options:n_txq=4 
-#   options:mtu_request=9000
-
-# sudo ip link set ovsbr0-int up
-# sudo ip addr flush dev ovsbr0-int
-# sudo ip addr add 192.168.10${NODE_ID}.1/24 dev ovsbr0-int
 
 # Remove any conflicting routes from br0 (TAP bridge) that might interfere
 sudo ip route del 192.168.10${NODE_ID}.0/24 dev br0 2>/dev/null || true
@@ -157,15 +99,9 @@ sudo ip route del 192.168.10${NODE_ID}.0/24 dev br0 2>/dev/null || true
 # Remove route to other node via br0 and add it via ovsbr0-int instead
 if [ "$NODE_ID" = "0" ]; then
   sudo ip route del 192.168.101.0/24 via 192.168.101.1 dev br0 onlink 2>/dev/null || true
-  # sudo ip route add 192.168.101.0/24 via 192.168.101.1 dev ovsbr0-int onlink || true
 elif [ "$NODE_ID" = "1" ]; then
   sudo ip route del 192.168.100.0/24 via 192.168.100.1 dev br0 onlink 2>/dev/null || true
-  # sudo ip route add 192.168.100.0/24 via 192.168.100.1 dev ovsbr0-int onlink || true
 fi
-
-# sudo ip link set ovsbr0-int mtu 9000
-# sudo ip link set ovsbr0 mtu 9000
-# echo "✅ OVS interfaces mtu set to 9000"
 
 sudo ovs-vsctl show
 echo "✅ OVS-DPDK ready."
