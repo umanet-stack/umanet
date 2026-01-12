@@ -29,11 +29,8 @@ sudo ovs-vsctl set Open_vSwitch . other_config:pmd-cpu-mask=0xfe
 sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-socket-mem=4096
 echo "✅ OvS-DPDK configured"
 
-sudo service ovs-dpdk restart
-sudo ovs-vsctl get Open_vSwitch . other_config
-echo "✅ OVS restarted"
-# Enable userspace TSO for better performance
-# sudo ovs-vsctl set Open_vSwitch . other_config:userspace-tso-enable=true
+# disable TSO
+sudo ovs-vsctl set Open_vSwitch . other_config:userspace-tso-enable=False
 
 # Enable EMC (Exact Match Cache) for fast path packet processing
 sudo ovs-vsctl set Open_vSwitch . other_config:emc-enable=true
@@ -41,8 +38,12 @@ sudo ovs-vsctl set Open_vSwitch . other_config:emc-enable=true
 sudo ovs-vsctl set Open_vSwitch . other_config:max-idle=300000
 # Enable PMD auto-load balancing for better distribution
 sudo ovs-vsctl set Open_vSwitch . other_config:pmd-auto-lb=true
+
 # Note: vhost-sock-dir doesn't work correctly (treats /tmp/ as relative path)
 # With dpdkvhostuser, sockets are created in /usr/local/var/run/openvswitch/
+sudo service ovs-dpdk restart
+sudo ovs-vsctl get Open_vSwitch . other_config
+echo "✅ OVS restarted"
 
 ovs-vsctl get Open_vSwitch . dpdk_initialized
 
