@@ -81,6 +81,7 @@ sudo ./setup/ovs/setup_service.sh
 ```bash
 # both nodes
 ./setup/cpu/slice_cpu.sh dpdk
+# no. must match no. of vms (ovs is not smart enough to not poll from unattached vdevs)
 sudo ./setup/ovs/setup_interfaces.sh 32
 # node 1
 ./setup/vm/spawn_vms.sh ovs-dpdk 32 vm-server
