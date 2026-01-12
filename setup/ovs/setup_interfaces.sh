@@ -72,8 +72,8 @@ sudo ovs-ofctl add-flow ovsbr0 "priority=0,actions=NORMAL"
 
 # NIC port
 sudo ovs-vsctl add-port ovsbr0 $NIC \
-  -- set Interface $NIC type=dpdk options:dpdk-devargs=$NIC_PCI options:n_rxq=4 options:n_rxq_desc=4096 options:n_txq_desc=4096 \
-  options:mtu_request=9000
+  -- set Interface $NIC type=dpdk options:dpdk-devargs=$NIC_PCI options:n_rxq=4 options:n_rxq_desc=4096 options:n_txq_desc=4096 
+  # options:mtu_request=9000
 
 # ------------------------------------------------------------
 
@@ -83,21 +83,21 @@ echo "[5/6] Create vhost-user ports"
 for i in $(seq 0 $((NUM_VMS - 1))); do
   sudo ovs-vsctl add-port ovsbr0 vhost-user$i -- \
     set Interface vhost-user$i type=dpdkvhostuser \
-    options:n_rxq=1 options:n_txq=1 \
-    options:mtu_request=9000
+    options:n_rxq=1 options:n_txq=1 
+    # options:mtu_request=9000
     # other_config:tx-tcp-segmentation=true \
     # other_config:tx-ipv4-checksum=true \
     # other_config:tx-ipv6-checksum=true \
   # important to set for MTU
-  sudo ovs-vsctl set Interface vhost-user$i mtu_request=9000
+  # sudo ovs-vsctl set Interface vhost-user$i mtu_request=9000
 done
 
 # ------------------------------------------------------------
 
 echo "[6/6] Internal management interface"
 sudo ovs-vsctl add-port ovsbr0 ovsbr0-int \
-  -- set Interface ovsbr0-int type=internal options:n_rxq=4 options:n_txq=4 \
-  options:mtu_request=9000
+  -- set Interface ovsbr0-int type=internal options:n_rxq=4 options:n_txq=4 
+  # options:mtu_request=9000
 
 sudo ip link set ovsbr0-int up
 sudo ip addr flush dev ovsbr0-int
@@ -115,9 +115,9 @@ elif [ "$NODE_ID" = "1" ]; then
   sudo ip route add 192.168.100.0/24 via 192.168.100.1 dev ovsbr0-int onlink || true
 fi
 
-sudo ip link set ovsbr0-int mtu 9000
-sudo ip link set ovsbr0 mtu 9000
-echo "✅ OVS interfaces mtu set to 9000"
+# sudo ip link set ovsbr0-int mtu 9000
+# sudo ip link set ovsbr0 mtu 9000
+# echo "✅ OVS interfaces mtu set to 9000"
 
 sudo ovs-vsctl show
 echo "✅ OVS-DPDK ready."
