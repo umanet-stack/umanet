@@ -82,7 +82,7 @@ sudo ./setup/ovs/setup_service.sh
 # both nodes
 ./setup/cpu/slice_cpu.sh dpdk
 # no. must match no. of vms (ovs is not smart enough to not poll from unattached vdevs)
-sudo ./setup/ovs/setup_interfaces.sh 32
+sudo ./setup/ovs/setup_interfaces.sh 32 1
 # node 1
 ./setup/vm/spawn_vms.sh ovs-dpdk 32 vm-server
 # node 0
@@ -104,6 +104,10 @@ sudo ip link set eth0 mtu 1500 && iperf3 -s
 sudo ip link set eth0 mtu 1500 && iperf3 -c 192.168.100.2 -P 4 -t 10
 sudo ip link set eth0 mtu 1500 && iperf -s
 sudo ip link set eth0 mtu 1500 && iperf -c 192.168.100.2 -P 8 -t 10 -w 8M
+
+# large vms
+sudo ./setup/ovs/setup_interfaces.sh 1 4
+
 ```
 
 ## manual

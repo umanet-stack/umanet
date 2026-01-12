@@ -124,3 +124,25 @@ sudo cloud-hypervisor \
 	--cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
 	--net mac=12:34:56:78:92:00,vhost_user=on,socket=/usr/local/var/run/openvswitch/vhost-user0,num_queues=2,vhost_mode=client,queue_size=4096
 ```
+### Large VMs
+```bash
+# LARGE vm0 OvS-DPDK node 0
+sudo cloud-hypervisor \
+	--cpus boot=8 \
+	--memory size=2048M,hugepages=on,shared=on \
+	--kernel /tmp/vmlinux.bin \
+	--initramfs /tmp/initramfs-overlay.img \
+	--disk path=/tmp/vm-img.raw,readonly=on path=/tmp/disks/state-0.img path=/tmp/cloudinit/cloudinit-vm0.img \
+	--cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
+	--net mac=02:34:56:78:92:00,vhost_user=on,socket=/usr/local/var/run/openvswitch/vhost-user0,num_queues=8,vhost_mode=client,queue_size=4096
+
+# LARGE vm0 OvS-DPDK node 1
+sudo cloud-hypervisor \
+	--cpus boot=8 \
+	--memory size=2048M,hugepages=on,shared=on \
+	--kernel /tmp/vmlinux.bin \
+	--initramfs /tmp/initramfs-overlay.img \
+	--disk path=/tmp/vm-img.raw,readonly=on path=/tmp/disks/state-0.img path=/tmp/cloudinit/cloudinit-vm0.img \
+	--cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
+	--net mac=12:34:56:78:92:00,vhost_user=on,socket=/usr/local/var/run/openvswitch/vhost-user0,num_queues=8,vhost_mode=client,queue_size=4096
+```

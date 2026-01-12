@@ -1,13 +1,19 @@
 #!/bin/bash
 set -e
 
-if [ "$#" -ne 1 ]; then
-  echo "Usage: $0 <num_vms>"
+if [ "$#" -ne 2 ]; then
+  echo "Usage: $0 <num_vms> <queues_per_vm>"
   exit 1
 fi
 
 source env.sh
 NUM_VMS=$1
+QUEUES_PER_VM=$2
+
+if [ "$QUEUES_PER_VM" -lt 1 ] || [ "$QUEUES_PER_VM" -gt 8 ]; then
+  echo "Error: queues_per_vm must be between 1 and 8"
+  exit 1
+fi
 
 # delete all taps, br0
 for ((i=0; i<MAX_VM_COUNT; i++)); do
@@ -82,7 +88,7 @@ echo "[5/6] Create vhost-user ports"
 for i in $(seq 0 $((NUM_VMS - 1))); do
   sudo ovs-vsctl add-port ovsbr0 vhost-user$i -- \
     set Interface vhost-user$i type=dpdkvhostuser \
-    options:n_rxq=1 options:n_txq=1 
+    options:n_rxq=$QUEUES_PER_VM options:n_txq=$QUEUES_PER_VM 
     # other_config:tx-tcp-segmentation=true \
     # other_config:tx-ipv4-checksum=true \
     # other_config:tx-ipv6-checksum=true \
