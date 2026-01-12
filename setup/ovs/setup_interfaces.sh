@@ -75,7 +75,7 @@ sudo ovs-ofctl add-flow ovsbr0 "priority=0,actions=FLOOD"
 
 # NIC port
 sudo ovs-vsctl add-port ovsbr0 $NIC \
-  -- set Interface $NIC type=dpdk options:dpdk-devargs=$NIC_PCI options:n_rxq=4 options:n_rxq_desc=4096 options:n_txq_desc=4096 
+  -- set Interface $NIC type=dpdk options:dpdk-devargs=$NIC_PCI options:n_rxq=8 options:n_rxq_desc=4096 options:n_txq_desc=4096 
   # options:mtu_request=9000
 
 echo "[5/6] Create vhost-user ports"
