@@ -26,11 +26,12 @@ sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-init=true
 sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-lcore-mask=0x01
 # cores 1-7 for fast path
 sudo ovs-vsctl set Open_vSwitch . other_config:pmd-cpu-mask=0xfe
-sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-socket-mem=4096
+sudo ovs-vsctl set Open_vSwitch . other_config:pmd-auto-lb=true
+sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-socket-mem=1024
 echo "✅ OvS-DPDK configured"
 
 # disable TSO
-sudo ovs-vsctl set Open_vSwitch . other_config:userspace-tso-enable=False
+# sudo ovs-vsctl set Open_vSwitch . other_config:userspace-tso-enable=False
 
 # Enable EMC (Exact Match Cache) for fast path packet processing
 sudo ovs-vsctl set Open_vSwitch . other_config:emc-enable=true
@@ -83,12 +84,16 @@ echo "[5/6] Create vhost-user ports"
 # Configure OVS to match for better performance
 for i in $(seq 0 $((NUM_VMS - 1))); do
   sudo ovs-vsctl add-port ovsbr0 vhost-user$i -- \
-    set Interface vhost-user$i type=dpdkvhostuser \
-    options:n_rxq=1 options:n_txq=1 
+    set Interface vhost-user$i type=dpdkvhostuser
+    # options:n_rxq=1 options:n_txq=1 
     # options:mtu_request=9000
     # other_config:tx-tcp-segmentation=true \
     # other_config:tx-ipv4-checksum=true \
     # other_config:tx-ipv6-checksum=true \
+  sudo ovs-vsctl set Interface vhost-user$i options:n_rxq=8 options:n_txq=8
+  sudo ovs-vsctl set Interface vhost-user$i other_config:tx-tcp-segmentation=true
+  sudo ovs-vsctl set Interface vhost-user$i other_config:tx-ipv4-checksum=true
+  sudo ovs-vsctl set Interface vhost-user$i other_config:tx-ipv6-checksum=true
   # important to set for MTU
   # sudo ovs-vsctl set Interface vhost-user$i mtu_request=9000
 done
