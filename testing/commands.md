@@ -95,6 +95,7 @@ sudo ovs-vsctl show
 
 sudo ovs-appctl dpif-netdev/pmd-stats-show
 sudo ovs-appctl dpif-netdev/pmd-rxq-show
+ovs-appctl dpctl/dump-flows | grep ip
 sudo ovs-vsctl list Interface vhost-user0
 
 # ovs-dpdk uses 1500 MTU, so need to set it, else 0 throughput
