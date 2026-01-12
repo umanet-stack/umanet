@@ -93,6 +93,7 @@ sudo systemctl stop ovs-dpdk
 # show interfaces
 sudo ovs-vsctl show
 
+sudo ovs-appctl dpif-netdev/pmd-stats-show
 sudo ovs-appctl dpif-netdev/pmd-rxq-show
 sudo ovs-vsctl list Interface vhost-user0
 
