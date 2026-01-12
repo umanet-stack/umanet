@@ -99,6 +99,8 @@ sudo ovs-vsctl list Interface vhost-user0
 # ovs-dpdk uses 1500 MTU, so need to set it, else 0 throughput
 sudo ip link set eth0 mtu 1500 && iperf3 -s
 sudo ip link set eth0 mtu 1500 && iperf3 -c 192.168.100.2 -P 4 -t 10
+sudo ip link set eth0 mtu 1500 && iperf -s
+sudo ip link set eth0 mtu 1500 && iperf -c 192.168.100.2 -P 8 -t 10 -w 8M
 ```
 
 ## manual
