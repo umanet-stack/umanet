@@ -79,15 +79,13 @@ sudo ./setup/ovs/setup_service.sh
 ```
 ## multinode
 ```bash
+# both nodes
 ./setup/cpu/slice_cpu.sh dpdk
 sudo ./setup/ovs/setup_interfaces.sh 32
 # node 1
 ./setup/vm/spawn_vms.sh ovs-dpdk 32 vm-server
 # node 0
 ./setup/vm/spawn_vms.sh ovs-dpdk 32 vm-client
-python testing/process_logs/main.py ovs-dpdk vm-client
-
-sudo ./setup/vm/spawn_vms.sh ovs-dpdk 32 /tmp multinode
 python testing/process_logs/main.py ovs-dpdk vm-client
 
 # exit ovs
