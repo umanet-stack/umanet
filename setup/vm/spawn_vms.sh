@@ -68,8 +68,8 @@ spawn_vm() {
     elif [ "$NETWORK" = "dpdk" ] || [ "$NETWORK" = "dpdk-tap" ]; then
         $SCRIPT_DIR/spawn_dpdk_vm.sh "$i" "$VM_ROLE" "$TEST_COMMAND"
     elif [ "$NETWORK" = "ovs-dpdk" ]; then
-        SET_MTU="sudo ip link set eth0 mtu 1500 &&"
-        $SCRIPT_DIR/spawn_ovs_dpdk_vm.sh "$i" "$VM_ROLE" "$SET_MTU $TEST_COMMAND"
+        # SET_MTU="sudo ip link set eth0 mtu 1500 &&"
+        $SCRIPT_DIR/spawn_ovs_dpdk_vm.sh "$i" "$VM_ROLE" "$TEST_COMMAND"
     fi
 }
 
@@ -119,12 +119,18 @@ if [ "$TEST_MODE" = "vm-vm-internal" ]; then
 elif [ "$TEST_MODE" = "vm-client" ]; then
     echo "Spawning CLIENT VMs... (node 0 only, must run vm-server on node 1 first)"
     for ((i=0; i<NUM_VMS; i++)); do
+        if [ "$NETWORK" = "ovs-dpdk" ]; then
+            TARGET_IP="192.168.100.$((3 + i * 2))"
+        else
+            TARGET_IP="192.168.101.$((i+2))"
+        fi
+
         if [ "$TEST" = "iperf" ]; then
-            spawn_vm "$i" "iperf-client" "iperf3 -c 192.168.101.$((i+2)) $IPERF_CLIENT_OPTIONS -J"
+            spawn_vm "$i" "iperf-client" "iperf3 -c $TARGET_IP $IPERF_CLIENT_OPTIONS -J"
         elif [ "$TEST" = "iperf-udp" ]; then
-            spawn_vm "$i" "iperf-client-udp" "iperf3 -c 192.168.101.$((i+2)) $IPERF_CLIENT_OPTIONS"
+            spawn_vm "$i" "iperf-client-udp" "iperf3 -c $TARGET_IP $IPERF_CLIENT_OPTIONS"
         elif [ "$TEST" = "sockperf" ]; then
-            spawn_vm "$i" "sockperf-client" "sockperf ping-pong -i 192.168.101.$((i+2)) $SOCKPERF_CLIENT_OPTIONS"
+            spawn_vm "$i" "sockperf-client" "sockperf ping-pong -i $TARGET_IP $SOCKPERF_CLIENT_OPTIONS"
         fi
     done
 
@@ -134,7 +140,11 @@ elif [ "$TEST_MODE" = "vm-server" ]; then
         if [ "$TEST" = "iperf" ] || [ "$TEST" = "iperf-udp" ]; then
             spawn_vm "$i" "iperf-server" "iperf3 -s"
         elif [ "$TEST" = "sockperf" ]; then
-            spawn_vm "$i" "sockperf-server" "sockperf server -i 192.168.101.$((i+2))"
+            if [ "$NETWORK" = "ovs-dpdk" ]; then
+                spawn_vm "$i" "sockperf-server" "sockperf server -i 192.168.100.$((3 + i * 2))"
+            else
+                spawn_vm "$i" "sockperf-server" "sockperf server -i 192.168.101.$((i+2))"
+            fi
         fi
     done
 fi
