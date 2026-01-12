@@ -62,15 +62,14 @@ sudo bash -c "ps aux | grep umanet | grep -v grep | awk '{print \$2}' | xargs ki
 ```
 
 # OVS DPDK
+## Setup
 ```bash
+# see setup_vm.md for vm image setup, now same image as TAP/DPDK
 command -v cloud-hypervisor || (curl -L https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v50.0/cloud-hypervisor-static -o ch && sudo install ch -m 0755 /usr/bin/cloud-hypervisor)
 [ -f /tmp/noble-server-cloudimg-amd64.raw -a -f /tmp/vmlinux.bin ] || ./setup/img/download_img.sh
 sudo sysctl -w vm.nr_hugepages=24576
 sudo ./setup/ovs/install.sh
 sudo ./setup/ovs/setup_service.sh
-# sudo ./setup/img/build_ovs_image.sh /tmp/noble-server-cloudimg-amd64.raw
-# sudo ./setup/img/build_initramfs.sh
-# sudo ./setup/img/build_rw_disk.sh 32 512
 ```
 ## multinode
 ```bash
