@@ -59,11 +59,6 @@ python testing/process_logs/main.py dpdk vm-client
 # kill all vms to end/reset experiment
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
 sudo bash -c "ps aux | grep umanet | grep -v grep | awk '{print \$2}' | xargs kill -9"
-
-# overall report
-./testing/plot_reports/main.py iperf
-./testing/plot_reports/main.py iperf-udp
-./testing/plot_reports/main.py sockperf
 ```
 
 # OVS DPDK
@@ -108,6 +103,13 @@ sudo ip link set ens5 mtu 1500 && iperf -c 192.168.100.2 -P 8 -t 10 -w 8M
 # large vms
 sudo ./setup/ovs/setup_interfaces.sh 1 4
 
+```
+
+## Overall Report
+```bash
+./testing/plot_reports/main.py iperf
+./testing/plot_reports/main.py iperf-udp
+./testing/plot_reports/main.py sockperf
 ```
 
 ## manual

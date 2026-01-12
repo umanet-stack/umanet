@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Plot comparison graphs from test reports
-Compares tap vs dpdk results for iperf, iperf-udp, and sockperf tests
+Compares tap, dpdk, and ovs-dpdk results for iperf, iperf-udp, and sockperf tests
 """
 import argparse
 import re
@@ -146,13 +146,15 @@ def parse_sockperf_report(report_path: Path) -> Optional[Dict]:
         return None
 
 
-def collect_reports(test_type: str) -> Tuple[List[Dict], List[Dict]]:
-    """Collect reports from both tap and dpdk folders"""
+def collect_reports(test_type: str) -> Tuple[List[Dict], List[Dict], List[Dict]]:
+    """Collect reports from tap, dpdk, and ovs-dpdk folders"""
     tap_reports = []
     dpdk_reports = []
+    ovs_dpdk_reports = []
     
     tap_base = TESTING_DIR / 'tap' / test_type / 'vm-client'
     dpdk_base = TESTING_DIR / 'dpdk' / test_type / 'vm-client'
+    ovs_dpdk_base = TESTING_DIR / 'ovs-dpdk' / test_type / 'vm-client'
     
     # Parse function based on test type
     if test_type == 'iperf':
@@ -182,14 +184,24 @@ def collect_reports(test_type: str) -> Tuple[List[Dict], List[Dict]]:
                 if data:
                     dpdk_reports.append(data)
     
+    # Collect ovs-dpdk reports
+    if ovs_dpdk_base.exists():
+        for report_dir in ovs_dpdk_base.glob('report-*vm'):
+            report_path = report_dir / 'report.md'
+            if report_path.exists():
+                data = parse_func(report_path)
+                if data:
+                    ovs_dpdk_reports.append(data)
+    
     # Sort by number of VMs
     tap_reports.sort(key=lambda x: x['num_vms'])
     dpdk_reports.sort(key=lambda x: x['num_vms'])
+    ovs_dpdk_reports.sort(key=lambda x: x['num_vms'])
     
-    return tap_reports, dpdk_reports
+    return tap_reports, dpdk_reports, ovs_dpdk_reports
 
 
-def plot_iperf(tap_reports: List[Dict], dpdk_reports: List[Dict], output_dir: Path):
+def plot_iperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_reports: List[Dict], output_dir: Path):
     """Plot iperf comparison graphs"""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     
@@ -203,6 +215,11 @@ def plot_iperf(tap_reports: List[Dict], dpdk_reports: List[Dict], output_dir: Pa
         dpdk_vms = [r['num_vms'] for r in dpdk_reports]
         dpdk_total = [r['total_throughput'] for r in dpdk_reports]
         ax1.plot(dpdk_vms, dpdk_total, 's-', label='dpdk', linewidth=2, markersize=8)
+    
+    if ovs_dpdk_reports:
+        ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
+        ovs_dpdk_total = [r['total_throughput'] for r in ovs_dpdk_reports]
+        ax1.plot(ovs_dpdk_vms, ovs_dpdk_total, '^-', label='ovs-dpdk', linewidth=2, markersize=8)
     
     ax1.set_xlabel('Number of VMs', fontsize=12)
     ax1.set_ylabel('Total Throughput (Gbps)', fontsize=12)
@@ -221,6 +238,11 @@ def plot_iperf(tap_reports: List[Dict], dpdk_reports: List[Dict], output_dir: Pa
         dpdk_per_vm = [r['throughput_per_vm'] for r in dpdk_reports]
         ax2.plot(dpdk_vms, dpdk_per_vm, 's-', label='dpdk', linewidth=2, markersize=8)
     
+    if ovs_dpdk_reports:
+        ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
+        ovs_dpdk_per_vm = [r['throughput_per_vm'] for r in ovs_dpdk_reports]
+        ax2.plot(ovs_dpdk_vms, ovs_dpdk_per_vm, '^-', label='ovs-dpdk', linewidth=2, markersize=8)
+    
     ax2.set_xlabel('Number of VMs', fontsize=12)
     ax2.set_ylabel('Throughput per VM (Gbps)', fontsize=12)
     ax2.set_title('Throughput per VM', fontsize=14, fontweight='bold')
@@ -234,7 +256,7 @@ def plot_iperf(tap_reports: List[Dict], dpdk_reports: List[Dict], output_dir: Pa
     plt.close()
 
 
-def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], output_dir: Path):
+def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_reports: List[Dict], output_dir: Path):
     """Plot sockperf comparison graphs"""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     
@@ -248,6 +270,11 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], output_dir:
         dpdk_vms = [r['num_vms'] for r in dpdk_reports]
         dpdk_p99 = [r['p99_latency'] for r in dpdk_reports]
         ax1.plot(dpdk_vms, dpdk_p99, 's-', label='dpdk', linewidth=2, markersize=8)
+    
+    if ovs_dpdk_reports:
+        ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
+        ovs_dpdk_p99 = [r['p99_latency'] for r in ovs_dpdk_reports]
+        ax1.plot(ovs_dpdk_vms, ovs_dpdk_p99, '^-', label='ovs-dpdk', linewidth=2, markersize=8)
     
     ax1.set_xlabel('Number of VMs', fontsize=12)
     ax1.set_ylabel('p99 Latency (μs)', fontsize=12)
@@ -266,6 +293,11 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], output_dir:
         dpdk_sent = [r['total_sent'] for r in dpdk_reports]
         ax2.plot(dpdk_vms, dpdk_sent, 's-', label='dpdk', linewidth=2, markersize=8)
     
+    if ovs_dpdk_reports:
+        ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
+        ovs_dpdk_sent = [r['total_sent'] for r in ovs_dpdk_reports]
+        ax2.plot(ovs_dpdk_vms, ovs_dpdk_sent, '^-', label='ovs-dpdk', linewidth=2, markersize=8)
+    
     ax2.set_xlabel('Number of VMs', fontsize=12)
     ax2.set_ylabel('Messages Sent', fontsize=12)
     ax2.set_title('Total Messages Sent', fontsize=14, fontweight='bold')
@@ -279,16 +311,17 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], output_dir:
     plt.close()
 
 
-def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], output_dir: Path):
+def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_reports: List[Dict], output_dir: Path):
     """Plot iperf-udp comparison graphs (stack plots)"""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
     
     # Create a dictionary for quick lookup by num_vms
     tap_dict = {r['num_vms']: r for r in tap_reports}
     dpdk_dict = {r['num_vms']: r for r in dpdk_reports}
+    ovs_dpdk_dict = {r['num_vms']: r for r in ovs_dpdk_reports}
     
     # Get all unique VM counts
-    all_vms = sorted(set(list(tap_dict.keys()) + list(dpdk_dict.keys())))
+    all_vms = sorted(set(list(tap_dict.keys()) + list(dpdk_dict.keys()) + list(ovs_dpdk_dict.keys())))
     
     if not all_vms:
         print("No data to plot")
@@ -296,28 +329,34 @@ def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], output_dir
     
     # Prepare data for stacked bars
     x_pos = np.arange(len(all_vms))
-    width = 0.35  # Width of bars
+    width = 0.25  # Width of bars (reduced to fit three groups)
     
     # Plot 1: Total PPS and Lost PPS (stack)
     tap_received_total = [tap_dict.get(vm, {}).get('receiver_pps_total', 0) for vm in all_vms]
     tap_lost_total = [tap_dict.get(vm, {}).get('lost_pps_total', 0) for vm in all_vms]
     dpdk_received_total = [dpdk_dict.get(vm, {}).get('receiver_pps_total', 0) for vm in all_vms]
     dpdk_lost_total = [dpdk_dict.get(vm, {}).get('lost_pps_total', 0) for vm in all_vms]
+    ovs_dpdk_received_total = [ovs_dpdk_dict.get(vm, {}).get('receiver_pps_total', 0) for vm in all_vms]
+    ovs_dpdk_lost_total = [ovs_dpdk_dict.get(vm, {}).get('lost_pps_total', 0) for vm in all_vms]
     
     # Tap bars (stacked)
-    ax1.bar(x_pos - width/2, tap_received_total, width, label='Received PPS (tap)', alpha=0.8, color='#1f77b4')
-    ax1.bar(x_pos - width/2, tap_lost_total, width, bottom=tap_received_total, label='Lost PPS (tap)', alpha=0.8, color='#ff7f0e')
+    ax1.bar(x_pos - width, tap_received_total, width, label='Received PPS (tap)', alpha=0.8, color='#1f77b4')
+    ax1.bar(x_pos - width, tap_lost_total, width, bottom=tap_received_total, label='Lost PPS (tap)', alpha=0.8, color='#ff7f0e')
     
     # DPDK bars (stacked)
-    ax1.bar(x_pos + width/2, dpdk_received_total, width, label='Received PPS (dpdk)', alpha=0.8, color='#2ca02c')
-    ax1.bar(x_pos + width/2, dpdk_lost_total, width, bottom=dpdk_received_total, label='Lost PPS (dpdk)', alpha=0.8, color='#d62728')
+    ax1.bar(x_pos, dpdk_received_total, width, label='Received PPS (dpdk)', alpha=0.8, color='#2ca02c')
+    ax1.bar(x_pos, dpdk_lost_total, width, bottom=dpdk_received_total, label='Lost PPS (dpdk)', alpha=0.8, color='#d62728')
+    
+    # OVS-DPDK bars (stacked)
+    ax1.bar(x_pos + width, ovs_dpdk_received_total, width, label='Received PPS (ovs-dpdk)', alpha=0.8, color='#9467bd')
+    ax1.bar(x_pos + width, ovs_dpdk_lost_total, width, bottom=ovs_dpdk_received_total, label='Lost PPS (ovs-dpdk)', alpha=0.8, color='#8c564b')
     
     ax1.set_xlabel('Number of VMs', fontsize=12)
     ax1.set_ylabel('Packets Per Second', fontsize=12)
     ax1.set_title('Total PPS (Received + Lost)', fontsize=14, fontweight='bold')
     ax1.set_xticks(x_pos)
     ax1.set_xticklabels(all_vms)
-    ax1.legend(fontsize=10, ncol=2)
+    ax1.legend(fontsize=9, ncol=3)
     ax1.grid(True, alpha=0.3, axis='y')
     
     # Plot 2: PPS per VM and Lost PPS per VM (stack)
@@ -325,21 +364,27 @@ def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], output_dir
     tap_lost_per_vm = [tap_dict.get(vm, {}).get('lost_pps_per_vm', 0) for vm in all_vms]
     dpdk_received_per_vm = [dpdk_dict.get(vm, {}).get('receiver_pps_per_vm', 0) for vm in all_vms]
     dpdk_lost_per_vm = [dpdk_dict.get(vm, {}).get('lost_pps_per_vm', 0) for vm in all_vms]
+    ovs_dpdk_received_per_vm = [ovs_dpdk_dict.get(vm, {}).get('receiver_pps_per_vm', 0) for vm in all_vms]
+    ovs_dpdk_lost_per_vm = [ovs_dpdk_dict.get(vm, {}).get('lost_pps_per_vm', 0) for vm in all_vms]
     
     # Tap bars (stacked)
-    ax2.bar(x_pos - width/2, tap_received_per_vm, width, label='Received PPS/VM (tap)', alpha=0.8, color='#1f77b4')
-    ax2.bar(x_pos - width/2, tap_lost_per_vm, width, bottom=tap_received_per_vm, label='Lost PPS/VM (tap)', alpha=0.8, color='#ff7f0e')
+    ax2.bar(x_pos - width, tap_received_per_vm, width, label='Received PPS/VM (tap)', alpha=0.8, color='#1f77b4')
+    ax2.bar(x_pos - width, tap_lost_per_vm, width, bottom=tap_received_per_vm, label='Lost PPS/VM (tap)', alpha=0.8, color='#ff7f0e')
     
     # DPDK bars (stacked)
-    ax2.bar(x_pos + width/2, dpdk_received_per_vm, width, label='Received PPS/VM (dpdk)', alpha=0.8, color='#2ca02c')
-    ax2.bar(x_pos + width/2, dpdk_lost_per_vm, width, bottom=dpdk_received_per_vm, label='Lost PPS/VM (dpdk)', alpha=0.8, color='#d62728')
+    ax2.bar(x_pos, dpdk_received_per_vm, width, label='Received PPS/VM (dpdk)', alpha=0.8, color='#2ca02c')
+    ax2.bar(x_pos, dpdk_lost_per_vm, width, bottom=dpdk_received_per_vm, label='Lost PPS/VM (dpdk)', alpha=0.8, color='#d62728')
+    
+    # OVS-DPDK bars (stacked)
+    ax2.bar(x_pos + width, ovs_dpdk_received_per_vm, width, label='Received PPS/VM (ovs-dpdk)', alpha=0.8, color='#9467bd')
+    ax2.bar(x_pos + width, ovs_dpdk_lost_per_vm, width, bottom=ovs_dpdk_received_per_vm, label='Lost PPS/VM (ovs-dpdk)', alpha=0.8, color='#8c564b')
     
     ax2.set_xlabel('Number of VMs', fontsize=12)
     ax2.set_ylabel('Packets Per Second per VM', fontsize=12)
     ax2.set_title('PPS per VM (Received + Lost)', fontsize=14, fontweight='bold')
     ax2.set_xticks(x_pos)
     ax2.set_xticklabels(all_vms)
-    ax2.legend(fontsize=10, ncol=2)
+    ax2.legend(fontsize=9, ncol=3)
     ax2.grid(True, alpha=0.3, axis='y')
     
     plt.tight_layout()
@@ -352,7 +397,7 @@ def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], output_dir
 def main():
     """Main function"""
     parser = argparse.ArgumentParser(
-        description='Plot comparison graphs from test reports (tap vs dpdk)',
+        description='Plot comparison graphs from test reports (tap vs dpdk vs ovs-dpdk)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -374,13 +419,14 @@ Examples:
     print()
     
     # Collect reports
-    tap_reports, dpdk_reports = collect_reports(args.test_type)
+    tap_reports, dpdk_reports, ovs_dpdk_reports = collect_reports(args.test_type)
     
     print(f"Found {len(tap_reports)} tap reports")
     print(f"Found {len(dpdk_reports)} dpdk reports")
+    print(f"Found {len(ovs_dpdk_reports)} ovs-dpdk reports")
     print()
     
-    if not tap_reports and not dpdk_reports:
+    if not tap_reports and not dpdk_reports and not ovs_dpdk_reports:
         print("❌ No reports found!")
         return
     
@@ -395,11 +441,11 @@ Examples:
     
     # Plot based on test type
     if args.test_type == 'iperf':
-        plot_iperf(tap_reports, dpdk_reports, output_dir)
+        plot_iperf(tap_reports, dpdk_reports, ovs_dpdk_reports, output_dir)
     elif args.test_type == 'iperf-udp':
-        plot_iperf_udp(tap_reports, dpdk_reports, output_dir)
+        plot_iperf_udp(tap_reports, dpdk_reports, ovs_dpdk_reports, output_dir)
     elif args.test_type == 'sockperf':
-        plot_sockperf(tap_reports, dpdk_reports, output_dir)
+        plot_sockperf(tap_reports, dpdk_reports, ovs_dpdk_reports, output_dir)
     
     print()
     print("✅ Done!")
