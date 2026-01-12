@@ -2,7 +2,6 @@
 set -eu
 source env.sh
 
-
 if [ "$#" -ne 3 ]; then
     echo "Usage: $0 <i> <role> <command>"
     echo "  i: index of the VM"

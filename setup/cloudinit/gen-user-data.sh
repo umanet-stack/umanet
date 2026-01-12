@@ -92,7 +92,7 @@ write_files:
           
           # Run iperf test normally (shows progress in logs) and capture JSON output
           log "running iperf3 test..."
-          IPERF_OUTPUT=\$(\$TEST_COMMAND 2>&1)
+          IPERF_OUTPUT=\$( /bin/bash -c "\$TEST_COMMAND" 2>&1 )
           IPERF_EXIT=\$?
           
           if [ \$IPERF_EXIT -ne 0 ]; then
@@ -121,7 +121,7 @@ write_files:
           log "finished iperf client"
       else
           log "starting test: \$TEST_COMMAND"
-          exec \$TEST_COMMAND
+          exec /bin/bash -c "\$TEST_COMMAND"
       fi
 
 # Fix sudoers issues

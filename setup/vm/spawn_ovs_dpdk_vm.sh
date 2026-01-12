@@ -1,36 +1,49 @@
 #!/usr/bin/env bash
-set -e
+set -eu
+source env.sh
 
-if [ "$#" -ne 4 ]; then
-    echo "Usage: $0 <i> <res_dir> <role> <command>"
+if [ "$#" -ne 3 ]; then
+    echo "Usage: $0 <i> <role> <command>"
     echo "  i: index of the VM"
-    echo "  res_dir: directory containing resources"
     echo "  role: server or client"
     echo "  command: test command"
     exit 1
 fi
 
-i=$1
-# e.g. /tmp
-RES_DIR=$2
-ROLE=$3
-COMMAND=$4
+if [ "$OVS_VM_SIZE" != "microvm" ] && [ "$OVS_VM_SIZE" != "large" ]; then
+    echo "Error: OVS_VM_SIZE must be microvm or large"
+    exit 1
+fi
 
-LOG_DIR="$(dirname "$0")/../../testing/ovs_dpdk/logs"
+i=$1
+ROLE=$2
+COMMAND=$3
+
+LOG_DIR="$(dirname "$0")/../../testing/ovs-dpdk/logs"
 logfile="$LOG_DIR/vm$i.log"
 
 # Base64 encode the command to avoid space issues in kernel cmdline
 TEST_COMMAND_B64=$(echo -n "$COMMAND" | base64 -w 0)
 
+if [ "$OVS_VM_SIZE" = "microvm" ]; then
+    CPU="1"
+    MEM="512M"
+    QUEUES="2"
+elif [ "$OVS_VM_SIZE" = "large" ]; then
+    CPU="8"
+    MEM="2048M"
+    QUEUES="8"
+fi
+
 sudo systemd-run --scope --slice=vms.slice \
 cloud-hypervisor \
-    --cpus boot=1 \
-    --memory size=512M,hugepages=on,shared=on,prefault=on \
-    --kernel "$RES_DIR/vmlinux.bin" \
+    --cpus boot=$CPU \
+    --memory size=$MEM,hugepages=on,shared=on,prefault=on \
+    --kernel "$TMPDIR/vmlinux.bin" \
     --initramfs /tmp/initramfs-overlay.img \
-    --cmdline "console=ttyS0 console=hvc0 rdinit=/init VM_INDEX=$i ROLE=$ROLE TEST_COMMAND_B64=$TEST_COMMAND_B64" \
-    --disk path="$RES_DIR/noble-server-cloudimg-amd64-customized.raw",readonly=on path="$RES_DIR/disks/state-$i.img" \
-    --net "mac=12:34:56:78:90:$(printf '%02X' $i),vhost_user=true,socket=/mnt/huge/sock$i,num_queues=2,vhost_mode=server,socket=/tmp/vhost-user$i,queue_size=4096" \
+    --cmdline "console=ttyS0 console=hvc0 rdinit=/init ROLE=$ROLE TEST_COMMAND_B64=$TEST_COMMAND_B64" \
+    --disk path="$TMPDIR/vm-img.raw",readonly=on path="$TMPDIR/disks/state-$i.img" path="$TMPDIR/cloudinit/cloudinit-vm$i.img" \
+    --net "mac=${NODE_ID}2:34:56:78:92:$(printf '%02X' $i),vhost_user=on,socket=/usr/local/var/run/openvswitch/vhost-user$i,num_queues=$QUEUES,vhost_mode=client,queue_size=4096" \
     > "$logfile" 2>&1 &
 
 echo "  VM$i -> $COMMAND"

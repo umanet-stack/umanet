@@ -59,37 +59,62 @@ python testing/process_logs/main.py dpdk vm-client
 # kill all vms to end/reset experiment
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
 sudo bash -c "ps aux | grep umanet | grep -v grep | awk '{print \$2}' | xargs kill -9"
+```
 
-# overall report
+# OVS DPDK
+## Setup
+```bash
+# see setup_vm.md for vm image setup, now same image as TAP/DPDK
+command -v cloud-hypervisor || (curl -L https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v50.0/cloud-hypervisor-static -o ch && sudo install ch -m 0755 /usr/bin/cloud-hypervisor)
+[ -f /tmp/noble-server-cloudimg-amd64.raw -a -f /tmp/vmlinux.bin ] || ./setup/img/download_img.sh
+sudo sysctl -w vm.nr_hugepages=24576
+sudo ./setup/ovs/install.sh
+sudo ./setup/ovs/setup_service.sh
+```
+## multinode
+```bash
+# both nodes
+./setup/cpu/slice_cpu.sh dpdk
+# no. must match no. of vms (ovs is not smart enough to not poll from unattached vdevs)
+sudo ./setup/ovs/setup_interfaces.sh 32 1
+# node 1
+./setup/vm/spawn_vms.sh ovs-dpdk 32 vm-server
+# node 0
+./setup/vm/spawn_vms.sh ovs-dpdk 32 vm-client
+python testing/process_logs/main.py ovs-dpdk vm-client
+
+# exit ovs
+sudo systemctl stop ovs-dpdk
+# show interfaces
+sudo ovs-vsctl show
+
+sudo ovs-appctl dpif-netdev/pmd-stats-show
+sudo ovs-appctl dpif-netdev/pmd-rxq-show
+sudo ovs-appctl dpctl/dump-flows | grep ip
+sudo ovs-vsctl list Interface vhost-user0
+
+# ovs-dpdk uses 1500 MTU, so need to set it, else 0 throughput
+sudo ip link set ens5 mtu 9000 && iperf3 -s
+sudo ip link set ens5 mtu 9000 && iperf3 -c 192.168.100.2 -P 4 -t 10
+sudo ip link set ens5 mtu 1500 && iperf -s
+sudo ip link set ens5 mtu 1500 && iperf -c 192.168.100.2 -P 8 -t 10 -w 8M
+
+# large vms
+sudo ./setup/ovs/setup_interfaces.sh 1 4
+
+```
+
+## Overall Report
+```bash
 ./testing/plot_reports/main.py iperf
 ./testing/plot_reports/main.py iperf-udp
 ./testing/plot_reports/main.py sockperf
 ```
 
-# OVS DPDK
-
-Note that OVS DPDK requires DPDK version 24.11.3 so probably incompatible with other test.
-
-```
-command -v cloud-hypervisor || (curl -L https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v50.0/cloud-hypervisor-static -o ch && sudo install ch -m 0755 /usr/bin/cloud-hypervisor)
-[ -f /tmp/noble-server-cloudimg-amd64.raw -a -f /tmp/vmlinux.bin ] || ./setup/img/download_img.sh
-sudo sysctl -w vm.nr_hugepages=24576
-sudo ./setup/ovs/install.sh
-sudo ./setup/ovs/setup.sh 32
-sudo ./setup/img/build_ovs_image.sh /tmp/noble-server-cloudimg-amd64.raw
-sudo ./setup/img/build_initramfs.sh
-sudo ./setup/img/build_rw_disk.sh 32 512
-
-sudo ./setup/vm/spawn_vms.sh ovs_dpdk 32 /tmp samenode
-python testing/process_logs/main.py ovs_dpdk samenode
-
-sudo ./setup/vm/spawn_vms.sh ovs_dpdk 32 /tmp multinode
-python testing/process_logs/main.py ovs_dpdk multinode
-```
-
 ## manual
 ```bash
 # jumbo
+sudo ip link set eth0 mtu 1500
 ethtool -k tap0
 sudo ip link set dev enp23s0f0np0 mtu 9000
 sudo ip link set dev ens6 mtu 9000
