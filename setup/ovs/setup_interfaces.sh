@@ -81,8 +81,10 @@ sudo ovs-ofctl add-flow ovsbr0 "priority=0,actions=FLOOD"
 
 # NIC port
 sudo ovs-vsctl add-port ovsbr0 $NIC \
-  -- set Interface $NIC type=dpdk options:dpdk-devargs=$NIC_PCI options:n_rxq=8 options:n_rxq_desc=4096 options:n_txq_desc=4096 
-  # options:mtu_request=9000
+  -- set Interface $NIC type=dpdk options:dpdk-devargs=$NIC_PCI options:n_rxq=8 options:n_rxq_desc=4096 options:n_txq_desc=4096 \
+  options:mtu_request=9000 options:max-frame-len=9216
+
+sudo ovs-vsctl set Interface $NIC mtu_request=9000
 
 echo "[5/6] Create vhost-user ports"
 for i in $(seq 0 $((NUM_VMS - 1))); do
@@ -96,7 +98,7 @@ for i in $(seq 0 $((NUM_VMS - 1))); do
   sudo ovs-vsctl set Interface vhost-user$i other_config:tx-ipv4-checksum=true
   sudo ovs-vsctl set Interface vhost-user$i other_config:tx-ipv6-checksum=true
   # important to set for MTU
-  # sudo ovs-vsctl set Interface vhost-user$i mtu_request=9000
+  sudo ovs-vsctl set Interface vhost-user$i mtu_request=9000
 done
 
 # Remove any conflicting routes from br0 (TAP bridge) that might interfere

@@ -68,8 +68,8 @@ spawn_vm() {
     elif [ "$NETWORK" = "dpdk" ] || [ "$NETWORK" = "dpdk-tap" ]; then
         $SCRIPT_DIR/spawn_dpdk_vm.sh "$i" "$VM_ROLE" "$TEST_COMMAND"
     elif [ "$NETWORK" = "ovs-dpdk" ]; then
-        # SET_MTU="sudo ip link set eth0 mtu 1500 &&"
-        $SCRIPT_DIR/spawn_ovs_dpdk_vm.sh "$i" "$VM_ROLE" "$TEST_COMMAND"
+        SET_MTU="sudo ip link set ens5 mtu 9000 &&"
+        $SCRIPT_DIR/spawn_ovs_dpdk_vm.sh "$i" "$VM_ROLE" "$SET_MTU $TEST_COMMAND"
     fi
 }
 
