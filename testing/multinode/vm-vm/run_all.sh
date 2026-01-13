@@ -2,6 +2,12 @@
 set -e
 source env.sh
 
+if [ "$#" -ne 1 ]; then
+  echo "Usage: $0 <num_vms>"
+  exit 1
+fi
+
+NUM_VMS=$1
 MULTINODE_DIR=${BASE_DIR}/testing/multinode/vm-vm
 LOG_DIR=$MULTINODE_DIR/log
 mkdir -p $LOG_DIR
@@ -27,7 +33,7 @@ ${MULTINODE_DIR}/init_node.sh "$BASE_DIR" "$NETWORK" &>> "$LOG_DIR/node0.log"
 log "⭐️ node 0 initialized"
 
 log "======= TEST: $TEST_CMD (network: $NETWORK) ======="
-for VMS in $(seq 1 1); do
+for VMS in $(seq 1 $NUM_VMS); do
   log "Running test: $VMS VMs"
 
   OUTDIR="$BASE_OUT/vms_$VMS"
