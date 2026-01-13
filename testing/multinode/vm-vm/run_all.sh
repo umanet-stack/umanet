@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 set -e
-
 source env.sh
 
-BASE_OUT=results
-TEST_TIME=10
+if [ "$#" -ne 1 ]; then
+  echo "Usage: $0 <network>"
+  exit 1
+fi
 
+NETWORK=$1
 MULTINODE_DIR=${BASE_DIR}/testing/multinode/vm-vm
 
-ssh "$NODE1" "bash -s" < ${MULTINODE_DIR}/init_node1.sh "$BASE_DIR"
+# node 1
+ssh -i ~/.ssh/cloudlab "$USER@$NODE1" "cd $BASE_DIR && bash -s" < ${MULTINODE_DIR}/init_node.sh "$BASE_DIR" "$NETWORK"
+# node 0
+${MULTINODE_DIR}/init_node.sh "$BASE_DIR" "$NETWORK"
 
 # for VMS in $(seq 1 32); do
 #   echo "=============================="
