@@ -19,4 +19,15 @@ sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' 
 
 if [ "$NETWORK" = "tap" ]; then
     ${BASE_DIR}/setup/vm/spawn_vms.sh tap $NUM_VMS vm-server
+
+elif [ "$NETWORK" = "dpdk" ]; then
+    sudo bash -c "ps aux | grep umanet | grep -v grep | awk '{print \$2}' | xargs kill -9" || true
+    ${BASE_DIR}/run.sh $NUM_VMS
+    sleep 10
+    ${BASE_DIR}/setup/vm/spawn_vms.sh dpdk $NUM_VMS vm-server
+
+elif [ "$NETWORK" = "ovs-dpdk" ]; then
+    ${BASE_DIR}/setup/ovs/setup_interfaces.sh $NUM_VMS 1
+    sleep 10
+    ${BASE_DIR}/setup/vm/spawn_vms.sh ovs-dpdk $NUM_VMS vm-server
 fi
