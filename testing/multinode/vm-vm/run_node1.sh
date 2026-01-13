@@ -24,15 +24,15 @@ if [ "$NETWORK" = "tap" ]; then
 elif [ "$NETWORK" = "dpdk" ]; then
     sudo bash -c "ps aux | grep umanet | grep -v grep | awk '{print \$2}' | xargs kill -9" || true
     if [ "$ITERATION" -eq 1 ]; then
-        ${BASE_DIR}/build_and_run.sh test $NUM_VMS
+        sudo ${BASE_DIR}/build_and_run.sh test $NUM_VMS
     else
-        ${BASE_DIR}/run.sh $NUM_VMS
+        sudo ${BASE_DIR}/run.sh $NUM_VMS
     fi
     sleep 10
     ${BASE_DIR}/setup/vm/spawn_vms.sh dpdk $NUM_VMS vm-server
 
 elif [ "$NETWORK" = "ovs-dpdk" ]; then
-    ${BASE_DIR}/setup/ovs/setup_interfaces.sh $NUM_VMS 1
+    sudo ${BASE_DIR}/setup/ovs/setup_interfaces.sh $NUM_VMS 1
     sleep 10
     ${BASE_DIR}/setup/vm/spawn_vms.sh ovs-dpdk $NUM_VMS vm-server
 fi
