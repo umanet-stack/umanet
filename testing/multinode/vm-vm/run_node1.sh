@@ -96,10 +96,10 @@ elif [ "$NETWORK" = "dpdk" ]; then
     log "Setting up DPDK network with $NUM_VMS VMs..."
     if [ "$ITERATION" -eq 1 ]; then
         log "Building and running umanet (iteration 1) with retry logic..."
-        run_with_retry "sudo ${BASE_DIR}/build_and_run.sh test $NUM_VMS 0" 3 5
+        run_with_retry "sudo ${BASE_DIR}/build_and_run.sh test 32 0" 3 5
     else
         log "Running umanet (iteration $ITERATION) with retry logic..."
-        run_with_retry "sudo ${BASE_DIR}/run.sh $NUM_VMS 0" 3 5
+        run_with_retry "sudo ${BASE_DIR}/run.sh 32 0" 3 5
     fi
     sleep 10
     log "Spawning $NUM_VMS VMs with DPDK..."
