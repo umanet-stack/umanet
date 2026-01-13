@@ -33,6 +33,7 @@ log "⭐️ node 1 initialized"
 ${MULTINODE_DIR}/init_node.sh "$BASE_DIR" "$NETWORK" &>> "$LOG_DIR/node0.log"
 log "⭐️ node 0 initialized"
 
+ITERATION=1
 log "======= TEST: $TEST_CMD (network: $NETWORK) ======="
 for VMS in $(seq 1 $NUM_VMS); do
   log "Running test: $VMS VMs"
@@ -44,14 +45,16 @@ for VMS in $(seq 1 $NUM_VMS); do
   fi
 
   ssh -i ~/.ssh/cloudlab "$USER@$NODE1" "cd $BASE_DIR && bash -s" < ${MULTINODE_DIR}/run_node1.sh \
-    "$BASE_DIR" "$NETWORK" "$VMS" &>> "$LOG_DIR/node1.log"
+    "$BASE_DIR" "$NETWORK" "$VMS" "$ITERATION" &>> "$LOG_DIR/node1.log"
   log "  started $VMS VMs on node 1"
   sleep 5
 
-  ${MULTINODE_DIR}/run_node0.sh "$BASE_DIR" "$NETWORK" "$VMS" &>> "$LOG_DIR/node0.log"
+  ${MULTINODE_DIR}/run_node0.sh "$BASE_DIR" "$NETWORK" "$VMS" "$ITERATION" &>> "$LOG_DIR/node0.log"
   log "  started $VMS VMs on node 0" 
   sleep 45
 
   python testing/process_logs/main.py $NETWORK vm-client &>> "$LOG_DIR/report.log"
   log "  processed logs"
+
+  ITERATION=$((ITERATION + 1))
 done
