@@ -218,56 +218,44 @@ def collect_reports(test_type: str) -> Tuple[List[Dict], List[Dict], List[Dict]]
 
 def plot_iperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_reports: List[Dict], output_dir: Path):
     """Plot iperf comparison graphs"""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    fig, ax = plt.subplots(1, 1, figsize=(10, 6))
     
-    # Plot 1: Total Throughput
+    # Plot all lines on the same y-axis with log scale
     if tap_reports:
         tap_vms = [r['num_vms'] for r in tap_reports]
         tap_total = [r['total_throughput'] for r in tap_reports]
-        ax1.plot(tap_vms, tap_total, 'o-', label='tap', linewidth=2, markersize=5)
+        tap_per_vm = [r['throughput_per_vm'] for r in tap_reports]
+        ax.plot(tap_vms, tap_total, 'o-', label='Linux (Total)', linewidth=2, markersize=5, color='#1f77b4')
+        ax.plot(tap_vms, tap_per_vm, 'o--', label='Linux (Per VM)', linewidth=2, markersize=5, color='#ff7f0e')
     
     if dpdk_reports:
         dpdk_vms = [r['num_vms'] for r in dpdk_reports]
         dpdk_total = [r['total_throughput'] for r in dpdk_reports]
-        ax1.plot(dpdk_vms, dpdk_total, 's-', label='dpdk', linewidth=2, markersize=5)
+        dpdk_per_vm = [r['throughput_per_vm'] for r in dpdk_reports]
+        ax.plot(dpdk_vms, dpdk_total, 's-', label='UMANet (Total)', linewidth=2, markersize=5, color='#2ca02c')
+        ax.plot(dpdk_vms, dpdk_per_vm, 's--', label='UMANet (Per VM)', linewidth=2, markersize=5, color='#d62728')
     
     if ovs_dpdk_reports:
         ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
         ovs_dpdk_total = [r['total_throughput'] for r in ovs_dpdk_reports]
-        ax1.plot(ovs_dpdk_vms, ovs_dpdk_total, '^-', label='ovs-dpdk', linewidth=2, markersize=5)
-    
-    ax1.set_xlabel('Number of VMs', fontsize=12)
-    ax1.set_ylabel('Total Throughput (Gbps)', fontsize=12)
-    ax1.set_title('Total Throughput', fontsize=14, fontweight='bold')
-    ax1.legend(fontsize=11)
-    ax1.grid(True, alpha=0.3)
-    
-    # Plot 2: Throughput per VM
-    if tap_reports:
-        tap_vms = [r['num_vms'] for r in tap_reports]
-        tap_per_vm = [r['throughput_per_vm'] for r in tap_reports]
-        ax2.plot(tap_vms, tap_per_vm, 'o-', label='tap', linewidth=2, markersize=5)
-    
-    if dpdk_reports:
-        dpdk_vms = [r['num_vms'] for r in dpdk_reports]
-        dpdk_per_vm = [r['throughput_per_vm'] for r in dpdk_reports]
-        ax2.plot(dpdk_vms, dpdk_per_vm, 's-', label='dpdk', linewidth=2, markersize=5)
-    
-    if ovs_dpdk_reports:
-        ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
         ovs_dpdk_per_vm = [r['throughput_per_vm'] for r in ovs_dpdk_reports]
-        ax2.plot(ovs_dpdk_vms, ovs_dpdk_per_vm, '^-', label='ovs-dpdk', linewidth=2, markersize=5)
+        ax.plot(ovs_dpdk_vms, ovs_dpdk_total, '^-', label='OvS-DPDK (Total)', linewidth=2, markersize=5, color='#9467bd')
+        ax.plot(ovs_dpdk_vms, ovs_dpdk_per_vm, '^--', label='OvS-DPDK (Per VM)', linewidth=2, markersize=5, color='#8c564b')
     
-    ax2.set_xlabel('Number of VMs', fontsize=12)
-    ax2.set_ylabel('Throughput per VM (Gbps)', fontsize=12)
-    ax2.set_title('Throughput per VM', fontsize=14, fontweight='bold')
-    ax2.legend(fontsize=11)
-    ax2.grid(True, alpha=0.3)
+    ax.set_xlabel('VM Count', fontsize=12)
+    ax.set_ylabel('Throughput (Gbps)', fontsize=12)
+    ax.set_yscale('log')
+    ax.set_title('Throughput Comparison', fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10, loc='best')
+    ax.grid(True, alpha=0.3, which='both')
     
     plt.tight_layout()
-    output_path = output_dir / 'iperf_comparison.png'
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    print(f"Saved: {output_path}")
+    output_path_png = output_dir / 'iperf_comparison.png'
+    output_path_pdf = output_dir / 'iperf_comparison.pdf'
+    plt.savefig(output_path_png, dpi=300, bbox_inches='tight')
+    plt.savefig(output_path_pdf, bbox_inches='tight')
+    print(f"Saved: {output_path_png}")
+    print(f"Saved: {output_path_pdf}")
     plt.close()
 
 
@@ -279,19 +267,19 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_re
     if tap_reports:
         tap_vms = [r['num_vms'] for r in tap_reports]
         tap_p99 = [r['p99_latency'] for r in tap_reports]
-        ax1.plot(tap_vms, tap_p99, 'o-', label='tap', linewidth=2, markersize=5)
+        ax1.plot(tap_vms, tap_p99, 'o-', label='Linux', linewidth=2, markersize=5)
     
     if dpdk_reports:
         dpdk_vms = [r['num_vms'] for r in dpdk_reports]
         dpdk_p99 = [r['p99_latency'] for r in dpdk_reports]
-        ax1.plot(dpdk_vms, dpdk_p99, 's-', label='dpdk', linewidth=2, markersize=5)
+        ax1.plot(dpdk_vms, dpdk_p99, 's-', label='UMANet', linewidth=2, markersize=5)
     
     if ovs_dpdk_reports:
         ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
         ovs_dpdk_p99 = [r['p99_latency'] for r in ovs_dpdk_reports]
-        ax1.plot(ovs_dpdk_vms, ovs_dpdk_p99, '^-', label='ovs-dpdk', linewidth=2, markersize=5)
+        ax1.plot(ovs_dpdk_vms, ovs_dpdk_p99, '^-', label='OvS-DPDK', linewidth=2, markersize=5)
     
-    ax1.set_xlabel('Number of VMs', fontsize=12)
+    ax1.set_xlabel('VM Count', fontsize=12)
     ax1.set_ylabel('p99 Latency (μs)', fontsize=12)
     ax1.set_title('p99 Latency', fontsize=14, fontweight='bold')
     ax1.legend(fontsize=11)
@@ -301,111 +289,101 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_re
     if tap_reports:
         tap_vms = [r['num_vms'] for r in tap_reports]
         tap_sent = [r['total_sent'] for r in tap_reports]
-        ax2.plot(tap_vms, tap_sent, 'o-', label='tap', linewidth=2, markersize=5)
+        ax2.plot(tap_vms, tap_sent, 'o-', label='Linux', linewidth=2, markersize=5)
     
     if dpdk_reports:
         dpdk_vms = [r['num_vms'] for r in dpdk_reports]
         dpdk_sent = [r['total_sent'] for r in dpdk_reports]
-        ax2.plot(dpdk_vms, dpdk_sent, 's-', label='dpdk', linewidth=2, markersize=5)
+        ax2.plot(dpdk_vms, dpdk_sent, 's-', label='UMANet', linewidth=2, markersize=5)
     
     if ovs_dpdk_reports:
         ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
         ovs_dpdk_sent = [r['total_sent'] for r in ovs_dpdk_reports]
-        ax2.plot(ovs_dpdk_vms, ovs_dpdk_sent, '^-', label='ovs-dpdk', linewidth=2, markersize=5)
+        ax2.plot(ovs_dpdk_vms, ovs_dpdk_sent, '^-', label='OvS-DPDK', linewidth=2, markersize=5)
     
-    ax2.set_xlabel('Number of VMs', fontsize=12)
+    ax2.set_xlabel('VM Count', fontsize=12)
     ax2.set_ylabel('Messages Sent', fontsize=12)
     ax2.set_title('Total Messages Sent', fontsize=14, fontweight='bold')
     ax2.legend(fontsize=11)
     ax2.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    output_path = output_dir / 'sockperf_comparison.png'
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    print(f"Saved: {output_path}")
+    output_path_png = output_dir / 'sockperf_comparison.png'
+    output_path_pdf = output_dir / 'sockperf_comparison.pdf'
+    plt.savefig(output_path_png, dpi=300, bbox_inches='tight')
+    plt.savefig(output_path_pdf, bbox_inches='tight')
+    print(f"Saved: {output_path_png}")
+    print(f"Saved: {output_path_pdf}")
     plt.close()
 
 
 def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_reports: List[Dict], output_dir: Path):
-    """Plot iperf-udp comparison graphs (stack plots)"""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    """Plot iperf-udp comparison graphs (line plots)"""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     
-    # Create a dictionary for quick lookup by num_vms
-    tap_dict = {r['num_vms']: r for r in tap_reports}
-    dpdk_dict = {r['num_vms']: r for r in dpdk_reports}
-    ovs_dpdk_dict = {r['num_vms']: r for r in ovs_dpdk_reports}
+    # Plot 1: Total PPS (Received and Lost)
+    if tap_reports:
+        tap_vms = [r['num_vms'] for r in tap_reports]
+        tap_received = [r['receiver_pps_total'] for r in tap_reports]
+        tap_lost = [r['lost_pps_total'] for r in tap_reports]
+        ax1.plot(tap_vms, tap_received, 'o-', label='Received (Linux)', linewidth=2, markersize=5, color='#1f77b4')
+        ax1.plot(tap_vms, tap_lost, 'o--', label='Lost (Linux)', linewidth=2, markersize=5, color='#ff7f0e')
     
-    # Get all unique VM counts
-    all_vms = sorted(set(list(tap_dict.keys()) + list(dpdk_dict.keys()) + list(ovs_dpdk_dict.keys())))
+    if dpdk_reports:
+        dpdk_vms = [r['num_vms'] for r in dpdk_reports]
+        dpdk_received = [r['receiver_pps_total'] for r in dpdk_reports]
+        dpdk_lost = [r['lost_pps_total'] for r in dpdk_reports]
+        ax1.plot(dpdk_vms, dpdk_received, 's-', label='Received (UMANet)', linewidth=2, markersize=5, color='#2ca02c')
+        ax1.plot(dpdk_vms, dpdk_lost, 's--', label='Lost (UMANet)', linewidth=2, markersize=5, color='#d62728')
     
-    if not all_vms:
-        print("No data to plot")
-        return
+    if ovs_dpdk_reports:
+        ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
+        ovs_dpdk_received = [r['receiver_pps_total'] for r in ovs_dpdk_reports]
+        ovs_dpdk_lost = [r['lost_pps_total'] for r in ovs_dpdk_reports]
+        ax1.plot(ovs_dpdk_vms, ovs_dpdk_received, '^-', label='Received (OvS-DPDK)', linewidth=2, markersize=5, color='#9467bd')
+        ax1.plot(ovs_dpdk_vms, ovs_dpdk_lost, '^--', label='Lost (OvS-DPDK)', linewidth=2, markersize=5, color='#8c564b')
     
-    # Prepare data for stacked bars
-    x_pos = np.arange(len(all_vms))
-    width = 0.25  # Width of bars (reduced to fit three groups)
-    
-    # Plot 1: Total PPS and Lost PPS (stack)
-    tap_received_total = [tap_dict.get(vm, {}).get('receiver_pps_total', 0) for vm in all_vms]
-    tap_lost_total = [tap_dict.get(vm, {}).get('lost_pps_total', 0) for vm in all_vms]
-    dpdk_received_total = [dpdk_dict.get(vm, {}).get('receiver_pps_total', 0) for vm in all_vms]
-    dpdk_lost_total = [dpdk_dict.get(vm, {}).get('lost_pps_total', 0) for vm in all_vms]
-    ovs_dpdk_received_total = [ovs_dpdk_dict.get(vm, {}).get('receiver_pps_total', 0) for vm in all_vms]
-    ovs_dpdk_lost_total = [ovs_dpdk_dict.get(vm, {}).get('lost_pps_total', 0) for vm in all_vms]
-    
-    # Tap bars (stacked)
-    ax1.bar(x_pos - width, tap_received_total, width, label='Received PPS (tap)', alpha=0.8, color='#1f77b4')
-    ax1.bar(x_pos - width, tap_lost_total, width, bottom=tap_received_total, label='Lost PPS (tap)', alpha=0.8, color='#ff7f0e')
-    
-    # DPDK bars (stacked)
-    ax1.bar(x_pos, dpdk_received_total, width, label='Received PPS (dpdk)', alpha=0.8, color='#2ca02c')
-    ax1.bar(x_pos, dpdk_lost_total, width, bottom=dpdk_received_total, label='Lost PPS (dpdk)', alpha=0.8, color='#d62728')
-    
-    # OVS-DPDK bars (stacked)
-    ax1.bar(x_pos + width, ovs_dpdk_received_total, width, label='Received PPS (ovs-dpdk)', alpha=0.8, color='#9467bd')
-    ax1.bar(x_pos + width, ovs_dpdk_lost_total, width, bottom=ovs_dpdk_received_total, label='Lost PPS (ovs-dpdk)', alpha=0.8, color='#8c564b')
-    
-    ax1.set_xlabel('Number of VMs', fontsize=12)
+    ax1.set_xlabel('VM Count', fontsize=12)
     ax1.set_ylabel('Packets Per Second', fontsize=12)
     ax1.set_title('Total PPS (Received + Lost)', fontsize=14, fontweight='bold')
-    ax1.set_xticks(x_pos)
-    ax1.set_xticklabels(all_vms)
-    ax1.legend(fontsize=9, ncol=3)
-    ax1.grid(True, alpha=0.3, axis='y')
+    ax1.legend(fontsize=9, ncol=2)
+    ax1.grid(True, alpha=0.3)
     
-    # Plot 2: PPS per VM and Lost PPS per VM (stack)
-    tap_received_per_vm = [tap_dict.get(vm, {}).get('receiver_pps_per_vm', 0) for vm in all_vms]
-    tap_lost_per_vm = [tap_dict.get(vm, {}).get('lost_pps_per_vm', 0) for vm in all_vms]
-    dpdk_received_per_vm = [dpdk_dict.get(vm, {}).get('receiver_pps_per_vm', 0) for vm in all_vms]
-    dpdk_lost_per_vm = [dpdk_dict.get(vm, {}).get('lost_pps_per_vm', 0) for vm in all_vms]
-    ovs_dpdk_received_per_vm = [ovs_dpdk_dict.get(vm, {}).get('receiver_pps_per_vm', 0) for vm in all_vms]
-    ovs_dpdk_lost_per_vm = [ovs_dpdk_dict.get(vm, {}).get('lost_pps_per_vm', 0) for vm in all_vms]
+    # Plot 2: PPS per VM (Received and Lost)
+    if tap_reports:
+        tap_vms = [r['num_vms'] for r in tap_reports]
+        tap_received = [r['receiver_pps_per_vm'] for r in tap_reports]
+        tap_lost = [r['lost_pps_per_vm'] for r in tap_reports]
+        ax2.plot(tap_vms, tap_received, 'o-', label='Received (Linux)', linewidth=2, markersize=5, color='#1f77b4')
+        ax2.plot(tap_vms, tap_lost, 'o--', label='Lost (Linux)', linewidth=2, markersize=5, color='#ff7f0e')
     
-    # Tap bars (stacked)
-    ax2.bar(x_pos - width, tap_received_per_vm, width, label='Received PPS/VM (tap)', alpha=0.8, color='#1f77b4')
-    ax2.bar(x_pos - width, tap_lost_per_vm, width, bottom=tap_received_per_vm, label='Lost PPS/VM (tap)', alpha=0.8, color='#ff7f0e')
+    if dpdk_reports:
+        dpdk_vms = [r['num_vms'] for r in dpdk_reports]
+        dpdk_received = [r['receiver_pps_per_vm'] for r in dpdk_reports]
+        dpdk_lost = [r['lost_pps_per_vm'] for r in dpdk_reports]
+        ax2.plot(dpdk_vms, dpdk_received, 's-', label='Received (UMANet)', linewidth=2, markersize=5, color='#2ca02c')
+        ax2.plot(dpdk_vms, dpdk_lost, 's--', label='Lost (UMANet)', linewidth=2, markersize=5, color='#d62728')
     
-    # DPDK bars (stacked)
-    ax2.bar(x_pos, dpdk_received_per_vm, width, label='Received PPS/VM (dpdk)', alpha=0.8, color='#2ca02c')
-    ax2.bar(x_pos, dpdk_lost_per_vm, width, bottom=dpdk_received_per_vm, label='Lost PPS/VM (dpdk)', alpha=0.8, color='#d62728')
+    if ovs_dpdk_reports:
+        ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
+        ovs_dpdk_received = [r['receiver_pps_per_vm'] for r in ovs_dpdk_reports]
+        ovs_dpdk_lost = [r['lost_pps_per_vm'] for r in ovs_dpdk_reports]
+        ax2.plot(ovs_dpdk_vms, ovs_dpdk_received, '^-', label='Received (OvS-DPDK)', linewidth=2, markersize=5, color='#9467bd')
+        ax2.plot(ovs_dpdk_vms, ovs_dpdk_lost, '^--', label='Lost (OvS-DPDK)', linewidth=2, markersize=5, color='#8c564b')
     
-    # OVS-DPDK bars (stacked)
-    ax2.bar(x_pos + width, ovs_dpdk_received_per_vm, width, label='Received PPS/VM (ovs-dpdk)', alpha=0.8, color='#9467bd')
-    ax2.bar(x_pos + width, ovs_dpdk_lost_per_vm, width, bottom=ovs_dpdk_received_per_vm, label='Lost PPS/VM (ovs-dpdk)', alpha=0.8, color='#8c564b')
-    
-    ax2.set_xlabel('Number of VMs', fontsize=12)
+    ax2.set_xlabel('VM Count', fontsize=12)
     ax2.set_ylabel('Packets Per Second per VM', fontsize=12)
     ax2.set_title('PPS per VM (Received + Lost)', fontsize=14, fontweight='bold')
-    ax2.set_xticks(x_pos)
-    ax2.set_xticklabels(all_vms)
-    ax2.legend(fontsize=9, ncol=3)
-    ax2.grid(True, alpha=0.3, axis='y')
+    ax2.legend(fontsize=9, ncol=2)
+    ax2.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    output_path = output_dir / 'iperf_udp_comparison.png'
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    print(f"Saved: {output_path}")
+    output_path_png = output_dir / 'iperf_udp_comparison.png'
+    output_path_pdf = output_dir / 'iperf_udp_comparison.pdf'
+    plt.savefig(output_path_png, dpi=300, bbox_inches='tight')
+    plt.savefig(output_path_pdf, bbox_inches='tight')
+    print(f"Saved: {output_path_png}")
+    print(f"Saved: {output_path_pdf}")
     plt.close()
 
 

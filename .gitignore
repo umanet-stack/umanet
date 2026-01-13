@@ -16,3 +16,4 @@ switch.log
 perf.data*
 *.png
 *.log
+*.pdf
