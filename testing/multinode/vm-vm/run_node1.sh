@@ -36,6 +36,7 @@ elif [ "$NETWORK" = "dpdk" ]; then
     log "Setting up DPDK network with $NUM_VMS VMs..."
     sudo rm -rf /mnt/huge/*
     sudo bash -c "ps aux | grep umanet | grep -v grep | awk '{print \$2}' | xargs -r kill -2" || true
+    sleep 1 # important
     if [ "$ITERATION" -eq 1 ]; then
         log "Building and running umanet (iteration 1)"
         # </dev/null: disconnects stdin so that job runs in background
