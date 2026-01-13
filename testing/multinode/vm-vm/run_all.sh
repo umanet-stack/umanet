@@ -9,6 +9,7 @@ fi
 
 NUM_VMS=$1
 MULTINODE_DIR=${BASE_DIR}/testing/multinode/vm-vm
+TEST_LOG_DIR=${BASE_DIR}/testing/$NETWORK/$TEST/vm-client
 LOG_DIR=$MULTINODE_DIR/log
 mkdir -p $LOG_DIR
 rm -rf $MULTINODE_DIR/log/*
@@ -35,8 +36,10 @@ log "⭐️ node 0 initialized"
 log "======= TEST: $TEST_CMD (network: $NETWORK) ======="
 for VMS in $(seq 1 $NUM_VMS); do
   log "Running test: $VMS VMs"
-
-  OUTDIR="$BASE_OUT/vms_$VMS"
+  if [[ -d "$TEST_LOG_DIR/report-${VMS}vm" ]]; then
+      log "  Test result already exists, skipping"
+      continue
+  fi
 
   ssh -i ~/.ssh/cloudlab "$USER@$NODE1" "cd $BASE_DIR && bash -s" < ${MULTINODE_DIR}/run_node1.sh \
     "$BASE_DIR" "$NETWORK" "$VMS" &>> "$LOG_DIR/node1.log"
@@ -48,4 +51,5 @@ for VMS in $(seq 1 $NUM_VMS); do
   sleep 45
 
   python testing/process_logs/main.py $NETWORK vm-client &>> "$LOG_DIR/report.log"
+  log "  processed logs"
 done
