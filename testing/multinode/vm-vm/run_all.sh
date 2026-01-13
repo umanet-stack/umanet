@@ -1,26 +1,31 @@
 #!/usr/bin/env bash
 set -e
 
-NODE1=node1
+source env.sh
+
 BASE_OUT=results
 TEST_TIME=10
 
-for VMS in $(seq 1 32); do
-  echo "=============================="
-  echo "Running test: $VMS VMs"
-  echo "=============================="
+MULTINODE_DIR=${BASE_DIR}/testing/multinode/vm-vm
 
-  OUTDIR="$BASE_OUT/vms_$VMS"
+ssh "$NODE1" "bash -s" < ${MULTINODE_DIR}/init_node1.sh "$BASE_DIR"
 
-  # start node1 first
-  ssh "$NODE1" \
-    "bash -s" < run_node1.sh "$VMS" "$OUTDIR"
+# for VMS in $(seq 1 32); do
+#   echo "=============================="
+#   echo "Running test: $VMS VMs"
+#   echo "=============================="
 
-  sleep 2
+#   OUTDIR="$BASE_OUT/vms_$VMS"
 
-  # run node0 side
-  bash run_node0.sh "$VMS" "$OUTDIR"
+#   # start node1 first
+#   ssh "$NODE1" \
+#     "bash -s" < run_node1.sh "$VMS" "$OUTDIR"
 
-  # optional cooldown
-  sleep 5
-done
+#   sleep 2
+
+#   # run node0 side
+#   bash run_node0.sh "$VMS" "$OUTDIR"
+
+#   # optional cooldown
+#   sleep 5
+# done
