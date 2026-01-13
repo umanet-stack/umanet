@@ -28,11 +28,16 @@ def parse_iperf_report(report_path: Path) -> Optional[Dict]:
         with open(report_path, 'r') as f:
             content = f.read()
         
-        # Extract number of VMs
-        vm_match = re.search(r'\*\*Number of VMs:\*\* (\d+)', content)
-        if not vm_match:
-            return None
-        num_vms = int(vm_match.group(1))
+        # Extract Total VMs (for x-axis)
+        total_vms_match = re.search(r'\*\*Total VMs:\*\* (\d+)', content)
+        if not total_vms_match:
+            # Fallback to old format for backward compatibility
+            vm_match = re.search(r'\*\*Number of VMs:\*\* (\d+)', content)
+            if not vm_match:
+                return None
+            total_vms = int(vm_match.group(1))
+        else:
+            total_vms = int(total_vms_match.group(1))
         
         # Extract Total Throughput (Gbps)
         total_match = re.search(r'\*\*Total Throughput\*\* \| ([0-9.]+) Gbps', content)
@@ -47,7 +52,7 @@ def parse_iperf_report(report_path: Path) -> Optional[Dict]:
         avg_per_vm = float(avg_match.group(1))
         
         return {
-            'num_vms': num_vms,
+            'num_vms': total_vms,  # Use Total VMs for x-axis
             'total_throughput': total_throughput,
             'throughput_per_vm': avg_per_vm
         }
@@ -62,11 +67,16 @@ def parse_iperf_udp_report(report_path: Path) -> Optional[Dict]:
         with open(report_path, 'r') as f:
             content = f.read()
         
-        # Extract number of VMs
-        vm_match = re.search(r'\*\*Number of VMs:\*\* (\d+)', content)
-        if not vm_match:
-            return None
-        num_vms = int(vm_match.group(1))
+        # Extract Total VMs (for x-axis)
+        total_vms_match = re.search(r'\*\*Total VMs:\*\* (\d+)', content)
+        if not total_vms_match:
+            # Fallback to old format for backward compatibility
+            vm_match = re.search(r'\*\*Number of VMs:\*\* (\d+)', content)
+            if not vm_match:
+                return None
+            total_vms = int(vm_match.group(1))
+        else:
+            total_vms = int(total_vms_match.group(1))
         
         # Extract Sender PPS (Total)
         sender_pps_match = re.search(r'\*\*Sender PPS \(Total\)\*\* \| ([0-9,]+) packets/sec', content)
@@ -99,7 +109,7 @@ def parse_iperf_udp_report(report_path: Path) -> Optional[Dict]:
         lost_pps_per_vm = avg_sender_pps_per_vm - avg_receiver_pps_per_vm
         
         return {
-            'num_vms': num_vms,
+            'num_vms': total_vms,  # Use Total VMs for x-axis
             'sender_pps_total': sender_pps_total,
             'receiver_pps_total': receiver_pps_total,
             'lost_pps_total': lost_pps_total,
@@ -118,11 +128,16 @@ def parse_sockperf_report(report_path: Path) -> Optional[Dict]:
         with open(report_path, 'r') as f:
             content = f.read()
         
-        # Extract number of VMs
-        vm_match = re.search(r'\*\*Number of VMs:\*\* (\d+)', content)
-        if not vm_match:
-            return None
-        num_vms = int(vm_match.group(1))
+        # Extract Total VMs (for x-axis)
+        total_vms_match = re.search(r'\*\*Total VMs:\*\* (\d+)', content)
+        if not total_vms_match:
+            # Fallback to old format for backward compatibility
+            vm_match = re.search(r'\*\*Number of VMs:\*\* (\d+)', content)
+            if not vm_match:
+                return None
+            total_vms = int(vm_match.group(1))
+        else:
+            total_vms = int(total_vms_match.group(1))
         
         # Extract Average p99
         p99_match = re.search(r'\*\*Average p99\*\* \| ([0-9.]+) μs', content)
@@ -137,7 +152,7 @@ def parse_sockperf_report(report_path: Path) -> Optional[Dict]:
         total_sent = int(sent_match.group(1).replace(',', ''))
         
         return {
-            'num_vms': num_vms,
+            'num_vms': total_vms,  # Use Total VMs for x-axis
             'p99_latency': p99_latency,
             'total_sent': total_sent
         }
