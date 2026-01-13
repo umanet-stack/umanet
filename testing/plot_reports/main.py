@@ -224,17 +224,17 @@ def plot_iperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_repor
     if tap_reports:
         tap_vms = [r['num_vms'] for r in tap_reports]
         tap_total = [r['total_throughput'] for r in tap_reports]
-        ax1.plot(tap_vms, tap_total, 'o-', label='tap', linewidth=2, markersize=8)
+        ax1.plot(tap_vms, tap_total, 'o-', label='tap', linewidth=2, markersize=5)
     
     if dpdk_reports:
         dpdk_vms = [r['num_vms'] for r in dpdk_reports]
         dpdk_total = [r['total_throughput'] for r in dpdk_reports]
-        ax1.plot(dpdk_vms, dpdk_total, 's-', label='dpdk', linewidth=2, markersize=8)
+        ax1.plot(dpdk_vms, dpdk_total, 's-', label='dpdk', linewidth=2, markersize=5)
     
     if ovs_dpdk_reports:
         ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
         ovs_dpdk_total = [r['total_throughput'] for r in ovs_dpdk_reports]
-        ax1.plot(ovs_dpdk_vms, ovs_dpdk_total, '^-', label='ovs-dpdk', linewidth=2, markersize=8)
+        ax1.plot(ovs_dpdk_vms, ovs_dpdk_total, '^-', label='ovs-dpdk', linewidth=2, markersize=5)
     
     ax1.set_xlabel('Number of VMs', fontsize=12)
     ax1.set_ylabel('Total Throughput (Gbps)', fontsize=12)
@@ -246,17 +246,17 @@ def plot_iperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_repor
     if tap_reports:
         tap_vms = [r['num_vms'] for r in tap_reports]
         tap_per_vm = [r['throughput_per_vm'] for r in tap_reports]
-        ax2.plot(tap_vms, tap_per_vm, 'o-', label='tap', linewidth=2, markersize=8)
+        ax2.plot(tap_vms, tap_per_vm, 'o-', label='tap', linewidth=2, markersize=5)
     
     if dpdk_reports:
         dpdk_vms = [r['num_vms'] for r in dpdk_reports]
         dpdk_per_vm = [r['throughput_per_vm'] for r in dpdk_reports]
-        ax2.plot(dpdk_vms, dpdk_per_vm, 's-', label='dpdk', linewidth=2, markersize=8)
+        ax2.plot(dpdk_vms, dpdk_per_vm, 's-', label='dpdk', linewidth=2, markersize=5)
     
     if ovs_dpdk_reports:
         ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
         ovs_dpdk_per_vm = [r['throughput_per_vm'] for r in ovs_dpdk_reports]
-        ax2.plot(ovs_dpdk_vms, ovs_dpdk_per_vm, '^-', label='ovs-dpdk', linewidth=2, markersize=8)
+        ax2.plot(ovs_dpdk_vms, ovs_dpdk_per_vm, '^-', label='ovs-dpdk', linewidth=2, markersize=5)
     
     ax2.set_xlabel('Number of VMs', fontsize=12)
     ax2.set_ylabel('Throughput per VM (Gbps)', fontsize=12)
@@ -279,17 +279,17 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_re
     if tap_reports:
         tap_vms = [r['num_vms'] for r in tap_reports]
         tap_p99 = [r['p99_latency'] for r in tap_reports]
-        ax1.plot(tap_vms, tap_p99, 'o-', label='tap', linewidth=2, markersize=8)
+        ax1.plot(tap_vms, tap_p99, 'o-', label='tap', linewidth=2, markersize=5)
     
     if dpdk_reports:
         dpdk_vms = [r['num_vms'] for r in dpdk_reports]
         dpdk_p99 = [r['p99_latency'] for r in dpdk_reports]
-        ax1.plot(dpdk_vms, dpdk_p99, 's-', label='dpdk', linewidth=2, markersize=8)
+        ax1.plot(dpdk_vms, dpdk_p99, 's-', label='dpdk', linewidth=2, markersize=5)
     
     if ovs_dpdk_reports:
         ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
         ovs_dpdk_p99 = [r['p99_latency'] for r in ovs_dpdk_reports]
-        ax1.plot(ovs_dpdk_vms, ovs_dpdk_p99, '^-', label='ovs-dpdk', linewidth=2, markersize=8)
+        ax1.plot(ovs_dpdk_vms, ovs_dpdk_p99, '^-', label='ovs-dpdk', linewidth=2, markersize=5)
     
     ax1.set_xlabel('Number of VMs', fontsize=12)
     ax1.set_ylabel('p99 Latency (μs)', fontsize=12)
@@ -301,17 +301,17 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_re
     if tap_reports:
         tap_vms = [r['num_vms'] for r in tap_reports]
         tap_sent = [r['total_sent'] for r in tap_reports]
-        ax2.plot(tap_vms, tap_sent, 'o-', label='tap', linewidth=2, markersize=8)
+        ax2.plot(tap_vms, tap_sent, 'o-', label='tap', linewidth=2, markersize=5)
     
     if dpdk_reports:
         dpdk_vms = [r['num_vms'] for r in dpdk_reports]
         dpdk_sent = [r['total_sent'] for r in dpdk_reports]
-        ax2.plot(dpdk_vms, dpdk_sent, 's-', label='dpdk', linewidth=2, markersize=8)
+        ax2.plot(dpdk_vms, dpdk_sent, 's-', label='dpdk', linewidth=2, markersize=5)
     
     if ovs_dpdk_reports:
         ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
         ovs_dpdk_sent = [r['total_sent'] for r in ovs_dpdk_reports]
-        ax2.plot(ovs_dpdk_vms, ovs_dpdk_sent, '^-', label='ovs-dpdk', linewidth=2, markersize=8)
+        ax2.plot(ovs_dpdk_vms, ovs_dpdk_sent, '^-', label='ovs-dpdk', linewidth=2, markersize=5)
     
     ax2.set_xlabel('Number of VMs', fontsize=12)
     ax2.set_ylabel('Messages Sent', fontsize=12)
