@@ -9,22 +9,17 @@ echo "⭐️ node 1 initialized"
 ${MULTINODE_DIR}/init_node.sh "$BASE_DIR" "$NETWORK"
 echo "⭐️ node 0 initialized"
 
-# for VMS in $(seq 1 32); do
-#   echo "=============================="
-#   echo "Running test: $VMS VMs"
-#   echo "=============================="
+for VMS in $(seq 1 1); do
+  echo "Running test: $VMS VMs (network: $NETWORK)"
 
-#   OUTDIR="$BASE_OUT/vms_$VMS"
+  OUTDIR="$BASE_OUT/vms_$VMS"
 
-#   # start node1 first
-#   ssh "$NODE1" \
-#     "bash -s" < run_node1.sh "$VMS" "$OUTDIR"
+  ssh -i ~/.ssh/cloudlab "$USER@$NODE1" "cd $BASE_DIR && bash -s" < ${MULTINODE_DIR}/run_node1.sh "$BASE_DIR" "$NETWORK" "$VMS"
+  echo "  started $VMS VMs on node 1"
+  sleep 5
 
-#   sleep 2
+  ${MULTINODE_DIR}/run_node0.sh "$BASE_DIR" "$NETWORK" "$VMS"
+  sleep 45
 
-#   # run node0 side
-#   bash run_node0.sh "$VMS" "$OUTDIR"
-
-#   # optional cooldown
-#   sleep 5
-# done
+  python testing/process_logs/main.py $NETWORK vm-client
+done

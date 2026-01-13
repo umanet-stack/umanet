@@ -1,24 +1,22 @@
 #!/usr/bin/env bash
 set -e
 
-NUM_VMS=$1
-OUTDIR=$2
+if [ "$#" -ne 3 ]; then
+  echo "Usage: $0 <base_dir> <network> <num_vms>"
+  exit 1
+fi
 
-mkdir -p "$OUTDIR"
+BASE_DIR=$1
+NETWORK=$2
+NUM_VMS=$3
 
-# Example: start server-side workload
-echo "[node1] Starting test for $NUM_VMS VMs"
+if [ "$NETWORK" != "tap" ] && [ "$NETWORK" != "dpdk" ] && [ "$NETWORK" != "ovs-dpdk" ]; then
+  echo "Error: network must be tap, dpdk, or ovs-dpdk"
+  exit 1
+fi
 
-# example: iperf server, ovs stats, etc.
-iperf3 -s -D
+sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
 
-sleep 1
-
-# collect stats (example)
-ovs-appctl dpif-netdev/pmd-stats-show > "$OUTDIR/pmd.txt"
-
-# wait until node0 finishes
-sleep 10
-
-pkill iperf3
-echo "[node1] Done"
+if [ "$NETWORK" = "tap" ]; then
+    ${BASE_DIR}/setup/vm/spawn_vms.sh tap $NUM_VMS vm-server
+fi
