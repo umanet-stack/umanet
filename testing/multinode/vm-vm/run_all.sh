@@ -2,18 +2,12 @@
 set -e
 source env.sh
 
-if [ "$#" -ne 1 ]; then
-  echo "Usage: $0 <network>"
-  exit 1
-fi
-
-NETWORK=$1
 MULTINODE_DIR=${BASE_DIR}/testing/multinode/vm-vm
 
-# node 1
 ssh -i ~/.ssh/cloudlab "$USER@$NODE1" "cd $BASE_DIR && bash -s" < ${MULTINODE_DIR}/init_node.sh "$BASE_DIR" "$NETWORK"
-# node 0
+echo "⭐️ node 1 initialized"
 ${MULTINODE_DIR}/init_node.sh "$BASE_DIR" "$NETWORK"
+echo "⭐️ node 0 initialized"
 
 # for VMS in $(seq 1 32); do
 #   echo "=============================="
