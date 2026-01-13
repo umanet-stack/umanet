@@ -156,6 +156,3 @@ fi
 # fi
 
 echo "All VMs launched. Running in background."
-
-echo "Experiment will finish in 60 seconds"
-sleep 60

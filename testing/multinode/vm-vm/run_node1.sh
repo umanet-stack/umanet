@@ -15,7 +15,7 @@ if [ "$NETWORK" != "tap" ] && [ "$NETWORK" != "dpdk" ] && [ "$NETWORK" != "ovs-d
   exit 1
 fi
 
-sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
+sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9" || true
 
 if [ "$NETWORK" = "tap" ]; then
     ${BASE_DIR}/setup/vm/spawn_vms.sh tap $NUM_VMS vm-server
