@@ -36,7 +36,9 @@ log "⭐️ node 0 initialized"
 log "======= TEST: $TEST_CMD (network: $NETWORK) ======="
 for VMS in $(seq 1 $NUM_VMS); do
   log "Running test: $VMS VMs"
-  if [[ -d "$TEST_LOG_DIR/report-${VMS}vm" ]]; then
+
+  REPORT_DIR="$TEST_LOG_DIR/report-${VMS}vm"
+  if [[ -d "$REPORT_DIR" ]] && [[ "$(ls -A "$REPORT_DIR")" ]]; then
       log "  Test result already exists, skipping"
       continue
   fi
