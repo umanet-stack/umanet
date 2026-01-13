@@ -64,6 +64,7 @@ void init_config(config_t *c) {
     c->eth_tx_queues = 0;
     c->vhost_rx_cores = 0;
     c->vhost_tx_cores = 0;
+    c->show_dash = 0;
 }
 
 enum cfg_params {
@@ -86,6 +87,7 @@ enum cfg_params {
     CP_ETH_TX_QUEUES,
     CP_VHOST_RX_CORES,
     CP_VHOST_TX_CORES,
+    CP_SHOW_DASH,
 };
 
 static struct option options[] = {
@@ -144,6 +146,7 @@ static struct option options[] = {
     {"eth-tx-queues", required_argument, .val = CP_ETH_TX_QUEUES},
     {"vhost-rx-cores", required_argument, .val = CP_VHOST_RX_CORES},
     {"vhost-tx-cores", required_argument, .val = CP_VHOST_TX_CORES},
+    {"show-dash", required_argument, .val = CP_SHOW_DASH},
 };
 
 static void us_vhost_usage(const char *prgname) {
@@ -285,6 +288,13 @@ int parse_config(config_t *c, int argc, char **argv) {
         case CP_VHOST_TX_CORES:
             if (parse_int16(optarg, &c->vhost_tx_cores) != 0) {
                 fprintf(stderr, "Invalid argument for vhost-tx-cores [0-N]\n");
+                goto failed;
+            }
+            break;
+
+        case CP_SHOW_DASH:
+            if (parse_int8(optarg, &c->show_dash) != 0) {
+                fprintf(stderr, "Invalid argument for show-dash [0|1]\n");
                 goto failed;
             }
             break;

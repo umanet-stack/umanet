@@ -24,7 +24,7 @@ void slowpath_loop(struct control_ctx *ctx) {
         sleep(1);
 #endif
         uint64_t cur_tsc = rte_get_tsc_cycles();
-        if (cur_tsc - last_dashboard_update > tsc_hz) {
+        if (config.show_dash && cur_tsc - last_dashboard_update > tsc_hz) {
             control_dashboard();
             last_dashboard_update = cur_tsc;
         }

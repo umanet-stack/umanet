@@ -2,14 +2,15 @@
 set -eu
 source env.sh
 
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 <num-vms>"
+if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 <num-vms> <show-dash>"
     echo "  num-vms: number of VMs to use"
+    echo "  show-dash: 0 or 1"
     exit 1
 fi
 
 NUM_VMS="$1"
-
+SHOW_DASH="$2"
 # EAL (dpdk) options (before --): -l cores, -n memory channels
 # Application options (after --): --fp-cores-max, --socket-file path, --stats interval
 # 
@@ -35,4 +36,5 @@ sudo ./build/umanet \
   --eth-rx-cores $ETH_RX_CORES --eth-tx-cores $ETH_TX_CORES \
   --eth-rx-queues $ETH_RX_QUEUES --eth-tx-queues $ETH_TX_QUEUES \
   --vhost-rx-cores $VHOST_RX_CORES --vhost-tx-cores $VHOST_TX_CORES \
+  --show-dash $SHOW_DASH \
   > switch.log 2>&1
