@@ -25,7 +25,7 @@ if [ "$NETWORK" != "tap" ] && [ "$NETWORK" != "dpdk" ] && [ "$NETWORK" != "ovs-d
 fi
 
 log "Killing existing cloud-hypervisor processes..."
-sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9" || true
+sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs -r kill -9" || true
 
 if [ "$NETWORK" = "tap" ]; then
     log "Setting up tap network with $NUM_VMS VMs..."
@@ -34,7 +34,7 @@ if [ "$NETWORK" = "tap" ]; then
 elif [ "$NETWORK" = "dpdk" ]; then
     log "Setting up DPDK network with $NUM_VMS VMs..."
     log "Killing existing umanet processes..."
-    sudo bash -c "ps aux | grep umanet | grep -v grep | awk '{print \$2}' | xargs kill -9" || true
+    sudo bash -c "ps aux | grep umanet | grep -v grep | awk '{print \$2}' | xargs -r kill -9" || true
     if [ "$ITERATION" -eq 1 ]; then
         log "Building and running umanet (iteration 1)..."
         sudo ${BASE_DIR}/build_and_run.sh test $NUM_VMS
