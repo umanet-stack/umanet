@@ -272,9 +272,9 @@ def plot_iperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_repor
 
 def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_reports: List[Dict], output_dir: Path):
     """Plot sockperf comparison graphs"""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-    
     # Plot 1: p99 Latency
+    fig1, ax1 = plt.subplots(1, 1, figsize=(8, 5))
+    
     if tap_reports:
         tap_vms = [r['num_vms'] for r in tap_reports]
         tap_p99 = [r['p99_latency'] for r in tap_reports]
@@ -290,13 +290,24 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_re
         ovs_dpdk_p99 = [r['p99_latency'] for r in ovs_dpdk_reports]
         ax1.plot(ovs_dpdk_vms, ovs_dpdk_p99, '^-', label='OvS-DPDK', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
     
-    ax1.set_xlabel('VM Count', fontsize=18)
-    ax1.set_ylabel('p99 Latency (μs)', fontsize=18)
-    ax1.tick_params(axis='both', which='major', labelsize=16)
-    ax1.legend(fontsize=15)
+    ax1.set_xlabel('VM Count', fontsize=21)
+    ax1.set_ylabel('p99 Latency (μs)', fontsize=21)
+    ax1.tick_params(axis='both', which='major', labelsize=19)
+    ax1.legend(fontsize=18)
     ax1.grid(True, alpha=0.3)
     
+    plt.tight_layout()
+    output_path_png = output_dir / 'sockperf_p99_latency.png'
+    output_path_pdf = output_dir / 'sockperf_p99_latency.pdf'
+    plt.savefig(output_path_png, dpi=300, bbox_inches='tight')
+    plt.savefig(output_path_pdf, bbox_inches='tight')
+    print(f"Saved: {output_path_png}")
+    print(f"Saved: {output_path_pdf}")
+    plt.close()
+    
     # Plot 2: Messages Received
+    fig2, ax2 = plt.subplots(1, 1, figsize=(8, 5))
+    
     if tap_reports:
         tap_vms = [r['num_vms'] for r in tap_reports]
         tap_received = [r['total_received'] for r in tap_reports]
@@ -312,15 +323,15 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_re
         ovs_dpdk_received = [r['total_received'] for r in ovs_dpdk_reports]
         ax2.plot(ovs_dpdk_vms, ovs_dpdk_received, '^-', label='OvS-DPDK', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
     
-    ax2.set_xlabel('VM Count', fontsize=18)
-    ax2.set_ylabel('Messages Received', fontsize=18)
-    ax2.tick_params(axis='both', which='major', labelsize=16)
-    ax2.legend(fontsize=15)
+    ax2.set_xlabel('VM Count', fontsize=21)
+    ax2.set_ylabel('Messages Received', fontsize=21)
+    ax2.tick_params(axis='both', which='major', labelsize=19)
+    ax2.legend(fontsize=18)
     ax2.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    output_path_png = output_dir / 'sockperf_comparison.png'
-    output_path_pdf = output_dir / 'sockperf_comparison.pdf'
+    output_path_png = output_dir / 'sockperf_messages_received.png'
+    output_path_pdf = output_dir / 'sockperf_messages_received.pdf'
     plt.savefig(output_path_png, dpi=300, bbox_inches='tight')
     plt.savefig(output_path_pdf, bbox_inches='tight')
     print(f"Saved: {output_path_png}")
@@ -330,9 +341,9 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_re
 
 def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_reports: List[Dict], output_dir: Path):
     """Plot iperf-udp comparison graphs (line plots)"""
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 10))
-    
     # Plot 1: Total PPS (Received and Lost)
+    fig1, ax1 = plt.subplots(1, 1, figsize=(8, 5))
+    
     if tap_reports:
         tap_vms = [r['num_vms'] for r in tap_reports]
         tap_received = [r['receiver_pps_total'] for r in tap_reports]
@@ -357,9 +368,21 @@ def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_r
     ax1.set_xlabel('VM Count', fontsize=18)
     ax1.set_ylabel('PPS', fontsize=18)
     ax1.tick_params(axis='both', which='major', labelsize=16)
+    ax1.legend(fontsize=15, ncol=2)
     ax1.grid(True, alpha=0.3)
     
+    plt.tight_layout()
+    output_path_png = output_dir / 'iperf_udp_pps.png'
+    output_path_pdf = output_dir / 'iperf_udp_pps.pdf'
+    plt.savefig(output_path_png, dpi=300, bbox_inches='tight')
+    plt.savefig(output_path_pdf, bbox_inches='tight')
+    print(f"Saved: {output_path_png}")
+    print(f"Saved: {output_path_pdf}")
+    plt.close()
+    
     # Plot 2: Packet Loss Percentage
+    fig2, ax2 = plt.subplots(1, 1, figsize=(8, 5))
+    
     if tap_reports:
         tap_vms = [r['num_vms'] for r in tap_reports]
         tap_loss_pct = [(r['lost_pps_total'] / r['sender_pps_total']) * 100 for r in tap_reports]
@@ -381,13 +404,9 @@ def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_r
     ax2.grid(True, alpha=0.3)
     ax2.legend(fontsize=15)
     
-    # Create legend for ax1 outside the plot area (above)
-    handles1, labels1 = ax1.get_legend_handles_labels()
-    fig.legend(handles1, labels1, loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=2, fontsize=15, frameon=True)
-    
-    plt.tight_layout(rect=[0, 0, 1, 0.93])
-    output_path_png = output_dir / 'iperf_udp_comparison.png'
-    output_path_pdf = output_dir / 'iperf_udp_comparison.pdf'
+    plt.tight_layout()
+    output_path_png = output_dir / 'iperf_udp_packet_loss.png'
+    output_path_pdf = output_dir / 'iperf_udp_packet_loss.pdf'
     plt.savefig(output_path_png, dpi=300, bbox_inches='tight')
     plt.savefig(output_path_pdf, bbox_inches='tight')
     print(f"Saved: {output_path_png}")
