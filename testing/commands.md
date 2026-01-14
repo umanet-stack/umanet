@@ -34,7 +34,7 @@ python testing/process_logs/main.py tap vm-client
 ./setup/cpu/slice_cpu.sh dpdk
 # run TAP once before DPDK to make it download iperf
 # no. of vhost must match no. of VMs!
-sudo ./run.sh 32
+sudo ./run.sh 32 1
 
 # do local networking via dpdk
 ./setup/vm/spawn_vms.sh dpdk 32 vm-vm-internal
@@ -47,7 +47,7 @@ ethtool -k ens6
 ```bash
 # both nodes (make sure to build as test mode first)
 ./setup/cpu/slice_cpu.sh dpdk
-sudo ./run.sh 32
+sudo ./run.sh 32 1
 # node 1
 ./setup/vm/spawn_vms.sh dpdk 32 vm-server
 # node 0

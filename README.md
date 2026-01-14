@@ -61,12 +61,12 @@ sudo rm -f /dev/hugepages/tas_memory
 ```bash
 # debug
 tmux new -s dpdk
-sudo ./build_and_run.sh debug 32
+sudo ./build_and_run.sh debug 32 1
 # terminal 2
 tail -f switch.log
 
 # test
-sudo ./build_and_run.sh test 32
+sudo ./build_and_run.sh test 32 1
 
 # kill process
 sudo ps aux | grep vhost-switch | grep -v grep | awk '{print $2}' | xargs kill -9

@@ -15,3 +15,5 @@ initramfs-overlay.img
 switch.log
 perf.data*
 *.png
+*.log
+*.pdf

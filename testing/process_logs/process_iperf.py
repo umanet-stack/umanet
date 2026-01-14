@@ -5,7 +5,7 @@ Process iperf3 test results and generate reports
 import re
 import argparse
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
@@ -210,17 +210,27 @@ def parse_udp_results(log_content: str) -> dict:
     return result
 
 
-def load_results(logs_dir: Path, process_all_vms: bool = False) -> Dict[str, dict]:
+def load_results(logs_dir: Path, process_all_vms: bool = False) -> Tuple[Dict[str, dict], int]:
     """Extract results from VM log files
     
     Args:
         logs_dir: Directory containing VM log files
         process_all_vms: If True, process all VMs. If False, process only odd-numbered VMs (clients).
+    
+    Returns:
+        Tuple of (results dict, total_vms count)
     """
     results = {}
+    total_vms = 0
     
     # Find all VM log files
     for log_file in sorted(logs_dir.glob("vm*.log")):
+        vm_name = log_file.stem  # e.g., "vm1"
+        vm_num = int(vm_name[2:])  # Extract number: "vm1" -> 1
+        
+        # Count total VMs based on mode
+        if process_all_vms or vm_num % 2 == 1:
+            total_vms += 1
         vm_name = log_file.stem  # e.g., "vm1"
         vm_num = int(vm_name[2:])  # Extract number: "vm1" -> 1
         
@@ -318,7 +328,7 @@ def load_results(logs_dir: Path, process_all_vms: bool = False) -> Dict[str, dic
         except Exception as e:
             print(f"⚠️  Error processing {log_file}: {e}")
     
-    return results
+    return results, total_vms
 
 
 def extract_per_vm_stats(results: Dict[str, dict]) -> Dict[str, dict]:
@@ -413,8 +423,13 @@ def extract_timeseries(results: Dict[str, dict]) -> Dict[str, List[dict]]:
     return timeseries
 
 
-def calculate_overall_stats(per_vm_stats: Dict[str, dict]) -> dict:
-    """Calculate overall statistics across all VMs (handles both TCP and UDP modes)"""
+def calculate_overall_stats(per_vm_stats: Dict[str, dict], total_vms: int) -> dict:
+    """Calculate overall statistics across all VMs (handles both TCP and UDP modes)
+    
+    Args:
+        per_vm_stats: Statistics per completed VM
+        total_vms: Total number of VMs (log files found)
+    """
     if not per_vm_stats:
         return {}
     
@@ -422,6 +437,7 @@ def calculate_overall_stats(per_vm_stats: Dict[str, dict]) -> dict:
     first_vm = list(per_vm_stats.values())[0]
     is_udp = first_vm.get('mode') == 'udp'
     
+    completed_vms = len(per_vm_stats)
     total_throughput_bps = sum(s['throughput_bps'] for s in per_vm_stats.values())
     avg_cpu_host = np.mean([s['cpu_host_total'] for s in per_vm_stats.values()])
     avg_cpu_remote = np.mean([s['cpu_remote_total'] for s in per_vm_stats.values()])
@@ -430,8 +446,9 @@ def calculate_overall_stats(per_vm_stats: Dict[str, dict]) -> dict:
         'mode': 'udp' if is_udp else 'tcp',
         'total_throughput_gbps': total_throughput_bps / 1e9,
         'total_throughput_mbps': total_throughput_bps / 1e6,
-        'num_vms': len(per_vm_stats),
-        'avg_per_vm_gbps': (total_throughput_bps / 1e9) / len(per_vm_stats),
+        'total_vms': total_vms,
+        'num_vms': completed_vms,  # Number of completed VMs
+        'avg_per_vm_gbps': (total_throughput_bps / 1e9) / completed_vms if completed_vms > 0 else 0,
         'avg_cpu_host_percent': avg_cpu_host,
         'avg_cpu_remote_percent': avg_cpu_remote,
     }
@@ -453,9 +470,9 @@ def calculate_overall_stats(per_vm_stats: Dict[str, dict]) -> dict:
             'total_received_datagrams': total_received_datagrams,
             'overall_loss_percent': (total_lost / total_datagrams * 100) if total_datagrams > 0 else 0,
             'total_sender_pps': total_sender_pps,
-            'avg_sender_pps_per_vm': total_sender_pps / len(per_vm_stats),
+            'avg_sender_pps_per_vm': total_sender_pps / completed_vms if completed_vms > 0 else 0,
             'total_receiver_pps': total_receiver_pps,
-            'avg_receiver_pps_per_vm': total_receiver_pps / len(per_vm_stats),
+            'avg_receiver_pps_per_vm': total_receiver_pps / completed_vms if completed_vms > 0 else 0,
             'avg_jitter_ms': avg_jitter,
         })
     else:
@@ -581,7 +598,8 @@ def generate_markdown_report(per_vm_stats: Dict[str, dict], overall: dict, outpu
 
 **Generated:** {timestamp}  
 **Test Duration:** ~30 seconds per VM  
-**Number of VMs:** {overall['num_vms']}  
+**Total VMs:** {overall['total_vms']}  
+**Number of Completed VMs:** {overall['num_vms']}  
 **Parallel Streams:** 4 per VM  
 **Mode:** {mode_str}
 
@@ -730,8 +748,9 @@ def process_iperf_results(logs_dir: Path, reports_dir: Path, mode: str):
     # Load results
     print("📂 Loading results...")
     print(f"   Mode: {mode} ({'processing all VMs' if process_all_vms else 'processing odd VMs only'})")
-    results = load_results(logs_dir, process_all_vms=process_all_vms)
-    print(f"   Found {len(results)} VM results")
+    results, total_vms = load_results(logs_dir, process_all_vms=process_all_vms)
+    print(f"   Found {total_vms} total VM log files")
+    print(f"   Successfully processed {len(results)} VM results")
     print()
     
     if not results:
@@ -741,7 +760,7 @@ def process_iperf_results(logs_dir: Path, reports_dir: Path, mode: str):
     # Extract statistics
     print("📊 Extracting statistics...")
     per_vm_stats = extract_per_vm_stats(results)
-    overall_stats = calculate_overall_stats(per_vm_stats)
+    overall_stats = calculate_overall_stats(per_vm_stats, total_vms)
     timeseries = extract_timeseries(results)
     print()
     
