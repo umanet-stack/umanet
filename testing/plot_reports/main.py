@@ -156,16 +156,16 @@ def parse_sockperf_report(report_path: Path) -> Optional[Dict]:
             return None
         p99_latency = float(p99_match.group(1))
         
-        # Extract Total Messages Sent
-        sent_match = re.search(r'\*\*Total Messages Sent\*\* \| ([0-9,]+)', content)
-        if not sent_match:
+        # Extract Total Messages Received
+        received_match = re.search(r'\*\*Total Messages Received\*\* \| ([0-9,]+)', content)
+        if not received_match:
             return None
-        total_sent = int(sent_match.group(1).replace(',', ''))
+        total_received = int(received_match.group(1).replace(',', ''))
         
         return {
             'num_vms': total_vms,  # Use Total VMs for x-axis
             'p99_latency': p99_latency,
-            'total_sent': total_sent
+            'total_received': total_received
         }
     except Exception as e:
         print(f"Error parsing {report_path}: {e}")
@@ -296,24 +296,24 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_re
     ax1.legend(fontsize=15)
     ax1.grid(True, alpha=0.3)
     
-    # Plot 2: Messages Sent
+    # Plot 2: Messages Received
     if tap_reports:
         tap_vms = [r['num_vms'] for r in tap_reports]
-        tap_sent = [r['total_sent'] for r in tap_reports]
-        ax2.plot(tap_vms, tap_sent, 'o-', label='Linux', linewidth=2, markersize=5, color=COLOR_LINUX_1)
+        tap_received = [r['total_received'] for r in tap_reports]
+        ax2.plot(tap_vms, tap_received, 'o-', label='Linux', linewidth=2, markersize=5, color=COLOR_LINUX_1)
     
     if dpdk_reports:
         dpdk_vms = [r['num_vms'] for r in dpdk_reports]
-        dpdk_sent = [r['total_sent'] for r in dpdk_reports]
-        ax2.plot(dpdk_vms, dpdk_sent, 's-', label='UMANet', linewidth=2, markersize=5, color=COLOR_UMANET_1)
+        dpdk_received = [r['total_received'] for r in dpdk_reports]
+        ax2.plot(dpdk_vms, dpdk_received, 's-', label='UMANet', linewidth=2, markersize=5, color=COLOR_UMANET_1)
     
     if ovs_dpdk_reports:
         ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
-        ovs_dpdk_sent = [r['total_sent'] for r in ovs_dpdk_reports]
-        ax2.plot(ovs_dpdk_vms, ovs_dpdk_sent, '^-', label='OvS-DPDK', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
+        ovs_dpdk_received = [r['total_received'] for r in ovs_dpdk_reports]
+        ax2.plot(ovs_dpdk_vms, ovs_dpdk_received, '^-', label='OvS-DPDK', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
     
     ax2.set_xlabel('VM Count', fontsize=18)
-    ax2.set_ylabel('Messages Sent', fontsize=18)
+    ax2.set_ylabel('Messages Received', fontsize=18)
     ax2.tick_params(axis='both', which='major', labelsize=16)
     ax2.legend(fontsize=15)
     ax2.grid(True, alpha=0.3)
