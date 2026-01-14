@@ -17,8 +17,8 @@ TESTING_DIR = SCRIPT_DIR.parent
 
 # Consistent color scheme across all plots
 # UMANet: red, green
-COLOR_UMANET_1 = '#d62728'  # red
-COLOR_UMANET_2 = '#2ca02c'  # green
+COLOR_UMANET_1 = '#2ca02c'  # green
+COLOR_UMANET_2 = '#d62728'  # red
 # Linux: blue, orange
 COLOR_LINUX_1 = '#1f77b4'   # blue
 COLOR_LINUX_2 = '#ff7f0e'   # orange
@@ -272,7 +272,7 @@ def plot_iperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_repor
 
 def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_reports: List[Dict], output_dir: Path):
     """Plot sockperf comparison graphs"""
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 10))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     
     # Plot 1: p99 Latency
     if tap_reports:
