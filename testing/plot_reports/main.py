@@ -359,38 +359,33 @@ def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_r
     ax1.tick_params(axis='both', which='major', labelsize=16)
     ax1.grid(True, alpha=0.3)
     
-    # Plot 2: PPS per VM (Received and Lost)
+    # Plot 2: Packet Loss Percentage
     if tap_reports:
         tap_vms = [r['num_vms'] for r in tap_reports]
-        tap_received = [r['receiver_pps_per_vm'] for r in tap_reports]
-        tap_lost = [r['lost_pps_per_vm'] for r in tap_reports]
-        ax2.plot(tap_vms, tap_received, 'o-', label='Received (Linux)', linewidth=2, markersize=5, color=COLOR_LINUX_1)
-        ax2.plot(tap_vms, tap_lost, 'o--', label='Lost (Linux)', linewidth=2, markersize=5, color=COLOR_LINUX_2)
-    
-    if dpdk_reports:
-        dpdk_vms = [r['num_vms'] for r in dpdk_reports]
-        dpdk_received = [r['receiver_pps_per_vm'] for r in dpdk_reports]
-        dpdk_lost = [r['lost_pps_per_vm'] for r in dpdk_reports]
-        ax2.plot(dpdk_vms, dpdk_received, 's-', label='Received (UMANet)', linewidth=2, markersize=5, color=COLOR_UMANET_1)
-        ax2.plot(dpdk_vms, dpdk_lost, 's--', label='Lost (UMANet)', linewidth=2, markersize=5, color=COLOR_UMANET_2)
+        tap_loss_pct = [(r['lost_pps_total'] / r['sender_pps_total']) * 100 for r in tap_reports]
+        ax2.plot(tap_vms, tap_loss_pct, 'o-', label='TAP', linewidth=2, markersize=5, color=COLOR_LINUX_2)
     
     if ovs_dpdk_reports:
         ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
-        ovs_dpdk_received = [r['receiver_pps_per_vm'] for r in ovs_dpdk_reports]
-        ovs_dpdk_lost = [r['lost_pps_per_vm'] for r in ovs_dpdk_reports]
-        ax2.plot(ovs_dpdk_vms, ovs_dpdk_received, '^-', label='Received (OvS-DPDK)', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
-        ax2.plot(ovs_dpdk_vms, ovs_dpdk_lost, '^--', label='Lost (OvS-DPDK)', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_2)
+        ovs_dpdk_loss_pct = [(r['lost_pps_total'] / r['sender_pps_total']) * 100 for r in ovs_dpdk_reports]
+        ax2.plot(ovs_dpdk_vms, ovs_dpdk_loss_pct, '^-', label='OvS-DPDK', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_2)
+    
+    if dpdk_reports:
+        dpdk_vms = [r['num_vms'] for r in dpdk_reports]
+        dpdk_loss_pct = [(r['lost_pps_total'] / r['sender_pps_total']) * 100 for r in dpdk_reports]
+        ax2.plot(dpdk_vms, dpdk_loss_pct, 's-', label='UMANet', linewidth=2, markersize=5, color=COLOR_UMANET_2)
     
     ax2.set_xlabel('VM Count', fontsize=18)
-    ax2.set_ylabel('PPS per VM', fontsize=18)
+    ax2.set_ylabel('Packet Loss (%)', fontsize=18)
     ax2.tick_params(axis='both', which='major', labelsize=16)
     ax2.grid(True, alpha=0.3)
+    ax2.legend(fontsize=15)
     
-    # Create single shared legend outside the plots
-    handles, labels = ax1.get_legend_handles_labels()
-    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.02), ncol=3, fontsize=15, frameon=True)
+    # Create legend for ax1 outside the plot area (above)
+    handles1, labels1 = ax1.get_legend_handles_labels()
+    fig.legend(handles1, labels1, loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=2, fontsize=15, frameon=True)
     
-    plt.tight_layout(rect=[0, 0, 1, 0.90])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     output_path_png = output_dir / 'iperf_udp_comparison.png'
     output_path_pdf = output_dir / 'iperf_udp_comparison.pdf'
     plt.savefig(output_path_png, dpi=300, bbox_inches='tight')
