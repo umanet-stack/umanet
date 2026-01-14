@@ -357,7 +357,6 @@ def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_r
     ax1.set_xlabel('VM Count', fontsize=16)
     ax1.set_ylabel('PPS', fontsize=16)
     ax1.tick_params(axis='both', which='major', labelsize=14)
-    ax1.legend(fontsize=13, ncol=2)
     ax1.grid(True, alpha=0.3)
     
     # Plot 2: PPS per VM (Received and Lost)
@@ -385,10 +384,13 @@ def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_r
     ax2.set_xlabel('VM Count', fontsize=16)
     ax2.set_ylabel('PPS per VM', fontsize=16)
     ax2.tick_params(axis='both', which='major', labelsize=14)
-    ax2.legend(fontsize=13, ncol=2)
     ax2.grid(True, alpha=0.3)
     
-    plt.tight_layout()
+    # Create single shared legend outside the plots
+    handles, labels = ax1.get_legend_handles_labels()
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=3, fontsize=13, frameon=True)
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.88])
     output_path_png = output_dir / 'iperf_udp_comparison.png'
     output_path_pdf = output_dir / 'iperf_udp_comparison.pdf'
     plt.savefig(output_path_png, dpi=300, bbox_inches='tight')
