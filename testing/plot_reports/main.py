@@ -290,10 +290,10 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_re
         ovs_dpdk_p99 = [r['p99_latency'] for r in ovs_dpdk_reports]
         ax1.plot(ovs_dpdk_vms, ovs_dpdk_p99, '^-', label='OvS-DPDK', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
     
-    ax1.set_xlabel('VM Count', fontsize=21)
-    ax1.set_ylabel('p99 Latency (μs)', fontsize=21)
-    ax1.tick_params(axis='both', which='major', labelsize=19)
-    ax1.legend(fontsize=18)
+    ax1.set_xlabel('VM Count', fontsize=24)
+    ax1.set_ylabel('p99 Latency (μs)', fontsize=24)
+    ax1.tick_params(axis='both', which='major', labelsize=22)
+    ax1.legend(fontsize=21)
     ax1.grid(True, alpha=0.3)
     
     plt.tight_layout()
@@ -323,10 +323,10 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_re
         ovs_dpdk_received = [r['total_received'] for r in ovs_dpdk_reports]
         ax2.plot(ovs_dpdk_vms, ovs_dpdk_received, '^-', label='OvS-DPDK', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
     
-    ax2.set_xlabel('VM Count', fontsize=21)
-    ax2.set_ylabel('Messages Received', fontsize=21)
-    ax2.tick_params(axis='both', which='major', labelsize=19)
-    ax2.legend(fontsize=18)
+    ax2.set_xlabel('VM Count', fontsize=24)
+    ax2.set_ylabel('Messages Received', fontsize=24)
+    ax2.tick_params(axis='both', which='major', labelsize=22)
+    ax2.legend(fontsize=21)
     ax2.grid(True, alpha=0.3)
     
     plt.tight_layout()
