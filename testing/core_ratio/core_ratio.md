@@ -29,7 +29,8 @@ sudo perf report -n --stdio | \
 grep -E 'tun_|netif_|skb_|tcp_|udp_|_copy_' | \
 awk '{sum += $2} END {print "Networking Self % =", sum}'
 
-
+# perf script reads perf.data from wdir, converts perf’s binary recording into human-readable text
+sudo perf script > stacks.raw
 ```
 ## multinode
 ```bash
