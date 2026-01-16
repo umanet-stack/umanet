@@ -10,7 +10,7 @@ vcpus=$(ps -eLo pid,tid,comm | grep cloud-hyperviso | awk '{print $2}')
 echo $vcpus
 
 # sample traffic for 10s, -g = records call stacks
-sudo perf record -p $(echo $vcpus | tr ' ' ',') -g -- sleep 10
+sudo perf record -p $(echo $vcpus | tr ' ' ',') -g -- sleep 20
 
 sudo apt update
 sudo apt install linux-tools-common linux-tools-$(uname -r)
