@@ -7,11 +7,11 @@ sudo cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm-img.raw
 
 # overlay fs + rw disks
 ./setup/img/build_initramfs.sh
-./setup/img/build_rw_disk.sh 32 512
+./setup/img/build_rw_disk.sh 64 512
 
 # Cloud-init will NOT run again on these rw disks, it only runs on first boot.
 # if you modify anything in cloud-init, you need to regen the rw disks and run cloud-init on it again.
-./setup/cloudinit/gen-cloud-init.sh 32
+./setup/cloudinit/gen-cloud-init.sh 64
 
 # setup node (allow internet NAT)
 ./setup/setup_node.sh
@@ -19,8 +19,8 @@ sudo cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm-img.raw
 sudo ./setup/ovs/install.sh
 sudo ./setup/ovs/setup_service.sh
 # first run: let it install packages + setup services (use tap to access internet)
-./setup/vm/setup_br_tap.sh 32
-./setup/vm/spawn_vms.sh tap 32 vm-vm-internal
+./setup/vm/setup_br_tap.sh 64
+./setup/vm/spawn_vms.sh tap 64 vm-vm-internal
 
 # kill all vms when done
 sudo bash -c "ps aux | grep cloud-hypervisor | grep -v grep | awk '{print \$2}' | xargs kill -9"
