@@ -68,12 +68,23 @@ awk '
 }
 END {
     total = tap + kvm + sched + net + other
+
+    printf "=== Absolute samples ===\n"
+    printf "TAP networking: %d\n", tap
+    printf "Kernel networking (non-TAP): %d\n", net
+    printf "KVM: %d\n", kvm
+    printf "Scheduler: %d\n", sched
+    printf "Other: %d\n", other
+    printf "Total: %d\n\n", total
+
+    printf "=== Percent of total ===\n"
     printf "TAP networking: %.2f%%\n", 100*tap/total
     printf "Kernel networking (non-TAP): %.2f%%\n", 100*net/total
     printf "KVM: %.2f%%\n", 100*kvm/total
     printf "Scheduler: %.2f%%\n", 100*sched/total
     printf "Other: %.2f%%\n", 100*other/total
-}' stacks.folded
+}' stacks-tap.folded
+
 
 ```
 ## multinode
