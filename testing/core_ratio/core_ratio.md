@@ -83,7 +83,7 @@ END {
     printf "KVM: %.2f%%\n", 100*kvm/total
     printf "Scheduler: %.2f%%\n", 100*sched/total
     printf "Other: %.2f%%\n", 100*other/total
-}' stacks-tap.folded
+}' stacks.folded
 
 
 ```
