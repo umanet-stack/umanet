@@ -16,6 +16,8 @@ sudo cp /tmp/noble-server-cloudimg-amd64.raw /tmp/vm-img.raw
 # setup node (allow internet NAT)
 ./setup/setup_node.sh
 
+sudo ./setup/ovs/install.sh
+sudo ./setup/ovs/setup_service.sh
 # first run: let it install packages + setup services (use tap to access internet)
 ./setup/vm/setup_br_tap.sh 32
 ./setup/vm/spawn_vms.sh tap 32 vm-vm-internal
