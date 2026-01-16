@@ -342,7 +342,7 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_re
 def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_reports: List[Dict], output_dir: Path):
     """Plot iperf-udp comparison graphs (line plots)"""
     # Plot 1: Total PPS (Received and Lost)
-    fig1, ax1 = plt.subplots(1, 1, figsize=(8, 5))
+    fig1, ax1 = plt.subplots(1, 1, figsize=(8, 7))
     
     if tap_reports:
         tap_vms = [r['num_vms'] for r in tap_reports]
@@ -368,10 +368,10 @@ def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_r
     ax1.set_xlabel('VM Count', fontsize=18)
     ax1.set_ylabel('PPS', fontsize=18)
     ax1.tick_params(axis='both', which='major', labelsize=16)
-    ax1.legend(fontsize=15, ncol=2)
+    ax1.legend(fontsize=15, ncol=2, loc='upper center', bbox_to_anchor=(0.5, 1.5))
     ax1.grid(True, alpha=0.3)
     
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 1, 0.88])
     output_path_png = output_dir / 'iperf_udp_pps.png'
     output_path_pdf = output_dir / 'iperf_udp_pps.pdf'
     plt.savefig(output_path_png, dpi=300, bbox_inches='tight')
