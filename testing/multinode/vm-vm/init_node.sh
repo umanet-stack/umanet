@@ -16,7 +16,7 @@ fi
 
 if [ "$NETWORK" = "tap" ]; then
     ${BASE_DIR}/setup/cpu/slice_cpu.sh tap
-    ${BASE_DIR}/setup/vm/setup_br_tap.sh 32
+    ${BASE_DIR}/setup/vm/setup_br_tap.sh 64
 
 elif [ "$NETWORK" = "dpdk" ]; then
     ${BASE_DIR}/setup/cpu/slice_cpu.sh dpdk
