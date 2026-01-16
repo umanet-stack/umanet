@@ -19,3 +19,4 @@ perf.data*
 *.pdf
 *.raw
 *.folded
+*.svg
