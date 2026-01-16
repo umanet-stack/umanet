@@ -31,6 +31,10 @@ awk '{sum += $2} END {print "Networking Self % =", sum}'
 
 # perf script reads perf.data from wdir, converts perf’s binary recording into human-readable text
 sudo perf script > stacks.raw
+
+# don't forget to chmod +x
+sudo ./testing/core_ratio/stackcollapse-perf.pl stacks.raw > stacks.folded
+./testing/core_ratio/flamegraph.pl stacks.folded > stacks.svg
 ```
 ## multinode
 ```bash

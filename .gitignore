@@ -18,3 +18,4 @@ perf.data*
 *.log
 *.pdf
 *.raw
+*.folded
