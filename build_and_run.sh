@@ -33,18 +33,18 @@ sudo ip link delete br0 2>/dev/null || true
 echo "✅ br0 and taps deleted"
 
 # create br0
-sudo ip link add name br0 type bridge || true
-sudo ip link set br0 up || true
-sudo ip addr add 10.10.${NODE_ID+1}.1/24 dev br0 || true
-echo "✅ br0 created"
+# sudo ip link add name br0 type bridge || true
+# sudo ip link set br0 up || true
+# sudo ip addr add 10.10.${NODE_ID+1}.1/24 dev br0 || true
+# echo "✅ br0 created"
 
 # create taps
-for ((i=0; i<NUM_VMS; i++)); do
-  sudo ip tuntap add dev tap$i mode tap user $USER || true
-  sudo ip link set tap$i master br0 || true
-  sudo ip link set tap$i up || true
-done
-echo "✅ taps created"
+# for ((i=0; i<NUM_VMS; i++)); do
+#   sudo ip tuntap add dev tap$i mode tap user $USER || true
+#   sudo ip link set tap$i master br0 || true
+#   sudo ip link set tap$i up || true
+# done
+# echo "✅ taps created"
 
 source setup/bind-dpdk.sh
 
