@@ -22,6 +22,7 @@ sudo apt install linux-tools-common linux-tools-$(uname -r)
 # get sorted table of %cpu cycles
 # About 52% of VM CPU cycles are spent in TAP/networking code -> justify 1 dedicated core = 2 shared cores
 sudo perf report --no-children
+sudo perf report --children
 
 
 sudo perf report -n --stdio | \
