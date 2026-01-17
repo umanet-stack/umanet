@@ -290,10 +290,14 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_re
         ovs_dpdk_p99 = [r['p99_latency'] for r in ovs_dpdk_reports]
         ax1.plot(ovs_dpdk_vms, ovs_dpdk_p99, '^-', label='OVS-DPDK', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
     
-    ax1.set_xlabel('VM Count', fontsize=24)
-    ax1.set_ylabel('p99 Latency (μs)', fontsize=24)
-    ax1.tick_params(axis='both', which='major', labelsize=22)
-    ax1.legend(fontsize=21)
+    # Add red vertical lines at 32, 48, 64 VMs
+    for vm_count in [32, 48, 64]:
+        ax1.axvline(x=vm_count, color='red', linestyle='--', linewidth=1.5, alpha=0.7)
+    
+    ax1.set_xlabel('VM Count', fontsize=18)
+    ax1.set_ylabel('p99 Latency (μs)', fontsize=18)
+    ax1.tick_params(axis='both', which='major', labelsize=16)
+    ax1.legend(fontsize=15)
     ax1.grid(True, alpha=0.3)
     ax1.set_ylim(top=600)
     
@@ -323,6 +327,10 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_re
         ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
         ovs_dpdk_received = [r['total_received'] for r in ovs_dpdk_reports]
         ax2.plot(ovs_dpdk_vms, ovs_dpdk_received, '^-', label='OVS-DPDK', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
+    
+    # Add red vertical lines at 32, 48, 64 VMs
+    for vm_count in [32, 48, 64]:
+        ax2.axvline(x=vm_count, color='red', linestyle='--', linewidth=1.5, alpha=0.7)
     
     ax2.set_xlabel('VM Count', fontsize=24)
     ax2.set_ylabel('Messages Received', fontsize=24)
@@ -366,6 +374,10 @@ def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_r
         ax1.plot(ovs_dpdk_vms, ovs_dpdk_received, '^-', label='Received (OVS-DPDK)', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
         ax1.plot(ovs_dpdk_vms, ovs_dpdk_lost, '^--', label='Lost (OVS-DPDK)', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_2)
     
+    # Add red vertical lines at 32, 48, 64 VMs
+    for vm_count in [32, 48, 64]:
+        ax1.axvline(x=vm_count, color='red', linestyle='--', linewidth=1.5, alpha=0.7)
+    
     ax1.set_xlabel('VM Count', fontsize=18)
     ax1.set_ylabel('PPS', fontsize=18)
     ax1.tick_params(axis='both', which='major', labelsize=16)
@@ -398,6 +410,10 @@ def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_r
         dpdk_vms = [r['num_vms'] for r in dpdk_reports]
         dpdk_loss_pct = [(r['lost_pps_total'] / r['sender_pps_total']) * 100 for r in dpdk_reports]
         ax2.plot(dpdk_vms, dpdk_loss_pct, 's-', label='UMANet', linewidth=2, markersize=5, color=COLOR_UMANET_2)
+    
+    # Add red vertical lines at 32, 48, 64 VMs
+    for vm_count in [32, 48, 64]:
+        ax2.axvline(x=vm_count, color='red', linestyle='--', linewidth=1.5, alpha=0.7)
     
     ax2.set_xlabel('VM Count', fontsize=18)
     ax2.set_ylabel('Packet Loss (%)', fontsize=18)
