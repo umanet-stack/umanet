@@ -112,4 +112,5 @@ elif [ "$NODE_ID" = "1" ]; then
 fi
 
 sudo ovs-vsctl show
+
 echo "✅ OVS-DPDK ready."
