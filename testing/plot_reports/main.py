@@ -22,7 +22,7 @@ COLOR_UMANET_2 = '#d62728'  # red
 # Linux: blue, orange
 COLOR_LINUX_1 = '#1f77b4'   # blue
 COLOR_LINUX_2 = '#ff7f0e'   # orange
-# OvS-DPDK: purple, brown
+# OVS-DPDK: purple, brown
 COLOR_OVS_DPDK_1 = '#9467bd'  # purple
 COLOR_OVS_DPDK_2 = '#8c564b'  # brown
 
@@ -250,8 +250,8 @@ def plot_iperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_repor
         ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
         ovs_dpdk_total = [r['total_throughput'] for r in ovs_dpdk_reports]
         ovs_dpdk_per_vm = [r['throughput_per_vm'] for r in ovs_dpdk_reports]
-        ax.plot(ovs_dpdk_vms, ovs_dpdk_total, '^-', label='OvS-DPDK (Total)', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
-        ax.plot(ovs_dpdk_vms, ovs_dpdk_per_vm, '^--', label='OvS-DPDK (Per VM)', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_2)
+        ax.plot(ovs_dpdk_vms, ovs_dpdk_total, '^-', label='OVS-DPDK (Total)', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
+        ax.plot(ovs_dpdk_vms, ovs_dpdk_per_vm, '^--', label='OVS-DPDK (Per VM)', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_2)
     
     ax.set_xlabel('VM Count', fontsize=18)
     ax.set_ylabel('Throughput (Gbps)', fontsize=18)
@@ -288,7 +288,7 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_re
     if ovs_dpdk_reports:
         ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
         ovs_dpdk_p99 = [r['p99_latency'] for r in ovs_dpdk_reports]
-        ax1.plot(ovs_dpdk_vms, ovs_dpdk_p99, '^-', label='OvS-DPDK', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
+        ax1.plot(ovs_dpdk_vms, ovs_dpdk_p99, '^-', label='OVS-DPDK', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
     
     ax1.set_xlabel('VM Count', fontsize=24)
     ax1.set_ylabel('p99 Latency (μs)', fontsize=24)
@@ -322,7 +322,7 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_re
     if ovs_dpdk_reports:
         ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
         ovs_dpdk_received = [r['total_received'] for r in ovs_dpdk_reports]
-        ax2.plot(ovs_dpdk_vms, ovs_dpdk_received, '^-', label='OvS-DPDK', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
+        ax2.plot(ovs_dpdk_vms, ovs_dpdk_received, '^-', label='OVS-DPDK', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
     
     ax2.set_xlabel('VM Count', fontsize=24)
     ax2.set_ylabel('Messages Received', fontsize=24)
@@ -363,8 +363,8 @@ def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_r
         ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
         ovs_dpdk_received = [r['receiver_pps_total'] for r in ovs_dpdk_reports]
         ovs_dpdk_lost = [r['lost_pps_total'] for r in ovs_dpdk_reports]
-        ax1.plot(ovs_dpdk_vms, ovs_dpdk_received, '^-', label='Received (OvS-DPDK)', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
-        ax1.plot(ovs_dpdk_vms, ovs_dpdk_lost, '^--', label='Lost (OvS-DPDK)', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_2)
+        ax1.plot(ovs_dpdk_vms, ovs_dpdk_received, '^-', label='Received (OVS-DPDK)', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_1)
+        ax1.plot(ovs_dpdk_vms, ovs_dpdk_lost, '^--', label='Lost (OVS-DPDK)', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_2)
     
     ax1.set_xlabel('VM Count', fontsize=18)
     ax1.set_ylabel('PPS', fontsize=18)
@@ -392,7 +392,7 @@ def plot_iperf_udp(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_r
     if ovs_dpdk_reports:
         ovs_dpdk_vms = [r['num_vms'] for r in ovs_dpdk_reports]
         ovs_dpdk_loss_pct = [(r['lost_pps_total'] / r['sender_pps_total']) * 100 for r in ovs_dpdk_reports]
-        ax2.plot(ovs_dpdk_vms, ovs_dpdk_loss_pct, '^-', label='OvS-DPDK', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_2)
+        ax2.plot(ovs_dpdk_vms, ovs_dpdk_loss_pct, '^-', label='OVS-DPDK', linewidth=2, markersize=5, color=COLOR_OVS_DPDK_2)
     
     if dpdk_reports:
         dpdk_vms = [r['num_vms'] for r in dpdk_reports]

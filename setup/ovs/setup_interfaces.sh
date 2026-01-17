@@ -34,7 +34,7 @@ sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-lcore-mask=0x01
 sudo ovs-vsctl set Open_vSwitch . other_config:pmd-cpu-mask=0xfe
 sudo ovs-vsctl set Open_vSwitch . other_config:pmd-auto-lb=true
 sudo ovs-vsctl set Open_vSwitch . other_config:dpdk-socket-mem=1024
-echo "✅ OvS-DPDK configured"
+echo "✅ OVS-DPDK configured"
 
 # disable TSO
 # sudo ovs-vsctl set Open_vSwitch . other_config:userspace-tso-enable=False

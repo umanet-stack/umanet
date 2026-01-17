@@ -94,9 +94,9 @@ sudo cloud-hypervisor \
 ```
 
 
-## Testing OvS-DPDK
+## Testing OVS-DPDK
 ```bash
-# vm0 OvS-DPDK node 0
+# vm0 OVS-DPDK node 0
 sudo cloud-hypervisor \
 	--cpus boot=1 \
 	--memory size=512M,hugepages=on,shared=on \
@@ -106,7 +106,7 @@ sudo cloud-hypervisor \
 	--cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
 	--net mac=02:34:56:78:92:00,vhost_user=on,socket=/usr/local/var/run/openvswitch/vhost-user0,num_queues=2,vhost_mode=client,queue_size=4096
 
-# vm1 OvS-DPDK node 0
+# vm1 OVS-DPDK node 0
 sudo cloud-hypervisor \
 	--cpus boot=1 \
 	--memory size=512M,hugepages=on,shared=on \
@@ -116,7 +116,7 @@ sudo cloud-hypervisor \
 	--cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
 	--net mac=02:34:56:78:92:01,vhost_user=on,socket=/usr/local/var/run/openvswitch/vhost-user1,num_queues=2,vhost_mode=client,queue_size=4096
 
-# vm0 OvS-DPDK node 1
+# vm0 OVS-DPDK node 1
 sudo cloud-hypervisor \
 	--cpus boot=1 \
 	--memory size=512M,hugepages=on,shared=on \
@@ -128,7 +128,7 @@ sudo cloud-hypervisor \
 ```
 ### Large VMs
 ```bash
-# LARGE vm0 OvS-DPDK node 0
+# LARGE vm0 OVS-DPDK node 0
 sudo cloud-hypervisor \
 	--cpus boot=8 \
 	--memory size=2048M,hugepages=on,shared=on \
@@ -138,7 +138,7 @@ sudo cloud-hypervisor \
 	--cmdline "console=ttyS0 console=hvc0 rdinit=/init systemd.mask=systemd-networkd-wait-online.service systemd.mask=snapd.service systemd.mask=snapd.seeded.service systemd.mask=snapd.socket" \
 	--net mac=02:34:56:78:92:00,vhost_user=on,socket=/usr/local/var/run/openvswitch/vhost-user0,num_queues=8,vhost_mode=client,queue_size=4096
 
-# LARGE vm0 OvS-DPDK node 1
+# LARGE vm0 OVS-DPDK node 1
 sudo cloud-hypervisor \
 	--cpus boot=8 \
 	--memory size=2048M,hugepages=on,shared=on \
