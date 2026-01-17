@@ -259,6 +259,9 @@ def plot_iperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_repor
     ax.tick_params(axis='both', which='major', labelsize=16)
     ax.legend(fontsize=15, loc='best')
     ax.grid(True, alpha=0.3, which='both')
+    # Add red vertical lines at 32, 48, 64 VMs
+    for vm_count in [32, 48, 64]:
+        ax.axvline(x=vm_count, color='red', linestyle='--', linewidth=1.5, alpha=0.7)
     
     plt.tight_layout()
     output_path_png = output_dir / 'iperf_comparison.png'
