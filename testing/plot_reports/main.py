@@ -295,6 +295,7 @@ def plot_sockperf(tap_reports: List[Dict], dpdk_reports: List[Dict], ovs_dpdk_re
     ax1.tick_params(axis='both', which='major', labelsize=22)
     ax1.legend(fontsize=21)
     ax1.grid(True, alpha=0.3)
+    ax1.set_ylim(top=600)
     
     plt.tight_layout()
     output_path_png = output_dir / 'sockperf_p99_latency.png'
