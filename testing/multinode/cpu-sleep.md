@@ -12,4 +12,8 @@ sudo perf stat -e power:cpu_idle -a sleep 10
 
 sudo turbostat --quiet --show CPU,C1%,C6% --interval 1
 # C1%, C6% should be 0
+
+# re-enable all idle states
+sudo cpupower idle-set -E
+
 ```
