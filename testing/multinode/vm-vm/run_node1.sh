@@ -40,11 +40,11 @@ elif [ "$NETWORK" = "dpdk" ]; then
     if [ "$ITERATION" -eq 1 ]; then
         log "Building and running umanet (iteration 1)"
         # </dev/null: disconnects stdin so that job runs in background
-        nohup sudo ${BASE_DIR}/build_and_run.sh test 32 0 > /dev/null 2>&1 &
+        nohup sudo ${BASE_DIR}/build_and_run.sh test 64 0 > /dev/null 2>&1 &
         disown
     else
         log "Running umanet (iteration $ITERATION)"
-        nohup sudo ${BASE_DIR}/run.sh 32 0 > /dev/null 2>&1 &
+        nohup sudo ${BASE_DIR}/run.sh 64 0 > /dev/null 2>&1 &
         disown
     fi
     sleep 10

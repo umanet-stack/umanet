@@ -17,3 +17,7 @@ perf.data*
 *.png
 *.log
 *.pdf
+*.raw
+*.folded
+*.svg
+*.data

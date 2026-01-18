@@ -54,6 +54,10 @@ Restart=on-failure
 WantedBy=multi-user.target
 EOF
 
+sudo tee /etc/ld.so.conf.d/dpdk.conf > /dev/null << 'EOF'
+/usr/local/dpdk/lib/x86_64-linux-gnu
+EOF
+sudo ldconfig
 sudo systemctl daemon-reload
 sudo systemctl enable ovs-dpdk
 
