@@ -7,7 +7,8 @@
 #include <rte_vhost.h>
 
 // only does ARP destined for dataplane, not VMs
-int process_arp_req(struct control_ctx *ctx, uint16_t vid, struct rte_mbuf *m, enum slow_src src) {
+int process_arp_req(struct control_ctx *ctx, uint16_t vid, uint16_t eth_queue_id, struct rte_mbuf *m,
+                    enum slow_src src) {
     struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
     struct rte_arp_hdr *arp = (struct rte_arp_hdr *)(eth + 1);
     if (arp->arp_opcode != rte_cpu_to_be_16(RTE_ARP_OP_REQUEST)) {
@@ -47,12 +48,11 @@ int process_arp_req(struct control_ctx *ctx, uint16_t vid, struct rte_mbuf *m, e
         int ret = rte_ring_enqueue_burst(global->vhost_tx_rings[vid], (void **)&m, 1, NULL);
         if (unlikely(ret == 0))
             LOG_WARN("[%d] Failed to enqueue ARP reply to vid=%d\n", ctx->core_id, vid);
+    } else if (src == SLOW_SRC_ETH) {
+        int ret = rte_ring_enqueue_burst(global->eth_tx_queue_rings[eth_queue_id], (void **)&m, 1, NULL);
+        if (unlikely(ret == 0))
+            LOG_WARN("[%d] Failed to enqueue ARP reply to eth_queue_id=%d\n", ctx->core_id, eth_queue_id);
     }
-    // else if (src == SLOW_SRC_ETH) { // handled in from_eth instead
-    //     // int ret = network_send(ctx, 1, &m);
-    //     if (unlikely(ret == 0))
-    //         LOG_WARN("[%d] Failed to send ARP reply to physical NIC\n", ctx->core_id);
-    // }
 
     rte_pktmbuf_free(m);
 

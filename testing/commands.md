@@ -157,6 +157,7 @@ df -h
 systemctl status iperf
 sudo tcpdump -i br0
 sudo tcpdump -i enp23s0f0np0
+sudo tcpdump -vv -i eth1
 echo '{"vm":"vm12","throughput":12345}' | nc 192.168.100.1 9000
 
 lsof -i :9000

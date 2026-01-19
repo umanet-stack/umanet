@@ -70,7 +70,8 @@ static inline int network_send(struct eth_tx_ctx *ctx, int tx_queue_id, unsigned
     // }
     // num = gro_num;
 
-    pkts_set_tso_flags(pkts, num);
+    // uncomment this to enable TSO
+    // pkts_set_tso_flags(pkts, num);
     int16_t ret = rte_eth_tx_burst(global->eth_port_id, tx_queue_id, pkts, num);
     if (ret < 0)
         ret = 0;

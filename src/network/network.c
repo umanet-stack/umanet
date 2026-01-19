@@ -54,13 +54,12 @@ static struct rte_eth_conf port_conf = {
     .rxmode =
         {
             .mq_mode = RTE_ETH_MQ_RX_RSS,
-            .offloads = RTE_ETH_RX_OFFLOAD_IPV4_CKSUM | RTE_ETH_RX_OFFLOAD_TCP_CKSUM | RTE_ETH_RX_OFFLOAD_RSS_HASH,
+            .offloads = 0,
         },
     .txmode =
         {
             .mq_mode = RTE_ETH_MQ_TX_NONE,
-            .offloads = RTE_ETH_TX_OFFLOAD_TCP_TSO | RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM |
-                        RTE_ETH_TX_OFFLOAD_MULTI_SEGS,
+            .offloads = 0,
         },
     .rx_adv_conf =
         {
@@ -112,18 +111,24 @@ int network_init() {
     rte_eth_macaddr_get(global->eth_port_id, &global->eth_addr);
     rte_eth_dev_info_get(global->eth_port_id, &eth_devinfo);
 
-    uint64_t rx_offloads = 0;
+    if (config.enable_tso) {
+        port_conf.txmode.offloads = RTE_ETH_TX_OFFLOAD_TCP_TSO | RTE_ETH_TX_OFFLOAD_IPV4_CKSUM |
+                                    RTE_ETH_TX_OFFLOAD_TCP_CKSUM | RTE_ETH_TX_OFFLOAD_MULTI_SEGS;
+        port_conf.rxmode.offloads =
+            RTE_ETH_RX_OFFLOAD_IPV4_CKSUM | RTE_ETH_RX_OFFLOAD_TCP_CKSUM | RTE_ETH_RX_OFFLOAD_RSS_HASH;
+        uint64_t rx_offloads = 0;
 
-    // Check if NIC supports these features
-    if (eth_devinfo.rx_offload_capa & RTE_ETH_RX_OFFLOAD_IPV4_CKSUM)
-        rx_offloads |= RTE_ETH_RX_OFFLOAD_IPV4_CKSUM;
-    if (eth_devinfo.rx_offload_capa & RTE_ETH_RX_OFFLOAD_TCP_CKSUM)
-        rx_offloads |= RTE_ETH_RX_OFFLOAD_TCP_CKSUM;
-    port_conf.rxmode.offloads = rx_offloads;
+        // Check if NIC supports these features
+        if (eth_devinfo.rx_offload_capa & RTE_ETH_RX_OFFLOAD_IPV4_CKSUM)
+            rx_offloads |= RTE_ETH_RX_OFFLOAD_IPV4_CKSUM;
+        if (eth_devinfo.rx_offload_capa & RTE_ETH_RX_OFFLOAD_TCP_CKSUM)
+            rx_offloads |= RTE_ETH_RX_OFFLOAD_TCP_CKSUM;
+        port_conf.rxmode.offloads = rx_offloads;
 
-    // TSO
-    eth_devinfo.default_txconf.offloads = port_conf.txmode.offloads;
-    eth_devinfo.default_rxconf.offloads = port_conf.rxmode.offloads;
+        // TSO
+        eth_devinfo.default_txconf.offloads = port_conf.txmode.offloads;
+        eth_devinfo.default_rxconf.offloads = port_conf.rxmode.offloads;
+    }
 
     if (eth_devinfo.max_rx_queues < config.eth_rx_cores || eth_devinfo.max_tx_queues < config.eth_tx_cores) {
         LOG_ERROR("Error: NIC does not support enough hw queues (rx=%u tx=%u)"
@@ -167,10 +172,12 @@ int network_init() {
         goto error_exit;
     }
 
-    // eth_devinfo.default_rxconf.offloads = 0;
+    if (!config.enable_tso) {
+        eth_devinfo.default_rxconf.offloads = 0;
 
-    /* enable per-queue checksum offload if requested */
-    // eth_devinfo.default_txconf.offloads = 0;
+        /* enable per-queue checksum offload if requested */
+        eth_devinfo.default_txconf.offloads = 0;
+    }
     // if (config.fp_xsumoffload) {
     //     uint64_t requested_offloads = RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
     //     /* mask unsupported TX offloads (use same mask as port-level) */
