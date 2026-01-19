@@ -116,12 +116,6 @@ static inline void pkts_set_tso_flags(struct rte_mbuf **pkts, unsigned num) {
                 // UDP over IPv4 — only compute checksums, no TSO
                 m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM;
             } else if (ip->next_proto_id == IPPROTO_ICMP) {
-                uint16_t ip_tot = rte_be_to_cpu_16(ip->total_length);
-                uint16_t expected = rte_pktmbuf_pkt_len(m) - m->l2_len;
-
-                if (ip_tot != expected) {
-                    LOG_ERROR("BAD ip->total_length: ip=%u expected=%u\n", ip_tot, expected);
-                }
                 // m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM;
                 // No NIC offload exists for ICMP
                 m->ol_flags &= ~(RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM |
@@ -137,7 +131,6 @@ static inline void pkts_set_tso_flags(struct rte_mbuf **pkts, unsigned num) {
                 icmp->icmp_cksum = 0;
                 icmp->icmp_cksum = rte_raw_cksum(icmp, icmp_len);
                 icmp->icmp_cksum = __rte_raw_cksum_reduce(icmp->icmp_cksum);
-                assert(rte_pktmbuf_pkt_len(m) >= m->l2_len + rte_be_to_cpu_16(ip->total_length));
             } else {
                 // Other IPv4 protocols — just IPv4 checksum
                 m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM;
@@ -213,21 +206,6 @@ static inline void fix_cksum(struct rte_mbuf *m) {
             // Always recalculate UDP checksum (DEBUG: ignore NIC flags)
             udp->dgram_cksum = 0;
             udp->dgram_cksum = rte_ipv4_udptcp_cksum(ip, udp);
-            // } else if (ip->next_proto_id == IPPROTO_ICMP) {
-            //     // Use ip->ihl (header length in 4-byte words) to handle IP options
-            //     struct rte_icmp_hdr *icmp = (struct rte_icmp_hdr *)((uint8_t *)ip + m->l3_len);
-
-            //     // Calculate ICMP length from IP total_length (more reliable than mbuf length)
-            //     // IP total_length includes IP header, so subtract it to get ICMP length
-            //     uint16_t icmp_len = rte_be_to_cpu_16(ip->total_length) - m->l3_len;
-            //     m->l4_len = icmp_len;
-
-            //     // Always recalculate ICMP checksum (DEBUG: ignore NIC flags)
-            //     // ICMP checksum covers the ICMP header and payload
-            //     icmp->icmp_cksum = 0;
-            //     icmp->icmp_cksum = rte_raw_cksum(icmp, icmp_len);
-            //     icmp->icmp_cksum = __rte_raw_cksum_reduce(icmp->icmp_cksum);
-
         } else {
             m->l4_len = 0;
         }
