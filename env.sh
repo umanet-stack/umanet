@@ -13,6 +13,7 @@ set +a
 : "${ETH_TX_CORES:?missing ETH_TX_CORES}"
 : "${VHOST_RX_CORES:?missing VHOST_RX_CORES}"
 : "${VHOST_TX_CORES:?missing VHOST_TX_CORES}"
+: "${TSO:?missing TSO}"
 
 MAX_VM_COUNT=64
 
