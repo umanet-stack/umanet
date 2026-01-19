@@ -4,14 +4,14 @@ set -e
 
 source env.sh
 
-TESTNAME=ovsdpdk32vm
-NUM_VM=32
+echo "TESTNAME: ${TESTNAME:=ovsdpdk32vm}"
+echo "NUM_VM: ${NUM_VM:=32}"
 
 DATA_DIR=~/code/umanet/testing/wrk
 SCRPIT_DIR=~/code/umanet/testing/scripts/wrk
 
 for R in $(ls $DATA_DIR/rates | sort -n); do
-  RPS=$(awk -v n=$NUM_VM 'NR<=n{sum+=$0} END{print sum}' rates/$R)
+  RPS=$(awk -v n=$NUM_VM 'NR<=n{sum+=$0} END{print sum}' $DATA_DIR/rates/$R)
   BASE_DIR="$DATA_DIR/out/$TESTNAME/$RPS"
   mkdir -p $BASE_DIR
   [ -f "$BASE_DIR/done" ] && echo "Found finished result $R, skipping" && continue

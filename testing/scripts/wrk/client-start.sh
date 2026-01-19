@@ -10,7 +10,7 @@ R=$(sed -n "${ID}p" ./testing/wrk/rates/$1)
 if [ "$NETWORK" = "ovs-dpdk" ]; then
   TARGET_IP="192.168.100.$(( 2 * ID + 1 ))"
 elif [ "$NETWORK" = "tap" -o "$NETWORK" = "dpdk" ]; then
-  TARGET_IP="192.168.100.$(( ID + 1 ))"
+  TARGET_IP="192.168.101.$(( ID + 1 ))"
 else
   echo "Invalid network: $NETWORK"
   exit 1

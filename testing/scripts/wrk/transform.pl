@@ -18,7 +18,8 @@ find(
         wanted => sub {
             return unless -f && /testing\/wrk\/out\/([\w\d]+)\/([\.\w\d]+)\/(\d+)/;
             my ($name, $R, $ID) = ($1, $2, $3);
-            my $out = `awk -f extract.awk $_ $ARGV[0]`;
+            print "awk -f ./testing/scripts/wrk/extract.awk $_ $ARGV[0]\n";
+            my $out = `awk -f ./testing/scripts/wrk/extract.awk $_ $ARGV[0]`;
             $data{$name}{$R}{$ID} = $out;
             $data_rate{$name}{$R}{$ID} = `awk '\$1=="Requests/sec:" { printf "%.2f", \$2 }' $_`;
         },

@@ -2,12 +2,11 @@
 
 wrk2 has different setup than iperf/sockperf test but networking part can be reused.
 
-# Common
-
 ## Client
 
 ```shell
 ./setup/wrk/build_wrk.sh
+sed -e 's/^NODE_ID = 1/# NODE_ID = 1/' -e 's/^# NODE_ID = 0/NODE_ID = 0/' .env.template > .env
 ./setup/setup_node.sh
 ```
 
@@ -15,8 +14,36 @@ wrk2 has different setup than iperf/sockperf test but networking part can be reu
 
 ```shell
 cd ~/code/umanet
+echo '
+NODE_ID=1
+NIC=enp23s0f0np0
+NIC_PCI=0000:17:00.0
+OTHER_NODE_MAC=40:a6:b7:c3:4d:40
+
+TMPDIR=/tmp
+# TEST=iperf
+# TEST=iperf-udp
+# TEST=sockperf
+TEST=wrk
+
+# microvm = 1vcpu, 512MB, 2 queues (like TAP/DPDK tests)
+OVS_VM_SIZE=microvm
+
+ETH_RX_CORES=2
+ETH_TX_CORES=1
+VHOST_RX_CORES=1
+VHOST_TX_CORES=3
+ETH_RX_QUEUES=2
+ETH_TX_QUEUES=1
+
+######### multinode #########
+BASE_DIR=~/code/umanet
+USER=X
+NODE1=er105.utah.cloudlab.us
+NETWORK=tap
+# NETWORK=dpdk
+# NETWORK=ovs-dpdk' > .env
 ./setup/setup_node.sh
-sed -e 's/^NODE_ID = 1/# NODE_ID = 1/' -e 's/^# NODE_ID = 0/NODE_ID = 0/' .env.template > .env
 command -v cloud-hypervisor || (curl -L https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v50.0/cloud-hypervisor-static -o ch && sudo install ch -m 0755 /usr/bin/cloud-hypervisor)
 [ -f /tmp/noble-server-cloudimg-amd64.raw -a -f /tmp/vmlinux.bin ] || ./setup/img/download_img.sh
 ./setup/img/build_initramfs.sh
@@ -30,17 +57,20 @@ command -v cloud-hypervisor || (curl -L https://github.com/cloud-hypervisor/clou
 ## Server
 
 ```shell
+NUM_VM=32
 ./setup/cpu/slice_cpu.sh tap
-./setup/vm/setup_br_tap.sh 32
+./setup/vm/setup_br_tap.sh $NUM_VM
 
-# TODO: customize wrk server
-./setup/vm/spawn_vms.sh tap 32 vm-server
+for i in $(seq 0 $(( NUM_VM - 1 ))); do
+    tmux new-session -s "vm$i" -d "./testing/scripts/wrk/server-start.sh $i"
+done
 ```
 
 ## Client
 
 ```shell
-
+# Config (Num VM and testname) via environment variable
+./testing/scripts/wrk/start-experiment.sh
 ```
 
 # Rates

@@ -10,7 +10,7 @@ fi
 
 NUM_VMS=$1
 
-sudo systemctl stop ovs-dpdk
+sudo systemctl stop ovs-dpdk || echo "✅ ovs-dpdk not running or installed"
 # delete tap0, br0
 for ((i=0; i<NUM_VMS; i++)); do
   sudo ip link delete tap$i 2>/dev/null || true
