@@ -24,7 +24,7 @@ ch_args=(
 )
 
 # Memory differs slightly
-if [ "$NETWORK" = "ovs-dpdk" ]; then
+if [ "$NETWORK" = "ovs-dpdk" -o "$NETWORK" = "dpdk" ]; then
   ch_args+=( --memory "size=$MEM,hugepages=on,shared=on,prefault=on" )
 else
   ch_args+=( --memory "size=$MEM" )
@@ -40,6 +40,11 @@ case "$NETWORK" in
   tap)
     ch_args+=(
       --net "tap=tap$i,mac=${NODE_ID}2:34:56:78:90:$(printf '%02X' "$i")"
+    )
+    ;;
+  dpdk)
+    ch_args+=(
+      --net mac=${NODE_ID}2:34:56:78:90:$(printf '%02X' $i),vhost_user=on,socket=/mnt/huge/sock$i,num_queues=2,vhost_mode=client,queue_size=4096
     )
     ;;
   *)

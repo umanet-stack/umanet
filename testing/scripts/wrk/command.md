@@ -25,6 +25,7 @@ TMPDIR=/tmp
 # TEST=iperf-udp
 # TEST=sockperf
 TEST=wrk
+TSO=0
 
 # microvm = 1vcpu, 512MB, 2 queues (like TAP/DPDK tests)
 OVS_VM_SIZE=microvm
@@ -73,6 +74,27 @@ done
 ./testing/scripts/wrk/start-experiment.sh
 ```
 
+# DPDK Test
+
+## Server
+
+```shell
+./setup/cpu/slice_cpu.sh dpdk
+./setup/init-dpdk.sh
+sudo sysctl -w vm.nr_hugepages=24576
+sudo mkdir -p /mnt/huge
+sudo mount -t hugetlbfs nodev /mnt/huge
+
+sudo ./build_and_run.sh test 32 1
+
+# other another terminal
+NUM_VM=32
+
+for i in $(seq 0 $(( NUM_VM - 1 ))); do
+    tmux new-session -s "vm$i" -d "./testing/scripts/wrk/server-start.sh $i"
+done
+```
+
 # Rates
 
 `rates/*` contains rate each machine will run. These can be configured to create skewed workload.
@@ -83,7 +105,7 @@ To generate constant workload across all 32 machines.
 
 ```shell
 mkdir -p ./testing/wrk/rates
-for A in $(seq 200 200 2400); do export A && perl -e 'print "$ENV{A}\n"x32' > ./testing/wrk/rates/$((A*32)); done
+for A in $(seq 200 200 13400); do export A && perl -e 'print "$ENV{A}\n"x32' > ./testing/wrk/rates/$((A*32)); done
 ```
 
 # Extract
