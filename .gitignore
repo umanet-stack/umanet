@@ -14,3 +14,10 @@ initramfs-overlay.img
 .env
 switch.log
 perf.data*
+*.png
+*.log
+*.pdf
+*.raw
+*.folded
+*.svg
+*.data

@@ -70,12 +70,12 @@ def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
         description="Process test results and generate reports",
-        epilog="Set TEST environment variable to 'iperf' or 'sockperf' to specify test type"
+        epilog="Set TEST environment variable to 'iperf', 'iperf-udp', or 'sockperf' to specify test type"
     )
     parser.add_argument(
         "folder",
-        choices=["dpdk", "tap", "dpdk-tap"],
-        help="Folder name: 'dpdk', 'tap', or 'dpdk-tap'"
+        choices=["dpdk", "tap", "dpdk-tap", "ovs-dpdk"],
+        help="Folder name: 'dpdk', 'tap', 'dpdk-tap', or 'ovs-dpdk'"
     )
     parser.add_argument(
         "mode",
@@ -91,14 +91,20 @@ def setup_directories(folder: str, mode: str, test_type: str) -> Dict[str, Path]
     Args:
         folder: Base folder name (dpdk, tap, dpdk-tap)
         mode: Processing mode (vm-vm-internal, vm-client)
-        test_type: Test type (iperf, sockperf)
+        test_type: Test type (iperf, iperf-udp, sockperf)
         
     Returns:
         Dictionary with 'base_dir', 'logs_dir', 'reports_dir' paths
     """
     base_dir = SCRIPT_DIR.parent / folder
     logs_dir = base_dir / "logs"
-    reports_base_dir = base_dir / test_type / mode
+    # Use 'iperf-udp' folder when test_type is 'iperf' but TEST=iperf-udp
+    test_env = os.environ.get('TEST', '').lower()
+    if test_type == 'iperf' and test_env == 'iperf-udp':
+        report_folder = 'iperf-udp'
+    else:
+        report_folder = test_type
+    reports_base_dir = base_dir / report_folder / mode
     
     # Create report directory if it doesn't exist
     reports_base_dir.mkdir(exist_ok=True, parents=True)
@@ -136,19 +142,21 @@ def detect_test_type() -> str:
     
     Returns:
         'iperf' or 'sockperf'
+        Note: 'iperf-udp' is accepted and treated as 'iperf' (UDP mode is auto-detected from logs)
     """
     test_env = os.environ.get('TEST', '').lower()
     
-    if test_env in ['iperf', 'iperf3']:
+    if test_env in ['iperf', 'iperf3', 'iperf-udp']:
         return 'iperf'
     elif test_env in ['sockperf', 'latency']:
         return 'sockperf'
     else:
-        print(f"❌ ERROR: TEST environment variable must be set to 'iperf' or 'sockperf'")
+        print(f"❌ ERROR: TEST environment variable must be set to 'iperf', 'iperf-udp', or 'sockperf'")
         print(f"   Current value: TEST='{os.environ.get('TEST', '(not set)')}'")
         print()
         print("Usage:")
-        print("  export TEST=iperf")
+        print("  export TEST=iperf       # For TCP iperf tests")
+        print("  export TEST=iperf-udp   # For UDP iperf tests (auto-detected from logs)")
         print("  python testing/process_logs/main.py dpdk vm-client")
         print()
         print("  export TEST=sockperf")

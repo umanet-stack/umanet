@@ -59,9 +59,29 @@ void eth_tx_loop(struct eth_tx_ctx *ctx) {
 
 static inline int network_send(struct eth_tx_ctx *ctx, int tx_queue_id, unsigned num, struct rte_mbuf **pkts) {
     STATS_ADD(ctx->stats, call_count, 1);
+
+    // GRO didnt help compress pkts, maybe try the stateful one later
+    // pkts_set_gro_flags(pkts, num);
+    // int gro_num = rte_gro_reassemble_burst(pkts, num, &ctx->gro_param);
+    // static int gro_count = 0;
+    // if (gro_count < 50) {
+    //     LOG_IMPT("ETH TX: GRO reassembled %d -> %d packets\n", num, gro_num);
+    //     gro_count++;
+    // }
+    // num = gro_num;
+
+    pkts_set_tso_flags(pkts, num);
     int16_t ret = rte_eth_tx_burst(global->eth_port_id, tx_queue_id, pkts, num);
     if (ret < 0)
         ret = 0;
+
+    static int count = 0;
+    if (count < 50) {
+        for (int i = 0; i < num; i++) {
+            LOG_IMPT("ETH TX: pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+        }
+        count++;
+    }
 
     if (ret < num) {
         // pkts[0 .. ret-1]     -> consumed by NIC (do not free)

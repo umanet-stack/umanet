@@ -24,7 +24,7 @@ void slowpath_loop(struct control_ctx *ctx) {
         sleep(1);
 #endif
         uint64_t cur_tsc = rte_get_tsc_cycles();
-        if (cur_tsc - last_dashboard_update > tsc_hz) {
+        if (config.show_dash && cur_tsc - last_dashboard_update > tsc_hz) {
             control_dashboard();
             last_dashboard_update = cur_tsc;
         }
@@ -124,7 +124,7 @@ void calculate_vhost_rx_plan() {
         for (int j = 0; j < MAX_VHOSTS; j++) {
             if (is_active[j]) {
                 new_plan->vids[new_plan->num++] = j;
-                LOG_IMPT("[%d](%d) vdev active, add to plan\n", i, j);
+                LOG_INFO("[%d](%d) vdev active, add to plan\n", i, j);
             }
             // else {
             //     LOG_WARN("[%d](%d) vdev inactive, remove from plan\n", i, j);
@@ -177,7 +177,7 @@ void calculate_vhost_tx_plan() {
         for (int j = 0; j < MAX_VHOSTS; j++) {
             if (is_active[j]) {
                 new_plan->vids[new_plan->num++] = j;
-                LOG_IMPT("[%d](%d) vdev active, add to plan\n", i, j);
+                LOG_INFO("[%d](%d) vdev active, add to plan\n", i, j);
             }
         }
 

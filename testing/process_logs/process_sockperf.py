@@ -5,7 +5,7 @@ Process sockperf test results and generate reports
 import re
 import argparse
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
@@ -16,19 +16,27 @@ from datetime import datetime
 SCRIPT_DIR = Path(__file__).parent.resolve()
 
 
-def load_results(logs_dir: Path, process_all_vms: bool = False) -> Dict[str, dict]:
+def load_results(logs_dir: Path, process_all_vms: bool = False) -> Tuple[Dict[str, dict], int]:
     """Extract results from VM log files
     
     Args:
         logs_dir: Directory containing VM log files
         process_all_vms: If True, process all VMs. If False, process only odd-numbered VMs (clients).
+    
+    Returns:
+        Tuple of (results dict, total_vms count)
     """
     results = {}
+    total_vms = 0
     
     # Find all VM log files
     for log_file in sorted(logs_dir.glob("vm*.log")):
         vm_name = log_file.stem  # e.g., "vm1"
         vm_num = int(vm_name[2:])  # Extract number: "vm1" -> 1
+        
+        # Count total VMs based on mode
+        if process_all_vms or vm_num % 2 == 1:
+            total_vms += 1
         
         # Only process odd-numbered VMs (clients) if process_all_vms is False
         if not process_all_vms and vm_num % 2 == 0:
@@ -102,7 +110,7 @@ def load_results(logs_dir: Path, process_all_vms: bool = False) -> Dict[str, dic
         except Exception as e:
             print(f"⚠️  Error processing {log_file}: {e}")
     
-    return results
+    return results, total_vms
 
 
 def extract_per_vm_stats(results: Dict[str, dict]) -> Dict[str, dict]:
@@ -134,11 +142,17 @@ def extract_per_vm_stats(results: Dict[str, dict]) -> Dict[str, dict]:
     return stats
 
 
-def calculate_overall_stats(per_vm_stats: Dict[str, dict]) -> dict:
-    """Calculate overall statistics across all VMs"""
+def calculate_overall_stats(per_vm_stats: Dict[str, dict], total_vms: int) -> dict:
+    """Calculate overall statistics across all VMs
+    
+    Args:
+        per_vm_stats: Statistics per completed VM
+        total_vms: Total number of VMs (log files found)
+    """
     if not per_vm_stats:
         return {}
     
+    completed_vms = len(per_vm_stats)
     avg_latency = np.mean([s['avg_latency_usec'] for s in per_vm_stats.values()])
     avg_p50 = np.mean([s['p50_usec'] for s in per_vm_stats.values()])
     avg_p90 = np.mean([s['p90_usec'] for s in per_vm_stats.values()])
@@ -149,7 +163,8 @@ def calculate_overall_stats(per_vm_stats: Dict[str, dict]) -> dict:
     total_dropped = sum(s['dropped_messages'] for s in per_vm_stats.values())
     
     return {
-        'num_vms': len(per_vm_stats),
+        'total_vms': total_vms,
+        'num_vms': completed_vms,  # Number of completed VMs
         'avg_latency_usec': avg_latency,
         'avg_p50_usec': avg_p50,
         'avg_p90_usec': avg_p90,
@@ -281,7 +296,8 @@ def generate_markdown_report(per_vm_stats: Dict[str, dict], overall: dict, outpu
 
 **Generated:** {timestamp}  
 **Test Duration:** ~30 seconds per VM  
-**Number of VMs:** {overall['num_vms']}  
+**Total VMs:** {overall['total_vms']}  
+**Number of Completed VMs:** {overall['num_vms']}  
 **Test Type:** UDP ping-pong latency
 
 ---
@@ -379,8 +395,9 @@ def process_sockperf_results(logs_dir: Path, reports_dir: Path, mode: str):
     # Load results
     print("📂 Loading results...")
     print(f"   Mode: {mode} ({'processing all VMs' if process_all_vms else 'processing odd VMs only'})")
-    results = load_results(logs_dir, process_all_vms=process_all_vms)
-    print(f"   Found {len(results)} VM results")
+    results, total_vms = load_results(logs_dir, process_all_vms=process_all_vms)
+    print(f"   Found {total_vms} total VM log files")
+    print(f"   Successfully processed {len(results)} VM results")
     print()
     
     if not results:
@@ -390,7 +407,7 @@ def process_sockperf_results(logs_dir: Path, reports_dir: Path, mode: str):
     # Extract statistics
     print("📊 Extracting statistics...")
     per_vm_stats = extract_per_vm_stats(results)
-    overall_stats = calculate_overall_stats(per_vm_stats)
+    overall_stats = calculate_overall_stats(per_vm_stats, total_vms)
     print()
     
     # Generate plots

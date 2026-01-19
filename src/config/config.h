@@ -44,6 +44,7 @@ typedef struct {
     uint16_t eth_tx_queues;
     uint16_t vhost_rx_cores;
     uint16_t vhost_tx_cores;
+    uint8_t show_dash;
 } config_t;
 
 void init_config(config_t *c);

@@ -10,12 +10,21 @@ fi
 
 NUM_VMS=$1
 
+sudo systemctl stop ovs-dpdk
 # delete tap0, br0
 for ((i=0; i<NUM_VMS; i++)); do
   sudo ip link delete tap$i 2>/dev/null || true
 done
 sudo ip link delete br0 2>/dev/null || true
 echo "✅ br0 and taps deleted"
+
+# remove any existing routes for the other node's network (e.g., from ovsbr0-int)
+if [ "$NODE_ID" = "0" ]; then
+  sudo ip route del 192.168.100.0/24 2>/dev/null || true
+elif [ "$NODE_ID" = "1" ]; then
+  sudo ip route del 192.168.101.0/24 2>/dev/null || true
+fi
+echo "✅ removed existing routes for other node's network"
 
 # create br0
 sudo ip link add name br0 type bridge || true
@@ -49,5 +58,8 @@ for ((i=0; i<NUM_VMS; i++)); do
   sudo ip tuntap add dev tap$i mode tap user $USER || true
   sudo ip link set tap$i master br0 || true
   sudo ip link set tap$i up || true
+  # disable TSO, GSO, GRO, scatter gather offloads
+  # sudo ethtool -K tap$i tso off gso off gro off sg off || true
+  # sudo ethtool -K tap$i gro off || true
 done
 echo "✅ taps created"

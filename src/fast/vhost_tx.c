@@ -54,6 +54,7 @@ void vhost_tx_loop(struct vhost_tx_ctx *ctx) {
 
 static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
     STATS_ADD(ctx->vdev_stats[vid], call_count, 1);
+    // pkts_set_tso_flags(pkts, num);
     int16_t ret = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
     // CRITICAL: Handle error case (negative return = -1 on error)
     if (ret < 0) {
@@ -85,6 +86,14 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
         STATS_ADD(ctx->vdev_stats[vid], max_send_count, 1);
     }
 
+    // static int count = 0;
+    // if (count < 500) {
+    //     for (int i = 0; i < ret; i++) {
+    //         LOG_IMPT("VHOST TX: pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+    //     }
+    //     count++;
+    // }
+
     LOG_VM_OUT("[%d](%d) Sent %d packets to VM\n", ctx->core_id, vid, ret);
     PRINT_PKTS(pkts, ret, LOG_VM_OUT);
     free_pkts(pkts, ret);
@@ -94,6 +103,9 @@ static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsign
 
 static inline unsigned vhost_resend(struct vhost_tx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
     STATS_ADD(ctx->vdev_stats[vid], call_count, 1);
+    // for (int i = 0; i < num; i++) {
+    //     printf("VHOST TX pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+    // }
     int16_t ret = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
     if (ret < 0) {
         ret = 0;

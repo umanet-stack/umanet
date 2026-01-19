@@ -26,6 +26,9 @@
 #define FASTPATH_H_
 
 #include <rte_ether.h>
+#include <rte_ip.h>
+#include <rte_tcp.h>
+#include <rte_udp.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -62,7 +65,137 @@
     } while (0)
 #endif
 
-#define MAX_PKT_BURST 32
-#define RING_SIZE 4096
+#define MAX_PKT_BURST 64 // Increased from 32 for better batching with jumbo frames
+#define RING_SIZE 16384  // Increased from 4096 for MTU 9000 (4x larger)
+
+#define GRO_MAX_FLOWS 2048
+#define GRO_MAX_ITEMS_PER_FLOW 32
+#define PKT_MTU 9000
+
+// tells NIC to segment TCP packets into smaller segments
+static inline void pkts_set_tso_flags(struct rte_mbuf **pkts, unsigned num) {
+    // flags = tell driver what to do
+    for (unsigned i = 0; i < num; i++) {
+        struct rte_mbuf *m = pkts[i];
+
+        struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+        uint16_t eth_type = rte_be_to_cpu_16(eth->ether_type);
+
+        if (eth_type == RTE_ETHER_TYPE_IPV4) {
+            struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth + 1);
+            // It relies on these offsets to find the headers for checksum computation and segmentation
+            m->l2_len = sizeof(struct rte_ether_hdr);
+            m->l3_len = ip->ihl * 4;
+
+            if (ip->next_proto_id == IPPROTO_TCP) {
+                struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *)((uint8_t *)ip + (ip->ihl * 4));
+                m->ol_flags |=
+                    // IPv4 packet, and the IPv4 header checksum must be computed (TSO requires rewriting IP length per
+                    // segment)
+                    RTE_MBUF_F_TX_IPV4 |
+                    // TCP checksum is not valid yet — compute it after segmentation
+                    RTE_MBUF_F_TX_TCP_CKSUM | RTE_MBUF_F_TX_IP_CKSUM;
+
+                m->l4_len = (tcp->data_off >> 4) * 4;
+
+                if (m->nb_segs > 1) {
+                    // TSO enable bit, this mbuf represents multiple TCP segments
+                    m->ol_flags |= RTE_MBUF_F_TX_TCP_SEG;
+                    // Split the payload into chunks of this size
+                    // It does not include TCP/IP headers, only TCP payload.
+                    // MTU(1500) - IPv4 header(20) - TCP header(20) - TCP timestamp(12) = TCP payload(1448)
+                    m->tso_segsz = PKT_MTU - m->l3_len - m->l4_len; // TCP payload per segment
+                } else {
+                    m->ol_flags &= ~RTE_MBUF_F_TX_TCP_SEG;
+                    m->tso_segsz = 0;
+                }
+
+            } else if (ip->next_proto_id == IPPROTO_UDP) {
+                // UDP over IPv4 — only compute checksums, no TSO
+                m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM;
+            } else {
+                // Other IPv4 protocols — just IPv4 checksum
+                m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM;
+            }
+        } else {
+            // Non-IPv4 (ARP, etc.) — no flags
+            m->ol_flags = 0;
+        }
+    }
+}
+
+// rte_gro_reassemble_burst relies on these flags to merge packets back together
+static inline void pkts_set_gro_flags(struct rte_mbuf **pkts, unsigned num) {
+    for (unsigned i = 0; i < num; i++) {
+        struct rte_mbuf *m = pkts[i];
+
+        // Reset GRO-relevant metadata
+        m->packet_type = 0;
+        m->l2_len = 0;
+        m->l3_len = 0;
+        m->l4_len = 0;
+        m->outer_l2_len = 0;
+        m->outer_l3_len = 0;
+
+        struct rte_ether_hdr *eth = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+        if (rte_be_to_cpu_16(eth->ether_type) != RTE_ETHER_TYPE_IPV4)
+            continue;
+
+        struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth + 1);
+        if (ip->next_proto_id != IPPROTO_TCP)
+            continue;
+
+        m->l2_len = sizeof(struct rte_ether_hdr);
+        m->l3_len = ip->ihl * 4;
+
+        struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *)((uint8_t *)ip + m->l3_len);
+        m->l4_len = (tcp->data_off >> 4) * 4;
+
+        m->packet_type = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4 | RTE_PTYPE_L4_TCP;
+    }
+}
+
+static inline void fix_cksum(struct rte_mbuf *m) {
+    struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
+
+    // Clear TX offload flags - virtio needs valid checksums in packet data, not offloaded
+    m->ol_flags &= ~(RTE_MBUF_F_TX_TCP_SEG | RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM |
+                     RTE_MBUF_F_TX_UDP_CKSUM);
+    m->tso_segsz = 0;
+
+    if (eth_hdr->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4)) {
+        struct rte_ipv4_hdr *ip = (struct rte_ipv4_hdr *)(eth_hdr + 1);
+        m->l2_len = sizeof(*eth_hdr);
+        m->l3_len = ip->ihl * 4; // Actual IP header length (handles options)
+
+        // Always recalculate IP checksum (DEBUG: ignore NIC flags)
+        ip->hdr_checksum = 0;
+        ip->hdr_checksum = rte_ipv4_cksum(ip);
+
+        if (ip->next_proto_id == IPPROTO_TCP) {
+            // Use ip->ihl (header length in 4-byte words) to handle IP options
+            struct rte_tcp_hdr *tcp = (struct rte_tcp_hdr *)((uint8_t *)ip + (ip->ihl * 4));
+            m->l4_len = (tcp->data_off >> 4) * 4; // Actual TCP header length (handles options)
+
+            // Always recalculate TCP checksum (DEBUG: ignore NIC flags)
+            tcp->cksum = 0;
+            tcp->cksum = rte_ipv4_udptcp_cksum(ip, tcp);
+        } else if (ip->next_proto_id == IPPROTO_UDP) {
+            // Use ip->ihl (header length in 4-byte words) to handle IP options
+            struct rte_udp_hdr *udp = (struct rte_udp_hdr *)((uint8_t *)ip + (ip->ihl * 4));
+            m->l4_len = sizeof(struct rte_udp_hdr);
+
+            // Always recalculate UDP checksum (DEBUG: ignore NIC flags)
+            udp->dgram_cksum = 0;
+            udp->dgram_cksum = rte_ipv4_udptcp_cksum(ip, udp);
+        } else {
+            m->l4_len = 0;
+        }
+    } else {
+        m->l2_len = 0;
+        m->l3_len = 0;
+        m->l4_len = 0;
+    }
+}
 
 #endif /* FASTPATH_H_ */
