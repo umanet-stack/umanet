@@ -257,66 +257,71 @@ int register_vhost_drivers() {
             continue;
         }
 
-        // flags describe what the backend (you) and the guest agree on
-        // GUEST_TSO enabled - beneficial for traffic going through physical NIC with hardware TSO offload
-        uint64_t features = (1ULL << VIRTIO_NET_F_MTU) | (1ULL << VIRTIO_NET_F_MRG_RXBUF) |
-                            (1ULL << VIRTIO_NET_F_CTRL_VQ) | (1ULL << VIRTIO_NET_F_CSUM) |
-                            (1ULL << VIRTIO_NET_F_GUEST_CSUM) | (1ULL << VIRTIO_NET_F_GUEST_UFO) |
-                            // (1ULL << VIRTIO_NET_F_GUEST_TSO4) | (1ULL << VIRTIO_NET_F_GUEST_TSO6) |
-                            (1ULL << VIRTIO_NET_F_HOST_TSO4) | (1ULL << VIRTIO_NET_F_HOST_TSO6);
+        if (config.enable_tso) {
+            // flags describe what the backend (you) and the guest agree on
+            // GUEST_TSO enabled - beneficial for traffic going through physical NIC with hardware TSO offload
+            uint64_t features = (1ULL << VIRTIO_NET_F_MTU) | (1ULL << VIRTIO_NET_F_MRG_RXBUF) |
+                                (1ULL << VIRTIO_NET_F_CTRL_VQ) | (1ULL << VIRTIO_NET_F_CSUM) |
+                                (1ULL << VIRTIO_NET_F_GUEST_CSUM) | (1ULL << VIRTIO_NET_F_GUEST_UFO) |
+                                // (1ULL << VIRTIO_NET_F_GUEST_TSO4) | (1ULL << VIRTIO_NET_F_GUEST_TSO6) |
+                                (1ULL << VIRTIO_NET_F_HOST_TSO4) | (1ULL << VIRTIO_NET_F_HOST_TSO6);
 
-        rte_vhost_driver_enable_features(file, features);
+            rte_vhost_driver_enable_features(file, features);
+        } else {
 
-        // Allow the guest to send TSO packets to the host.
-        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO4);
-        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO6);
+            // Allow the guest to send TSO packets to the host.
+            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO4);
+            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO6);
 
-        // Allow the host (your DPDK app) to send TSO packets to the guest.
-        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO4);
-        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO6);
+            // Allow the host (your DPDK app) to send TSO packets to the guest.
+            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO4);
+            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO6);
 
-        // if (config.mergeable == 0) {
-        // }
-        // Allows the host to place one large packet across multiple guest RX buffers
-        // 1 packet → RX buf 0 + RX buf 1 + RX buf 2
-        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_MRG_RXBUF);
+            // if (config.mergeable == 0) {
+            // }
+            // Allows the host to place one large packet across multiple guest RX buffers
+            // 1 packet → RX buf 0 + RX buf 1 + RX buf 2
+            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_MRG_RXBUF);
 
-        // if (config.enable_tx_csum == 0) {
-        // }
-        // guests won’t compute checksums, host will do it
-        // guest sends packets with checksum fields = 0, host fills them later
-        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_CSUM);
-        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_CSUM);
-        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_UFO);
-        // //
-        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_ECN);
+            // if (config.enable_tx_csum == 0) {
+            // }
+            // guests won’t compute checksums, host will do it
+            // guest sends packets with checksum fields = 0, host fills them later
+            rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_CSUM);
+            // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_CSUM);
+            // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_UFO);
+            // //
+            // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_ECN);
 
-        // if (config.enable_tso == 0) {
-        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO4);
-        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO6);
-        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO4);
-        // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO6);
-        // // }
+            // if (config.enable_tso == 0) {
+            // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO4);
+            // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_HOST_TSO6);
+            // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO4);
+            // rte_vhost_driver_disable_features(file, 1ULL << VIRTIO_NET_F_GUEST_TSO6);
+            // // }
 
-        // - RTE_VHOST_USER_EXTBUF_SUPPORT (enables external buffer mbufs)
-        // - RTE_VHOST_USER_LINEARBUF_SUPPORT (required for external buffers)
-        // - VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD (required for zero copy tracking)
-        // uint64_t protocol_features = 0;
-        // if (rte_vhost_driver_get_protocol_features(file, &protocol_features) == 0) {
-        //     protocol_features |= (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD);
-        //     if (rte_vhost_driver_set_protocol_features(file, protocol_features) != 0) {
-        //         LOG_WARN("Failed to set INFLIGHT_SHMFD protocol feature for %s (zero copy may not work)\n", file);
-        //     } else {
-        //         LOG_INFO("Enabled INFLIGHT_SHMFD protocol feature for zero copy support (features: 0x%lx)\n",
-        //                  protocol_features);
-        //     }
-        // } else {
-        //     LOG_WARN("Failed to get protocol features for %s, trying to set INFLIGHT_SHMFD directly\n", file);
-        //     protocol_features = (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD);
-        //     if (rte_vhost_driver_set_protocol_features(file, protocol_features) != 0) {
-        //         LOG_WARN("Failed to set INFLIGHT_SHMFD protocol feature for %s (zero copy may not work)\n", file);
-        //     }
-        // }
+            // - RTE_VHOST_USER_EXTBUF_SUPPORT (enables external buffer mbufs)
+            // - RTE_VHOST_USER_LINEARBUF_SUPPORT (required for external buffers)
+            // - VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD (required for zero copy tracking)
+            // uint64_t protocol_features = 0;
+            // if (rte_vhost_driver_get_protocol_features(file, &protocol_features) == 0) {
+            //     protocol_features |= (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD);
+            //     if (rte_vhost_driver_set_protocol_features(file, protocol_features) != 0) {
+            //         LOG_WARN("Failed to set INFLIGHT_SHMFD protocol feature for %s (zero copy may not work)\n",
+            //         file);
+            //     } else {
+            //         LOG_INFO("Enabled INFLIGHT_SHMFD protocol feature for zero copy support (features: 0x%lx)\n",
+            //                  protocol_features);
+            //     }
+            // } else {
+            //     LOG_WARN("Failed to get protocol features for %s, trying to set INFLIGHT_SHMFD directly\n", file);
+            //     protocol_features = (1ULL << VHOST_USER_PROTOCOL_F_INFLIGHT_SHMFD);
+            //     if (rte_vhost_driver_set_protocol_features(file, protocol_features) != 0) {
+            //         LOG_WARN("Failed to set INFLIGHT_SHMFD protocol feature for %s (zero copy may not work)\n",
+            //         file);
+            //     }
+            // }
+        }
 
         if (rte_vhost_driver_callback_register(file, &virtio_net_device_ops) != 0) {
             LOG_ERROR("Failed to register vhost driver callbacks for %s (socket %d/%d)\n", file, i, config.nb_sockets);

@@ -73,5 +73,5 @@ sudo ./build/umanet \
   --eth-rx-cores $ETH_RX_CORES --eth-tx-cores $ETH_TX_CORES \
   --eth-rx-queues $ETH_RX_QUEUES --eth-tx-queues $ETH_TX_QUEUES \
   --vhost-rx-cores $VHOST_RX_CORES --vhost-tx-cores $VHOST_TX_CORES \
-  --show-dash $SHOW_DASH \
+--show-dash $SHOW_DASH --tso $TSO \
   > switch.log 2>&1
