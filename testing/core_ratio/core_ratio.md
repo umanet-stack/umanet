@@ -36,56 +36,8 @@ sudo perf script > stacks.raw
 sudo ./testing/core_ratio/stackcollapse-perf.pl stacks.raw > stacks.folded
 sudo ./testing/core_ratio/flamegraph.pl stacks.folded > stacks.svg
 
-awk '
-/tun_get_user|tun_chr_write_iter|tun_put_user|tun_rx/ {tap += $NF; next}
-/kvm_vcpu|vcpu_run/ {kvm += $NF; next}
-/schedule|__schedule|kvm_vcpu_block/ {sched += $NF; next}
-{other += $NF}
-END {
-  total = tap + kvm + sched + other
-  printf "TAP: %.2f%%\n", 100*tap/total
-  printf "KVM: %.2f%%\n", 100*kvm/total
-  printf "Sched: %.2f%%\n", 100*sched/total
-  printf "Other: %.2f%%\n", 100*other/total
-}' stacks.folded
-
-
-awk '
-/tun_get_user|tun_chr_write_iter|tun_put_user|tun_rx/ {
-    tap += $NF; next
-}
-/kvm_vcpu|vcpu_run/ {
-    kvm += $NF; next
-}
-/schedule|__schedule|kvm_vcpu_block/ {
-    sched += $NF; next
-}
-/netif_|skb_|tcp_|udp_|ip_rcv|napi_|net_rx|sock_|_copy_|gro_|gso_/ {
-    net += $NF; next
-}
-{
-    other += $NF
-}
-END {
-    total = tap + kvm + sched + net + other
-
-    printf "=== Absolute samples ===\n"
-    printf "TAP networking: %d\n", tap
-    printf "Kernel networking (non-TAP): %d\n", net
-    printf "KVM: %d\n", kvm
-    printf "Scheduler: %d\n", sched
-    printf "Other: %d\n", other
-    printf "Total: %d\n\n", total
-
-    printf "=== Percent of total ===\n"
-    printf "TAP networking: %.2f%%\n", 100*tap/total
-    printf "Kernel networking (non-TAP): %.2f%%\n", 100*net/total
-    printf "KVM: %.2f%%\n", 100*kvm/total
-    printf "Scheduler: %.2f%%\n", 100*sched/total
-    printf "Other: %.2f%%\n", 100*other/total
-}' stacks.folded
-
-
+sudo ./testing/core_ratio/process_folded.sh stacks-tap.folded
+sudo ./testing/core_ratio/process_folded.sh stacks-dpdk.folded
 ```
 ## multinode
 ```bash
