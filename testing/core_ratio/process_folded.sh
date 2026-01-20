@@ -82,12 +82,12 @@ END {
     printf "TAP networking: %.2f%%\n", 100*tap/total
     printf "Kernel networking (non-TAP): %.2f%%\n", 100*net/total
     # printf "Virtio/Vhost: %.2f%%\n", 100*virtio/total
-    printf "Interrupts/Softirq: %.2f%%\n", 100*irq/total
     printf "KVM: %.2f%%\n", 100*kvm/total
+    printf "Syscalls: %.2f%%\n", 100*syscall/total
+    printf "Interrupts/Softirq: %.2f%%\n", 100*irq/total
     printf "Scheduler: %.2f%%\n", 100*sched/total
     printf "Locks/Contention: %.2f%%\n", 100*lock/total
     printf "Memory/MM: %.2f%%\n", 100*mm/total
-    printf "Syscalls: %.2f%%\n", 100*syscall/total
     # printf "Block I/O: %.2f%%\n", 100*block/total
     # printf "Drivers: %.2f%%\n", 100*driver/total
     # printf "RCU: %.2f%%\n", 100*rcu/total
