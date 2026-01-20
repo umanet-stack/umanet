@@ -38,6 +38,7 @@ sudo ./testing/core_ratio/flamegraph.pl stacks.folded > stacks.svg
 
 sudo ./testing/core_ratio/process_folded.sh stacks-tap.folded
 sudo ./testing/core_ratio/process_folded.sh stacks-dpdk.folded
+sudo ./testing/core_ratio/process_folded.sh stacks-ovs-dpdk.folded
 ```
 ## multinode
 ```bash
