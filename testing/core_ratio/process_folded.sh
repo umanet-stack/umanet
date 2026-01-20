@@ -41,11 +41,23 @@ awk '
 # /driver_|pci_|dma_|iommu_|mlx_|ixgbe_|ena_|e1000/ {
 #     driver += $NF; next
 # }
+# /rcu_|call_rcu|synchronize_rcu|kfree_rcu/ {
+#     rcu += $NF; next
+# }
+# /ktime_|sched_clock|clock_gettime|update_rq_clock/ {
+#     clock += $NF; next
+# }
+# /cpuidle|intel_idle|acpi_|mwait/ {
+#     idle += $NF; next
+# }
+# /rcu_|ktime_|sched_clock|clock_|cpuidle|intel_idle|acpi_|__x86_|native_|ret_from_fork/ {
+#     infra += $NF; next
+# }
 {
     other += $NF
 }
 END {
-    total = tap + net + virtio + irq + kvm + sched + lock + mm + syscall + block + driver + other
+    total = tap + net + virtio + irq + kvm + sched + lock + mm + syscall + block + driver + rcu + clock + idle + infra + other
 
     printf "=== Absolute samples ===\n"
     printf "TAP networking: %d\n", tap
@@ -59,6 +71,10 @@ END {
     printf "Syscalls: %d\n", syscall
     # printf "Block I/O: %d\n", block
     # printf "Drivers: %d\n", driver
+    # printf "RCU: %d\n", rcu
+    # printf "Timekeeping: %d\n", clock
+    # printf "Idle: %d\n", idle
+    # printf "Infrastructure: %d\n", infra
     printf "Other: %d\n", other
     printf "Total: %d\n\n", total
 
@@ -74,5 +90,9 @@ END {
     printf "Syscalls: %.2f%%\n", 100*syscall/total
     # printf "Block I/O: %.2f%%\n", 100*block/total
     # printf "Drivers: %.2f%%\n", 100*driver/total
+    # printf "RCU: %.2f%%\n", 100*rcu/total
+    # printf "Timekeeping: %.2f%%\n", 100*clock/total
+    # printf "Idle: %.2f%%\n", 100*idle/total
+    # printf "Infrastructure: %.2f%%\n", 100*infra/total
     printf "Other: %.2f%%\n", 100*other/total
 }' "$FOLDED_FILE"
