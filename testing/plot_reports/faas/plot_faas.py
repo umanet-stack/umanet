@@ -141,8 +141,8 @@ def plot_latency(plot_type="mean"):
     ax2.grid(True, alpha=0.3)
     ax2.set_ylim(0, 10)
 
-    # Share legend - place it on the bottom subplot
-    ax2.legend(fontsize=12, loc="best", ncol=3)
+    # Share legend - place it on the top subplot
+    ax1.legend(fontsize=15, loc="best", ncol=3)
 
     plt.tight_layout()
 
