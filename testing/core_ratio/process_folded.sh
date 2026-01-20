@@ -62,13 +62,13 @@ END {
     printf "=== Absolute samples ===\n"
     printf "TAP networking: %d\n", tap
     printf "Kernel networking (non-TAP): %d\n", net
+    printf "KVM: %d\n", kvm
+    printf "Syscalls: %d\n", syscall
     # printf "Virtio/Vhost: %d\n", virtio
     printf "Interrupts/Softirq: %d\n", irq
-    printf "KVM: %d\n", kvm
     printf "Scheduler: %d\n", sched
     printf "Locks/Contention: %d\n", lock
     printf "Memory/MM: %d\n", mm
-    printf "Syscalls: %d\n", syscall
     # printf "Block I/O: %d\n", block
     # printf "Drivers: %d\n", driver
     # printf "RCU: %d\n", rcu
