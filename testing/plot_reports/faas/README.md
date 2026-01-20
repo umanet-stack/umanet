@@ -1,4 +1,4 @@
 ```bash
 
-testing/plot_reports/plot_faas.py
+python testing/plot_reports/faas/plot_faas.py
 ```

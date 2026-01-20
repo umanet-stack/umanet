@@ -128,10 +128,8 @@ def plot_latency(plot_type="mean"):
     ax.legend(fontsize=12, loc="best", ncol=2)
     ax.grid(True, alpha=0.3)
 
-    # Use log scale for y-axis if needed (check if values span large range)
-    all_values = [d["value"] for d in filtered_data]
-    if all_values and max(all_values) / min(all_values) > 100:
-        ax.set_yscale("log")
+    # Set y-axis limit to 100 ms
+    ax.set_ylim(0, 20)
 
     plt.tight_layout()
 
