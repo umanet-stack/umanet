@@ -51,7 +51,7 @@ void slowpath_loop(struct control_ctx *ctx) {
                     LOG_ERROR("vdev_list->vdevs[%d] is NULL for ARP request\n", slow_msg->vid);
                     continue;
                 }
-                process_arp_req(ctx, slow_msg->vid, slow_msg->mbuf, slow_msg->src);
+                process_arp_req(ctx, slow_msg->vid, slow_msg->eth_queue_id, slow_msg->mbuf, slow_msg->src);
                 break;
 
             default:

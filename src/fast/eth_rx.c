@@ -118,7 +118,8 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
                     // NIC to VM path: clear offload flags and recalculate checksums
                     // Packets from NIC may have pseudo-checksums from sender's TX offload
                     // Virtio requires valid checksums in packet data, not offloaded
-                    fix_cksum(m);
+                    // uncomment this to enable TSO
+                    // fix_cksum(m);
 
                     vm_pkts[dst_vid][vm_cnt[dst_vid]++] = m;
                     if (vid_seen_mask & (1ULL << dst_vid))

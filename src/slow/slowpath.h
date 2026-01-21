@@ -25,7 +25,8 @@ struct slow_msg {
     struct rte_mbuf *mbuf;
 };
 
-int process_arp_req(struct control_ctx *ctx, uint16_t vid, struct rte_mbuf *m, enum slow_src src);
+int process_arp_req(struct control_ctx *ctx, uint16_t vid, uint16_t eth_queue_id, struct rte_mbuf *m,
+                    enum slow_src src);
 void slowpath_loop(struct control_ctx *ctx);
 
 void control_tty_init();

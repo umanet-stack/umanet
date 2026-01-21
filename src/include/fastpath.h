@@ -25,7 +25,9 @@
 #ifndef FASTPATH_H_
 #define FASTPATH_H_
 
+#include "log.h"
 #include <rte_ether.h>
+#include <rte_icmp.h>
 #include <rte_ip.h>
 #include <rte_tcp.h>
 #include <rte_udp.h>
@@ -70,7 +72,7 @@
 
 #define GRO_MAX_FLOWS 2048
 #define GRO_MAX_ITEMS_PER_FLOW 32
-#define PKT_MTU 9000
+#define PKT_MTU 1500
 
 // tells NIC to segment TCP packets into smaller segments
 static inline void pkts_set_tso_flags(struct rte_mbuf **pkts, unsigned num) {
@@ -113,6 +115,22 @@ static inline void pkts_set_tso_flags(struct rte_mbuf **pkts, unsigned num) {
             } else if (ip->next_proto_id == IPPROTO_UDP) {
                 // UDP over IPv4 — only compute checksums, no TSO
                 m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM;
+            } else if (ip->next_proto_id == IPPROTO_ICMP) {
+                // m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM;
+                // No NIC offload exists for ICMP
+                m->ol_flags &= ~(RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM |
+                                 RTE_MBUF_F_TX_UDP_CKSUM | RTE_MBUF_F_TX_TCP_SEG);
+
+                ip->hdr_checksum = 0;
+                ip->hdr_checksum = rte_ipv4_cksum(ip);
+
+                struct rte_icmp_hdr *icmp = (struct rte_icmp_hdr *)((uint8_t *)ip + m->l3_len);
+
+                uint16_t icmp_len = rte_be_to_cpu_16(ip->total_length) - m->l3_len;
+
+                icmp->icmp_cksum = 0;
+                icmp->icmp_cksum = rte_raw_cksum(icmp, icmp_len);
+                icmp->icmp_cksum = __rte_raw_cksum_reduce(icmp->icmp_cksum);
             } else {
                 // Other IPv4 protocols — just IPv4 checksum
                 m->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM;
