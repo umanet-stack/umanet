@@ -288,6 +288,7 @@ static int start_threads(void) {
             threads_launched++;
         }
     }
+    LOG_IMPT("✅ Started %d threads\n", threads_launched);
 
     return 0;
 }
