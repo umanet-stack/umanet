@@ -23,26 +23,27 @@ int init_dataplane_topology() {
 }
 
 int init_dataplane_ctxs() {
-    if ((eth_rx_ctxs = rte_calloc("eth_rx_ctxs", config.eth_rx_cores, sizeof(*eth_rx_ctxs), 0)) == NULL) {
-        LOG_ERROR("init_dataplane_ctxs: failed to allocate eth_rx_ctxs\n");
-        return -1;
-    }
-    if ((eth_tx_ctxs = rte_calloc("eth_tx_ctxs", config.eth_tx_cores, sizeof(*eth_tx_ctxs), 0)) == NULL) {
-        LOG_ERROR("init_dataplane_ctxs: failed to allocate eth_tx_ctxs\n");
-        return -1;
-    }
-    if ((vhost_rx_ctxs = rte_calloc("vhost_rx_ctxs", config.vhost_rx_cores, sizeof(*vhost_rx_ctxs), 0)) == NULL) {
-        LOG_ERROR("init_dataplane_ctxs: failed to allocate vhost_rx_ctxs\n");
-        return -1;
-    }
-    if ((vhost_tx_ctxs = rte_calloc("vhost_tx_ctxs", config.vhost_tx_cores, sizeof(*vhost_tx_ctxs), 0)) == NULL) {
-        LOG_ERROR("init_dataplane_ctxs: failed to allocate vhost_tx_ctxs\n");
-        return -1;
-    }
+    // if ((eth_rx_ctxs = rte_calloc("eth_rx_ctxs", config.eth_rx_cores, sizeof(*eth_rx_ctxs), 0)) == NULL) {
+    //     LOG_ERROR("init_dataplane_ctxs: failed to allocate eth_rx_ctxs\n");
+    //     return -1;
+    // }
+    // if ((eth_tx_ctxs = rte_calloc("eth_tx_ctxs", config.eth_tx_cores, sizeof(*eth_tx_ctxs), 0)) == NULL) {
+    //     LOG_ERROR("init_dataplane_ctxs: failed to allocate eth_tx_ctxs\n");
+    //     return -1;
+    // }
+    // if ((vhost_rx_ctxs = rte_calloc("vhost_rx_ctxs", config.vhost_rx_cores, sizeof(*vhost_rx_ctxs), 0)) == NULL) {
+    //     LOG_ERROR("init_dataplane_ctxs: failed to allocate vhost_rx_ctxs\n");
+    //     return -1;
+    // }
+    // if ((vhost_tx_ctxs = rte_calloc("vhost_tx_ctxs", config.vhost_tx_cores, sizeof(*vhost_tx_ctxs), 0)) == NULL) {
+    //     LOG_ERROR("init_dataplane_ctxs: failed to allocate vhost_tx_ctxs\n");
+    //     return -1;
+    // }
     if ((fp_ctxs = rte_calloc("fp_ctxs", global->fp_cores, sizeof(*fp_ctxs), 0)) == NULL) {
         LOG_ERROR("init_dataplane_ctxs: failed to allocate fp_ctxs\n");
         return -1;
     }
+    LOG_IMPT("✅ Initialized fp_ctxs\n");
 
     for (int i = 0; i < global->fp_cores; i++) {
         if ((fp_ctxs[i]->eth_rx_ctx = rte_calloc("eth_rx_ctxs[%d]", 1, sizeof(struct eth_rx_ctx), 0)) == NULL) {
@@ -50,12 +51,14 @@ int init_dataplane_ctxs() {
             return -1;
         }
         fp_ctxs[i]->eth_rx_ctx->eth_rx_queue_r = i;
+        LOG_IMPT("👉 Initialized fp_ctxs[%d]->eth_rx_ctx\n", i);
 
         if ((fp_ctxs[i]->eth_rx_ctx->mempool = mempool_alloc("eth_rx_ctxs_mempool")) == NULL) {
             LOG_ERROR("init_eth_rx_ctxs: failed to allocate eth_rx_ctxs[%d]->mempool\n", i);
             rte_free(fp_ctxs[i]->eth_rx_ctx);
             return -1;
         }
+        LOG_IMPT("👉 Initialized fp_ctxs[%d]->eth_rx_ctx->mempool\n", i);
 
         fp_ctxs[i]->eth_rx_ctx->gro_param = (struct rte_gro_param){.gro_types = RTE_GRO_TCP_IPV4,
                                                                    .max_flow_num = GRO_MAX_FLOWS,
@@ -66,6 +69,7 @@ int init_dataplane_ctxs() {
             LOG_ERROR("init_eth_rx_ctxs: failed to create GRO context\n");
             return -1;
         }
+        LOG_IMPT("👉 Initialized fp_ctxs[%d]->eth_rx_ctx->gro_ctx\n", i);
 
         if ((fp_ctxs[i]->eth_rx_ctx->stats =
                  rte_calloc("eth_rx_ctxs[%d]->stats", 1, sizeof(*fp_ctxs[i]->eth_rx_ctx->stats), 0)) == NULL) {
@@ -73,7 +77,9 @@ int init_dataplane_ctxs() {
             return -1;
         }
         fp_ctxs[i]->eth_rx_ctx->iteration_counter = 0;
+        LOG_IMPT("👉 Initialized fp_ctxs[%d]->eth_rx_ctx->iteration_counter\n", i);
     }
+    LOG_IMPT("✅ Initialized eth_rx_ctxs\n");
 
     for (int i = 0; i < global->fp_cores; i++) {
         if ((fp_ctxs[i]->eth_tx_ctx = rte_calloc("eth_tx_ctxs[%d]", 1, sizeof(struct eth_tx_ctx), 0)) == NULL) {
@@ -98,6 +104,7 @@ int init_dataplane_ctxs() {
             return -1;
         }
     }
+    LOG_IMPT("✅ Initialized eth_tx_ctxs\n");
 
     for (int i = 0; i < global->fp_cores; i++) {
         if ((fp_ctxs[i]->vhost_rx_ctx = rte_calloc("vhost_rx_ctxs[%d]", 1, sizeof(struct vhost_rx_ctx), 0)) == NULL) {
@@ -128,6 +135,7 @@ int init_dataplane_ctxs() {
         memset(fp_ctxs[i]->vhost_rx_ctx->ecn_rr_vhost, 0, sizeof(fp_ctxs[i]->vhost_rx_ctx->ecn_rr_vhost));
         memset(fp_ctxs[i]->vhost_rx_ctx->ecn_rr_eth, 0, sizeof(fp_ctxs[i]->vhost_rx_ctx->ecn_rr_eth));
     }
+    LOG_IMPT("✅ Initialized vhost_rx_ctxs\n");
 
     for (int i = 0; i < global->fp_cores; i++) {
         if ((fp_ctxs[i]->vhost_tx_ctx = rte_calloc("vhost_tx_ctxs[%d]", 1, sizeof(struct vhost_tx_ctx), 0)) == NULL) {
@@ -149,6 +157,8 @@ int init_dataplane_ctxs() {
             fp_ctxs[i]->vhost_tx_ctx->vm_bp[j].blocked_until_tsc = 0;
         }
     }
+    LOG_IMPT("✅ Initialized vhost_tx_ctxs\n");
+
     // vhost module takes care of vdev_ids
 
     if ((control_ctx = rte_calloc("control_ctx", 1, sizeof(struct control_ctx), 0)) == NULL) {
