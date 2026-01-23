@@ -162,6 +162,44 @@ void fp_loop(struct fp_ctx *ctx) {
             }
         }
         eth_rx_ctx->iteration_counter++;
+
+        for (int i = eth_tx_ctx->eth_tx_queue_r; i < config.eth_tx_queues; i += config.eth_tx_cores) {
+            uint16_t num = MAX_PKT_BURST;
+            struct rte_mbuf *pkts[num];
+
+            int deq_num = rte_ring_dequeue_burst(global->eth_tx_queue_rings[i], (void **)pkts, num, NULL);
+            if (deq_num == num) {
+                STATS_ADD(eth_tx_ctx->stats, ring_deq_max_count, 1);
+            }
+            // LOG_INFO("[%d] Dequeued %d packets from eth_tx_ring[%d] to eth_tx_loop\n", ctx->core_id, deq_num,
+            //  ctx->eth_queue_id);
+
+            // VMs sent to dataplane MAC 02:00:00:00:00:fe, we forward to physical gateway
+            struct rte_ether_hdr *eth_hdr;
+
+            for (int j = 0; j < deq_num; j++) {
+                if (j + 1 < deq_num) {
+                    rte_prefetch0(pkts[j + 1]);
+                    rte_prefetch0(rte_pktmbuf_mtod(pkts[j + 1], void *));
+                }
+
+                eth_hdr = rte_pktmbuf_mtod(pkts[j], struct rte_ether_hdr *);
+                rte_ether_addr_copy(&global->eth_addr, &eth_hdr->src_addr); // Src: NIC's MAC
+
+                // Preserve broadcast/multicast MACs (for ARP requests, etc.)
+                if (rte_is_broadcast_ether_addr(&eth_hdr->dst_addr) ||
+                    rte_is_multicast_ether_addr(&eth_hdr->dst_addr)) {
+                    // Keep broadcast/multicast - don't change
+                } else if (rte_is_same_ether_addr(&eth_hdr->dst_addr, &config.mac)) {
+                    // VM sent to other node NIC's MAC
+                    rte_ether_addr_copy(&config.other_node_mac, &eth_hdr->dst_addr);
+                }
+                // Otherwise, keep the original destination MAC (for direct communication)
+            }
+
+            if (deq_num > 0)
+                network_send(eth_tx_ctx, i, deq_num, pkts);
+        }
     }
 }
 
