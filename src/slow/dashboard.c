@@ -27,14 +27,14 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
     fprintf(tty_fp, "\033[2J"); // clear screen
     fprintf(tty_fp, "\033[H");  // move cursor to top-left (1;1)
 
-    for (int i = 0; i < global->fp_cores; i++) {
-        fprintf(tty_fp, CYAN_PREFIX "ETH RX CORE %d: " RESET_COLOR, i);
-        fprintf(tty_fp, "pkt: %s\t", display_number(fp_ctxs[i]->eth_rx_ctx->stats->pkt_count));
-        fprintf(tty_fp, "call: %s\t", display_number(fp_ctxs[i]->eth_rx_ctx->stats->call_count));
-        fprintf(tty_fp, "empty_poll: %s\t", display_number(fp_ctxs[i]->eth_rx_ctx->stats->empty_poll_count));
-        fprintf(tty_fp, "max_poll: %s\t", display_number(fp_ctxs[i]->eth_rx_ctx->stats->max_poll_count));
-        fprintf(tty_fp, "ring_enq_fail: %s\n", display_number(fp_ctxs[i]->eth_rx_ctx->stats->ring_enq_fail_count));
-    }
+    // for (int i = 0; i < global->fp_cores; i++) {
+    //     fprintf(tty_fp, CYAN_PREFIX "ETH RX CORE %d: " RESET_COLOR, i);
+    //     fprintf(tty_fp, "pkt: %s\t", display_number(fp_ctxs[i]->eth_rx_ctx->stats->pkt_count));
+    //     fprintf(tty_fp, "call: %s\t", display_number(fp_ctxs[i]->eth_rx_ctx->stats->call_count));
+    //     fprintf(tty_fp, "empty_poll: %s\t", display_number(fp_ctxs[i]->eth_rx_ctx->stats->empty_poll_count));
+    //     fprintf(tty_fp, "max_poll: %s\t", display_number(fp_ctxs[i]->eth_rx_ctx->stats->max_poll_count));
+    //     fprintf(tty_fp, "ring_enq_fail: %s\n", display_number(fp_ctxs[i]->eth_rx_ctx->stats->ring_enq_fail_count));
+    // }
     for (int i = 0; i < global->fp_cores; i++) {
         fprintf(tty_fp, GREEN_PREFIX "ETH TX CORE %d: " RESET_COLOR, i);
         fprintf(tty_fp, "pkt: %s\t", display_number(fp_ctxs[i]->eth_tx_ctx->stats->pkt_count));
@@ -72,7 +72,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
                 eth_tx_ring_enq_fail_count += ctx->vdev_stats[j]->eth_tx_ring_enq_fail_count;
             }
         }
-        fprintf(tty_fp, "\n");
+        // fprintf(tty_fp, "\n");
         fprintf(tty_fp, "%s\t", display_number(pkt_count));
         fprintf(tty_fp, "%s\t", display_number(call_count));
         fprintf(tty_fp, "%s\t\t", display_number(empty_poll_count));
@@ -84,42 +84,42 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         // print_byte_pkt_sum(plan, ctx->vdev_stats);
         // print_empty_polls(vdev_list_ptr, plan, ctx->vdev_stats);
         print_pkts_by_rx_vdev(vdev_list_ptr, plan, ctx->vdev_stats);
-        print_poll_states(ctx);
+        // print_poll_states(ctx);
     }
 
-    fprintf(tty_fp, "\npkt\tcall\tmax_send\trequeue_pkt\tring_deq_max\n");
-    for (int i = 0; i < global->fp_cores; i++) {
-        struct vhost_tx_ctx *ctx = fp_ctxs[i]->vhost_tx_ctx;
-        struct vhost_plan *plan = atomic_load(&vhost_tx_plans[i]);
-        fprintf(tty_fp, MAGENTA_PREFIX "VHOST TX CORE %d (%u): " RESET_COLOR, i, plan->num);
-        uint64_t pkt_count = 0;
-        uint64_t call_count = 0;
-        uint64_t max_send_count = 0;
-        uint64_t requeue_pkt_count = 0;
-        uint64_t ring_deq_max_count = 0;
+    // fprintf(tty_fp, "\npkt\tcall\tmax_send\trequeue_pkt\tring_deq_max\n");
+    // for (int i = 0; i < global->fp_cores; i++) {
+    //     struct vhost_tx_ctx *ctx = fp_ctxs[i]->vhost_tx_ctx;
+    //     struct vhost_plan *plan = atomic_load(&vhost_tx_plans[i]);
+    //     fprintf(tty_fp, MAGENTA_PREFIX "VHOST TX CORE %d (%u): " RESET_COLOR, i, plan->num);
+    //     uint64_t pkt_count = 0;
+    //     uint64_t call_count = 0;
+    //     uint64_t max_send_count = 0;
+    //     uint64_t requeue_pkt_count = 0;
+    //     uint64_t ring_deq_max_count = 0;
 
-        for (int j = 0; j < MAX_VHOSTS; j++) {
-            if (j < plan->num) {
-                int vm_id = vdev_list_ptr->vdevs[plan->vids[j]]->vm_id;
-                fprintf(tty_fp, MAGENTA_PREFIX "%d " RESET_COLOR, vm_id);
-            }
-            if (vhost_tx_core[j] == i) {
-                pkt_count += ctx->vdev_stats[j]->pkt_count;
-                call_count += ctx->vdev_stats[j]->call_count;
-                max_send_count += ctx->vdev_stats[j]->max_send_count;
-                requeue_pkt_count += ctx->vdev_stats[j]->requeue_pkt_count;
-                ring_deq_max_count += ctx->vdev_stats[j]->ring_deq_max_count;
-            }
-        }
-        fprintf(tty_fp, "\n");
+    //     for (int j = 0; j < MAX_VHOSTS; j++) {
+    //         if (j < plan->num) {
+    //             int vm_id = vdev_list_ptr->vdevs[plan->vids[j]]->vm_id;
+    //             fprintf(tty_fp, MAGENTA_PREFIX "%d " RESET_COLOR, vm_id);
+    //         }
+    //         if (vhost_tx_core[j] == i) {
+    //             pkt_count += ctx->vdev_stats[j]->pkt_count;
+    //             call_count += ctx->vdev_stats[j]->call_count;
+    //             max_send_count += ctx->vdev_stats[j]->max_send_count;
+    //             requeue_pkt_count += ctx->vdev_stats[j]->requeue_pkt_count;
+    //             ring_deq_max_count += ctx->vdev_stats[j]->ring_deq_max_count;
+    //         }
+    //     }
+    //     // fprintf(tty_fp, "\n");
 
-        fprintf(tty_fp, "%s\t", display_number(pkt_count));
-        fprintf(tty_fp, "%s\t", display_number(call_count));
-        fprintf(tty_fp, "%s\t\t", display_number(max_send_count));
-        fprintf(tty_fp, "%s\t\t", display_number(requeue_pkt_count));
-        fprintf(tty_fp, "%s\n", display_number(ring_deq_max_count));
-        print_pkts_by_tx_vdev(vdev_list_ptr, plan, ctx->vdev_stats);
-    }
+    //     fprintf(tty_fp, "%s\t", display_number(pkt_count));
+    //     fprintf(tty_fp, "%s\t", display_number(call_count));
+    //     fprintf(tty_fp, "%s\t\t", display_number(max_send_count));
+    //     fprintf(tty_fp, "%s\t\t", display_number(requeue_pkt_count));
+    //     fprintf(tty_fp, "%s\n", display_number(ring_deq_max_count));
+    //     print_pkts_by_tx_vdev(vdev_list_ptr, plan, ctx->vdev_stats);
+    // }
 
     fflush(tty_fp);
 }
@@ -174,7 +174,7 @@ void print_empty_polls(struct vdev_list *vdev_list_ptr, struct vhost_plan *plan,
 }
 
 void print_pkts_by_rx_vdev(struct vdev_list *vdev_list_ptr, struct vhost_plan *plan, struct vdev_rx_stats **stats) {
-    fprintf(tty_fp, YELLOW_PREFIX "pkts_by_vm: " RESET_COLOR);
+    // fprintf(tty_fp, YELLOW_PREFIX "pkts_by_vm: " RESET_COLOR);
     for (int i = 0; i < plan->num; i++) {
         uint16_t vid = plan->vids[i];
         int vm_id = vdev_list_ptr->vdevs[vid]->vm_id;
@@ -184,7 +184,7 @@ void print_pkts_by_rx_vdev(struct vdev_list *vdev_list_ptr, struct vhost_plan *p
 }
 
 void print_pkts_by_tx_vdev(struct vdev_list *vdev_list_ptr, struct vhost_plan *plan, struct vdev_tx_stats **stats) {
-    fprintf(tty_fp, YELLOW_PREFIX "pkts_by_vm: " RESET_COLOR);
+    // fprintf(tty_fp, YELLOW_PREFIX "pkts_by_vm: " RESET_COLOR);
     for (int i = 0; i < plan->num; i++) {
         uint16_t vid = plan->vids[i];
         int vm_id = vdev_list_ptr->vdevs[vid]->vm_id;
