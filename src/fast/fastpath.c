@@ -81,6 +81,9 @@ static inline int flow_pick_tx(uint32_t src_ip, uint32_t dst_ip, uint16_t src_po
     return h % config.eth_tx_queues;
 }
 
+static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts);
+static inline unsigned vhost_resend(struct vhost_tx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts);
+
 void fp_loop(struct fp_ctx *ctx) {
     struct eth_rx_ctx *eth_rx_ctx = ctx->eth_rx_ctx;
     struct eth_tx_ctx *eth_tx_ctx = ctx->eth_tx_ctx;
@@ -473,6 +476,41 @@ void fp_loop(struct fp_ctx *ctx) {
                 }
             }
         }
+
+        struct vhost_plan *plan_ =
+            atomic_load_explicit(&vhost_tx_plans[vhost_tx_ctx->vhost_tx_core_id], memory_order_relaxed);
+        for (int i = 0; i < plan_->num; i++) {
+            uint16_t vid = plan_->vids[i];
+            if (vid >= MAX_VHOSTS || vid == (uint16_t)-1) {
+                continue;
+            }
+
+            if (vhost_tx_ctx->vm_bp[vid].state == VM_BLOCKED_TX &&
+                rte_rdtsc() < vhost_tx_ctx->vm_bp[vid].blocked_until_tsc)
+                continue;
+
+            if (vhost_tx_ctx->retry_cnts[vid] > 0) {
+                vhost_resend(vhost_tx_ctx, vhost_tx_ctx->retry_cnts[vid], vid, vhost_tx_ctx->retry_pkts[vid]);
+                continue;
+            }
+
+            uint16_t num = MAX_PKT_BURST;
+            struct rte_mbuf *pkts[num];
+
+            int deq_num = rte_ring_dequeue_burst(global->vhost_tx_rings[vid], (void **)pkts, num, NULL);
+            if (deq_num == num) {
+                STATS_ADD(vhost_tx_ctx->vdev_stats[vid], ring_deq_max_count, 1);
+            }
+            // LOG_INFO("[%d] Dequeued %d packets from vhost_tx_ring[%d] to vhost_tx_loop\n", ctx->core_id, deq_num,
+            // vid);
+
+            if (deq_num > 0) {
+                for (int j = 0; j < RTE_MIN(deq_num, 4); j++) {
+                    rte_prefetch0(pkts[j]);
+                }
+                vhost_send(vhost_tx_ctx, deq_num, vid, pkts);
+            }
+        }
     }
 }
 
@@ -614,5 +652,84 @@ static inline unsigned vhost_poll(struct vhost_rx_ctx *ctx, unsigned num, unsign
     LOG_VM_IN("[%d](%d) Received %d packets from VM\n", ctx->core_id, vid, ret);
     PRINT_PKTS(pkts, ret, LOG_VM_IN);
 
+    return ret;
+}
+
+static inline unsigned vhost_send(struct vhost_tx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
+    STATS_ADD(ctx->vdev_stats[vid], call_count, 1);
+    // pkts_set_tso_flags(pkts, num);
+    int16_t ret = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
+    // CRITICAL: Handle error case (negative return = -1 on error)
+    if (ret < 0) {
+        ret = 0;
+    }
+
+    if (ret < num) {
+        // pkts[0 .. ret-1]     -> consumed by vhost (free)
+        // pkts[ret .. num-1]   -> STILL OWNED BY YOU -> send back to ring (do not free)
+        // int enq_num = rte_ring_enqueue_burst(global->vhost_tx_rings[vid], (void **)(pkts + ret), num - ret, NULL);
+        // if (enq_num < num - ret) {
+        //     // LOG_WARN("[%d](%d) failed to requeue %d packets to vhost_tx_ring[%d]\n", ctx->core_id, vid,
+        //     //          num - ret - enq_num, vid);
+        //     free_pkts(pkts + ret + enq_num, num - ret - enq_num);
+        // }
+        ctx->vm_bp[vid].state = VM_BLOCKED_TX;
+        ctx->vm_bp[vid].blocked_until_tsc = rte_rdtsc() + BACKOFF_TSC;
+        for (int i = 0; i < num - ret; i++) {
+            ctx->retry_pkts[vid][i] = pkts[ret + i];
+        }
+        ctx->retry_cnts[vid] = num - ret;
+    } else {
+        // All packets sent successfully - clear backpressure
+        ctx->vm_bp[vid].state = VM_ACTIVE;
+    }
+
+    STATS_ADD(ctx->vdev_stats[vid], pkt_count, ret);
+    if (ret == MAX_PKT_BURST) {
+        STATS_ADD(ctx->vdev_stats[vid], max_send_count, 1);
+    }
+
+    // static int count = 0;
+    // if (count < 500) {
+    //     for (int i = 0; i < ret; i++) {
+    //         LOG_IMPT("VHOST TX: pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+    //     }
+    //     count++;
+    // }
+
+    LOG_VM_OUT("[%d](%d) Sent %d packets to VM\n", ctx->core_id, vid, ret);
+    PRINT_PKTS(pkts, ret, LOG_VM_OUT);
+    free_pkts(pkts, ret);
+
+    return ret;
+}
+
+static inline unsigned vhost_resend(struct vhost_tx_ctx *ctx, unsigned num, unsigned vid, struct rte_mbuf **pkts) {
+    STATS_ADD(ctx->vdev_stats[vid], call_count, 1);
+    // for (int i = 0; i < num; i++) {
+    //     printf("VHOST TX pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+    // }
+    int16_t ret = rte_vhost_enqueue_burst(vid, VIRTIO_RXQ, pkts, num);
+    if (ret < 0) {
+        ret = 0;
+    }
+
+    if (ret == MAX_PKT_BURST) {
+        STATS_ADD(ctx->vdev_stats[vid], max_send_count, 1);
+    }
+
+    if (ret < num) {
+        ctx->vm_bp[vid].state = VM_BLOCKED_TX;
+        ctx->vm_bp[vid].blocked_until_tsc = rte_rdtsc() + BACKOFF_TSC;
+
+    } else {
+        ctx->vm_bp[vid].state = VM_ACTIVE;
+    }
+
+    LOG_VM_OUT("[%d](%d) Sent %d packets to VM\n", ctx->core_id, vid, ret);
+    PRINT_PKTS(pkts, ret, LOG_VM_OUT);
+    STATS_ADD(ctx->vdev_stats[vid], requeue_pkt_count, ret);
+    ctx->retry_cnts[vid] = 0;
+    free_pkts(pkts, num);
     return ret;
 }
