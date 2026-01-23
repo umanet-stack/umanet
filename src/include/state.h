@@ -13,10 +13,10 @@
 #define MAX_VHOSTS 64
 
 extern struct dataplane_topology *global;
-extern struct eth_rx_ctx **eth_rx_ctxs;
-extern struct eth_tx_ctx **eth_tx_ctxs;
-extern struct vhost_rx_ctx **vhost_rx_ctxs;
-extern struct vhost_tx_ctx **vhost_tx_ctxs;
+// extern struct eth_rx_ctx **eth_rx_ctxs;
+// extern struct eth_tx_ctx **eth_tx_ctxs;
+// extern struct vhost_rx_ctx **vhost_rx_ctxs;
+// extern struct vhost_tx_ctx **vhost_tx_ctxs;
 extern struct fp_ctx **fp_ctxs;
 extern struct control_ctx *control_ctx;
 extern _Atomic(struct vdev_list *) vdev_list;

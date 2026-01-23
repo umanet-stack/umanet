@@ -129,7 +129,7 @@ void fp_loop(struct fp_ctx *ctx) {
         sleep(1);
 #endif
 
-        for (int i = eth_rx_ctx->eth_rx_queue_r; i < config.eth_rx_queues; i += config.eth_rx_cores) {
+        for (int i = eth_rx_ctx->eth_rx_queue_r; i < config.eth_rx_queues; i += global->fp_cores) {
             poll_num = network_poll(eth_rx_ctx, i, MAX_PKT_BURST, pkts);
             if (poll_num == 0)
                 continue;
@@ -236,7 +236,7 @@ void fp_loop(struct fp_ctx *ctx) {
         }
         eth_rx_ctx->iteration_counter++;
 
-        for (int i = eth_tx_ctx->eth_tx_queue_r; i < config.eth_tx_queues; i += config.eth_tx_cores) {
+        for (int i = eth_tx_ctx->eth_tx_queue_r; i < config.eth_tx_queues; i += global->fp_cores) {
             uint16_t num = MAX_PKT_BURST;
             struct rte_mbuf *pkts[num];
 

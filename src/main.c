@@ -48,10 +48,10 @@
 config_t config;
 
 struct dataplane_topology *global = NULL;
-struct eth_tx_ctx **eth_tx_ctxs = NULL;
-struct eth_rx_ctx **eth_rx_ctxs = NULL;
-struct vhost_tx_ctx **vhost_tx_ctxs = NULL;
-struct vhost_rx_ctx **vhost_rx_ctxs = NULL;
+// struct eth_tx_ctx **eth_tx_ctxs = NULL;
+// struct eth_rx_ctx **eth_rx_ctxs = NULL;
+// struct vhost_tx_ctx **vhost_tx_ctxs = NULL;
+// struct vhost_rx_ctx **vhost_rx_ctxs = NULL;
 struct fp_ctx **fp_ctxs = NULL;
 struct control_ctx *control_ctx = NULL;
 _Atomic(struct vdev_list *) vdev_list = NULL;
