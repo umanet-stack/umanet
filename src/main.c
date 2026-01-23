@@ -144,8 +144,9 @@ int main(int argc, char *argv[]) {
         sleep(1);
         all_ready = 1;
         for (int i = 0; i < global->fp_cores; i++) {
-            if (fp_ctxs[i]->eth_rx_ctx == NULL || fp_ctxs[i]->eth_tx_ctx == NULL || fp_ctxs[i]->vhost_rx_ctx == NULL ||
-                fp_ctxs[i]->vhost_tx_ctx == NULL) {
+            // Check if contexts are allocated and core_id is set (indicates thread has started initialization)
+            if (fp_ctxs[i] == NULL || fp_ctxs[i]->eth_rx_ctx == NULL || fp_ctxs[i]->eth_tx_ctx == NULL ||
+                fp_ctxs[i]->vhost_rx_ctx == NULL || fp_ctxs[i]->vhost_tx_ctx == NULL || fp_ctxs[i]->core_id == 0) {
                 all_ready = 0;
                 break;
             }
@@ -222,6 +223,14 @@ static int common_thread(void *arg) {
         snprintf(name, sizeof(name), "fp-core-%u", id);
         pthread_setname_np(pthread_self(), name);
     }
+    LOG_IMPT("✅ common_thread started for core %u\n", id);
+
+    struct eth_tx_ctx *eth_tx_ctx = fp_ctxs[id - 1]->eth_tx_ctx;
+    eth_tx_ctx->core_id = id;
+    if (network_tx_queue_init(eth_tx_ctx) != 0) {
+        LOG_ERROR("network_tx_queue_init failed\n");
+        return -1;
+    }
 
     // id starts at 1, but arrays are 0-indexed, so subtract 1
     // if (id <= config.eth_rx_cores) {
@@ -234,12 +243,7 @@ static int common_thread(void *arg) {
     // eth_rx_loop(eth_rx_ctx);
 
     // } else if (id <= config.eth_rx_cores + config.eth_tx_cores) {
-    struct eth_tx_ctx *eth_tx_ctx = fp_ctxs[id - 1]->eth_tx_ctx;
-    eth_tx_ctx->core_id = id;
-    if (network_tx_queue_init(eth_tx_ctx) != 0) {
-        LOG_ERROR("network_tx_queue_init failed\n");
-        return -1;
-    }
+
     // eth_tx_loop(eth_tx_ctx);
     // }
     // else if (id <= config.eth_rx_cores + config.eth_tx_cores + config.vhost_rx_cores) {
