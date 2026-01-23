@@ -12,12 +12,12 @@ uint16_t vhost_rx_core[MAX_VHOSTS] = {0};
 uint16_t vhost_tx_core[MAX_VHOSTS] = {0};
 
 int init_vhost_plans() {
-    vhost_rx_plans = rte_calloc("vhost_rx_plans", config.vhost_rx_cores, sizeof(_Atomic(struct vhost_plan *)), 0);
+    vhost_rx_plans = rte_calloc("vhost_rx_plans", global->fp_cores, sizeof(_Atomic(struct vhost_plan *)), 0);
     if (vhost_rx_plans == NULL) {
         LOG_ERROR("Failed to allocate memory for vhost_rx_plans\n");
         return -1;
     }
-    for (int i = 0; i < config.vhost_rx_cores; i++) {
+    for (int i = 0; i < global->fp_cores; i++) {
         struct vhost_plan *plan = rte_zmalloc("vhost_rx_plan", sizeof(struct vhost_plan), RTE_CACHE_LINE_SIZE);
         if (plan == NULL) {
             LOG_ERROR("Failed to allocate memory for vhost_rx_plan[%d]\n", i);
@@ -27,12 +27,12 @@ int init_vhost_plans() {
         atomic_store_explicit(&vhost_rx_plans[i], plan, memory_order_release);
     }
 
-    vhost_tx_plans = rte_calloc("vhost_tx_plans", config.vhost_tx_cores, sizeof(_Atomic(struct vhost_plan *)), 0);
+    vhost_tx_plans = rte_calloc("vhost_tx_plans", global->fp_cores, sizeof(_Atomic(struct vhost_plan *)), 0);
     if (vhost_tx_plans == NULL) {
         LOG_ERROR("Failed to allocate memory for vhost_tx_plans\n");
         return -1;
     }
-    for (int i = 0; i < config.vhost_tx_cores; i++) {
+    for (int i = 0; i < global->fp_cores; i++) {
         struct vhost_plan *plan = rte_zmalloc("vhost_tx_plan", sizeof(struct vhost_plan), RTE_CACHE_LINE_SIZE);
         if (plan == NULL) {
             LOG_ERROR("Failed to allocate memory for vhost_tx_plan[%d]\n", i);
@@ -48,7 +48,7 @@ int init_vhost_plans() {
 int vhost_rx_plan_add(int vid) {
     int min_vhost_rx_core_id = -1;
     uint16_t min_vdev = MAX_VHOSTS;
-    for (int i = 0; i < config.vhost_rx_cores; i++) {
+    for (int i = 0; i < global->fp_cores; i++) {
         struct vhost_plan *plan = atomic_load_explicit(&vhost_rx_plans[i], memory_order_acquire);
         if (plan->num < min_vdev) {
             min_vdev = plan->num;
@@ -96,7 +96,7 @@ int vhost_rx_plan_add(int vid) {
 
 int vhost_rx_plan_remove(int vid) {
     int vhost_rx_core_id = -1;
-    for (int i = 0; i < config.vhost_rx_cores; i++) {
+    for (int i = 0; i < global->fp_cores; i++) {
         struct vhost_plan *plan = atomic_load_explicit(&vhost_rx_plans[i], memory_order_acquire);
         for (int j = 0; j < plan->num; j++) {
             if (plan->vids[j] == vid) {
@@ -153,7 +153,7 @@ int vhost_rx_plan_remove(int vid) {
 int vhost_tx_plan_add(int vid) {
     int min_vhost_tx_core_id = -1;
     uint16_t min_vdev = MAX_VHOSTS;
-    for (int i = 0; i < config.vhost_tx_cores; i++) {
+    for (int i = 0; i < global->fp_cores; i++) {
         struct vhost_plan *plan = atomic_load_explicit(&vhost_tx_plans[i], memory_order_acquire);
         if (plan->num < min_vdev) {
             min_vdev = plan->num;
@@ -201,7 +201,7 @@ int vhost_tx_plan_add(int vid) {
 
 int vhost_tx_plan_remove(int vid) {
     int vhost_tx_core_id = -1;
-    for (int i = 0; i < config.vhost_tx_cores; i++) {
+    for (int i = 0; i < global->fp_cores; i++) {
         struct vhost_plan *plan = atomic_load_explicit(&vhost_tx_plans[i], memory_order_acquire);
         for (int j = 0; j < plan->num; j++) {
             if (plan->vids[j] == vid) {
