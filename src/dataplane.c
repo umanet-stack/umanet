@@ -46,6 +46,13 @@ int init_dataplane_ctxs() {
     LOG_IMPT("✅ Initialized fp_ctxs\n");
 
     for (int i = 0; i < global->fp_cores; i++) {
+        // Allocate the fp_ctx struct itself first
+        if ((fp_ctxs[i] = rte_calloc("fp_ctxs[%d]", 1, sizeof(*fp_ctxs[i]), 0)) == NULL) {
+            LOG_ERROR("init_dataplane_ctxs: failed to allocate fp_ctxs[%d]\n", i);
+            return -1;
+        }
+
+        LOG_IMPT("👉 Initializing fp_ctxs[%d]->eth_rx_ctx\n", i);
         if ((fp_ctxs[i]->eth_rx_ctx = rte_calloc("eth_rx_ctxs[%d]", 1, sizeof(struct eth_rx_ctx), 0)) == NULL) {
             LOG_ERROR("init_fp_ctxs: failed to allocate fp_ctxs[%d]->eth_rx_ctx\n", i);
             return -1;
