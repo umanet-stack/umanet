@@ -1,6 +1,7 @@
 #include "src/include/fastpath.h"
 #include "src/include/main.h"
 #include "src/include/state.h"
+#include "src/network/network.h"
 #include "src/slow/slowpath.h"
 #include <rte_ethdev.h>
 #include <rte_gro.h>
@@ -10,6 +11,7 @@
 #include <unistd.h>
 
 static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, unsigned num, struct rte_mbuf **out_pkts);
+static inline int network_send(struct eth_tx_ctx *ctx, int tx_queue_id, unsigned num, struct rte_mbuf **pkts);
 
 // returns dst_ip if dst_ip is in the local subnet, else 0
 static inline int dst_is_local_subnet(struct rte_ether_hdr *eth_hdr) {
@@ -29,8 +31,13 @@ static inline int dst_is_local_subnet(struct rte_ether_hdr *eth_hdr) {
     return 0;
 }
 
-void eth_rx_loop(struct eth_rx_ctx *ctx) {
-    LOG_IMPT("[%u] Entering eth_rx loop...\n", ctx->core_id);
+void fp_loop(struct fp_ctx *ctx) {
+    struct eth_rx_ctx *eth_rx_ctx = ctx->eth_rx_ctx;
+    struct eth_tx_ctx *eth_tx_ctx = ctx->eth_tx_ctx;
+    struct vhost_rx_ctx *vhost_rx_ctx = ctx->vhost_rx_ctx;
+    struct vhost_tx_ctx *vhost_tx_ctx = ctx->vhost_tx_ctx;
+
+    LOG_IMPT("[%u] Entering fp loop...\n", ctx->core_id);
 
     struct rte_mbuf *pkts[MAX_PKT_BURST];
     struct rte_mbuf *vm_pkts[MAX_VHOSTS][MAX_PKT_BURST];
@@ -49,8 +56,8 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
         sleep(1);
 #endif
 
-        for (int i = ctx->eth_rx_queue_r; i < config.eth_rx_queues; i += config.eth_rx_cores) {
-            poll_num = network_poll(ctx, i, MAX_PKT_BURST, pkts);
+        for (int i = eth_rx_ctx->eth_rx_queue_r; i < config.eth_rx_queues; i += config.eth_rx_cores) {
+            poll_num = network_poll(eth_rx_ctx, i, MAX_PKT_BURST, pkts);
             if (poll_num == 0)
                 continue;
 
@@ -141,7 +148,7 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
                                                      vm_cnt[dst_vids[j]], NULL);
                 // LOG_INFO("[%d] enqueued %d packets to vhost_tx_ring[%d]\n", ctx->core_id, enq_num, dst_vids[j]);
                 if (enq_num < vm_cnt[dst_vids[j]]) {
-                    STATS_ADD(ctx->stats, ring_enq_fail_count, vm_cnt[dst_vids[j]] - enq_num);
+                    STATS_ADD(eth_rx_ctx->stats, ring_enq_fail_count, vm_cnt[dst_vids[j]] - enq_num);
                 }
                 vm_cnt[dst_vids[j]] = 0; // reset for next iteration
             }
@@ -150,11 +157,11 @@ void eth_rx_loop(struct eth_rx_ctx *ctx) {
                 int enq_num = rte_ring_enqueue_burst(global->slowpath_ring, (void **)slow_msgs, slow_cnt, NULL);
                 // LOG_INFO("[%d] enqueued %d packets to slowpath_ring\n", ctx->core_id, enq_num);
                 if (enq_num < slow_cnt) {
-                    STATS_ADD(ctx->stats, ring_enq_fail_count, slow_cnt - enq_num);
+                    STATS_ADD(eth_rx_ctx->stats, ring_enq_fail_count, slow_cnt - enq_num);
                 }
             }
         }
-        ctx->iteration_counter++;
+        eth_rx_ctx->iteration_counter++;
     }
 }
 
@@ -207,4 +214,63 @@ static inline unsigned network_poll(struct eth_rx_ctx *ctx, int rx_queue_id, uns
     PRINT_PKTS(pkts, nb_rx, LOG_ETH_IN);
 
     return nb_rx;
+}
+
+static inline int network_send(struct eth_tx_ctx *ctx, int tx_queue_id, unsigned num, struct rte_mbuf **pkts) {
+    STATS_ADD(ctx->stats, call_count, 1);
+
+    // GRO didnt help compress pkts, maybe try the stateful one later
+    // pkts_set_gro_flags(pkts, num);
+    // int gro_num = rte_gro_reassemble_burst(pkts, num, &ctx->gro_param);
+    // static int gro_count = 0;
+    // if (gro_count < 50) {
+    //     LOG_IMPT("ETH TX: GRO reassembled %d -> %d packets\n", num, gro_num);
+    //     gro_count++;
+    // }
+    // num = gro_num;
+
+    pkts_set_tso_flags(pkts, num);
+    int16_t ret = rte_eth_tx_burst(global->eth_port_id, tx_queue_id, pkts, num);
+    if (ret < 0)
+        ret = 0;
+
+    static int count = 0;
+    if (count < 50) {
+        for (int i = 0; i < num; i++) {
+            LOG_IMPT("ETH TX: pkt %d: nb_segs=%u pkt_len=%u\n", i, pkts[i]->nb_segs, pkts[i]->pkt_len);
+        }
+        count++;
+    }
+
+    if (ret < num) {
+        // pkts[0 .. ret-1]     -> consumed by NIC (do not free)
+        // pkts[ret .. num-1]   -> STILL OWNED BY YOU -> send back to ring (do not free)
+        int enq_num =
+            rte_ring_enqueue_burst(global->eth_tx_queue_rings[tx_queue_id], (void **)(pkts + ret), num - ret, NULL);
+        if (enq_num < num - ret) {
+            // LOG_WARN("[%d](%d) failed to requeue %d packets to eth_tx_ring[%d]\n", ctx->core_id, ctx->eth_queue_id,
+            //          num - ret - enq_num, ctx->eth_queue_id);
+            free_pkts(pkts + ret + enq_num, num - ret - enq_num);
+        }
+        // free_pkts(pkts + ret, num - ret); // if no requeue, free packets
+
+        // requeue only ONCE
+        // int16_t ret2 = rte_eth_tx_burst(global->eth_port_id, ctx->eth_queue_id, pkts + ret, num - ret);
+        // if (ret2 < num - ret) {
+        // LOG_WARN("[%d](%d) failed to requeue %d packets to ETH queue %d\n", ctx->core_id, ctx->eth_queue_id,
+        //          num - ret - ret2, ctx->eth_queue_id);
+        //     free_pkts(pkts + ret + ret2, num - ret - ret2);
+        // }
+        STATS_ADD(ctx->stats, requeue_pkt_count, enq_num);
+    }
+
+    STATS_ADD(ctx->stats, pkt_count, ret);
+    if (ret == num) {
+        STATS_ADD(ctx->stats, max_send_count, 1);
+    }
+
+    LOG_ETH_OUT("[%d] Sent %d packets to ETH TX queue %d\n", ctx->core_id, ret, tx_queue_id);
+    PRINT_PKTS(pkts, ret, LOG_ETH_OUT);
+
+    return ret;
 }
