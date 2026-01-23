@@ -125,10 +125,10 @@ int network_init() {
     eth_devinfo.default_txconf.offloads = port_conf.txmode.offloads;
     eth_devinfo.default_rxconf.offloads = port_conf.rxmode.offloads;
 
-    if (eth_devinfo.max_rx_queues < config.eth_rx_cores || eth_devinfo.max_tx_queues < config.eth_tx_cores) {
+    if (eth_devinfo.max_rx_queues < global->fp_cores || eth_devinfo.max_tx_queues < global->fp_cores) {
         LOG_ERROR("Error: NIC does not support enough hw queues (rx=%u tx=%u)"
                   " for the requested number of cores (%u)\n",
-                  eth_devinfo.max_rx_queues, eth_devinfo.max_tx_queues, config.eth_rx_cores);
+                  eth_devinfo.max_rx_queues, eth_devinfo.max_tx_queues, global->fp_cores);
         goto error_exit;
     }
 

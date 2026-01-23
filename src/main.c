@@ -143,30 +143,37 @@ int main(int argc, char *argv[]) {
     for (int wait = 0; wait < max_wait && !all_ready; wait++) {
         sleep(1);
         all_ready = 1;
-        for (int i = 0; i < config.eth_rx_cores; i++) {
-            if (eth_rx_ctxs[i] == NULL) {
+        for (int i = 0; i < global->fp_cores; i++) {
+            if (fp_ctxs[i]->eth_rx_ctx == NULL || fp_ctxs[i]->eth_tx_ctx == NULL || fp_ctxs[i]->vhost_rx_ctx == NULL ||
+                fp_ctxs[i]->vhost_tx_ctx == NULL) {
                 all_ready = 0;
                 break;
             }
         }
-        for (int i = 0; i < config.eth_tx_cores; i++) {
-            if (eth_tx_ctxs[i] == NULL) {
-                all_ready = 0;
-                break;
-            }
-        }
-        for (int i = 0; i < config.vhost_rx_cores; i++) {
-            if (vhost_rx_ctxs[i] == NULL) {
-                all_ready = 0;
-                break;
-            }
-        }
-        for (int i = 0; i < config.vhost_tx_cores; i++) {
-            if (vhost_tx_ctxs[i] == NULL) {
-                all_ready = 0;
-                break;
-            }
-        }
+        // for (int i = 0; i < config.eth_rx_cores; i++) {
+        //     if (eth_rx_ctxs[i] == NULL) {
+        //         all_ready = 0;
+        //         break;
+        //     }
+        // }
+        // for (int i = 0; i < config.eth_tx_cores; i++) {
+        //     if (eth_tx_ctxs[i] == NULL) {
+        //         all_ready = 0;
+        //         break;
+        //     }
+        // }
+        // for (int i = 0; i < config.vhost_rx_cores; i++) {
+        //     if (vhost_rx_ctxs[i] == NULL) {
+        //         all_ready = 0;
+        //         break;
+        //     }
+        // }
+        // for (int i = 0; i < config.vhost_tx_cores; i++) {
+        //     if (vhost_tx_ctxs[i] == NULL) {
+        //         all_ready = 0;
+        //         break;
+        //     }
+        // }
     }
 
     if (network_start_eth() != 0) {
@@ -217,40 +224,41 @@ static int common_thread(void *arg) {
     }
 
     // id starts at 1, but arrays are 0-indexed, so subtract 1
-    if (id <= config.eth_rx_cores) {
-        struct eth_rx_ctx *eth_rx_ctx = eth_rx_ctxs[id - 1];
-        eth_rx_ctx->core_id = id;
-        if (network_rx_queue_init(eth_rx_ctx) != 0) {
-            LOG_ERROR("network_rx_queue_init failed\n");
-            return -1;
-        }
-        eth_rx_loop(eth_rx_ctx);
-
-    } else if (id <= config.eth_rx_cores + config.eth_tx_cores) {
-        struct eth_tx_ctx *eth_tx_ctx = eth_tx_ctxs[id - config.eth_rx_cores - 1];
-        eth_tx_ctx->core_id = id;
-        if (network_tx_queue_init(eth_tx_ctx) != 0) {
-            LOG_ERROR("network_tx_queue_init failed\n");
-            return -1;
-        }
-        eth_tx_loop(eth_tx_ctx);
-
-    } else if (id <= config.eth_rx_cores + config.eth_tx_cores + config.vhost_rx_cores) {
-        struct vhost_rx_ctx *vhost_rx_ctx = vhost_rx_ctxs[id - config.eth_rx_cores - config.eth_tx_cores - 1];
-        vhost_rx_ctx->core_id = id;
-        vhost_rx_loop(vhost_rx_ctx);
-
-    } else if (id <= config.eth_rx_cores + config.eth_tx_cores + config.vhost_rx_cores + config.vhost_tx_cores) {
-        struct vhost_tx_ctx *vhost_tx_ctx =
-            vhost_tx_ctxs[id - config.eth_rx_cores - config.eth_tx_cores - config.vhost_rx_cores - 1];
-        vhost_tx_ctx->core_id = id;
-        vhost_tx_loop(vhost_tx_ctx);
-
-    } else {
-        LOG_ERROR("Invalid core ID: %u\n", id);
-        thread_error();
+    // if (id <= config.eth_rx_cores) {
+    struct eth_rx_ctx *eth_rx_ctx = fp_ctxs[id - 1]->eth_rx_ctx;
+    eth_rx_ctx->core_id = id;
+    if (network_rx_queue_init(eth_rx_ctx) != 0) {
+        LOG_ERROR("network_rx_queue_init failed\n");
         return -1;
     }
+    // eth_rx_loop(eth_rx_ctx);
+
+    // } else if (id <= config.eth_rx_cores + config.eth_tx_cores) {
+    struct eth_tx_ctx *eth_tx_ctx = fp_ctxs[id - 1]->eth_tx_ctx;
+    eth_tx_ctx->core_id = id;
+    if (network_tx_queue_init(eth_tx_ctx) != 0) {
+        LOG_ERROR("network_tx_queue_init failed\n");
+        return -1;
+    }
+    // eth_tx_loop(eth_tx_ctx);
+    // }
+    // else if (id <= config.eth_rx_cores + config.eth_tx_cores + config.vhost_rx_cores) {
+    struct vhost_rx_ctx *vhost_rx_ctx = fp_ctxs[id - 1]->vhost_rx_ctx;
+    vhost_rx_ctx->core_id = id;
+    // vhost_rx_loop(vhost_rx_ctx);
+    // }
+    // else if (id <= config.eth_rx_cores + config.eth_tx_cores + config.vhost_rx_cores + config.vhost_tx_cores) {
+    struct vhost_tx_ctx *vhost_tx_ctx = fp_ctxs[id - 1]->vhost_tx_ctx;
+    vhost_tx_ctx->core_id = id;
+    // vhost_tx_loop(vhost_tx_ctx);
+    // }
+    // else {
+    //     LOG_ERROR("Invalid core ID: %u\n", id);
+    //     thread_error();
+    //     return -1;
+    // }
+    fp_ctxs[id - 1]->core_id = id;
+    fp_loop(fp_ctxs[id - 1]);
 
     return 0;
 }

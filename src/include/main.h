@@ -15,5 +15,6 @@ void eth_rx_loop(struct eth_rx_ctx *ctx);
 void eth_tx_loop(struct eth_tx_ctx *ctx);
 void vhost_rx_loop(struct vhost_rx_ctx *ctx);
 void vhost_tx_loop(struct vhost_tx_ctx *ctx);
+void fp_loop(struct fp_ctx *ctx);
 
 #endif /* MAIN_H_ */
