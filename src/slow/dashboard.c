@@ -72,7 +72,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
                 eth_tx_ring_enq_fail_count += ctx->vdev_stats[j]->eth_tx_ring_enq_fail_count;
             }
         }
-        // fprintf(tty_fp, "\n");
+        fprintf(tty_fp, "\n");
         fprintf(tty_fp, "%s\t", display_number(pkt_count));
         fprintf(tty_fp, "%s\t", display_number(call_count));
         fprintf(tty_fp, "%s\t\t", display_number(empty_poll_count));
@@ -83,7 +83,7 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
         // print_pkt_wnd(plan, ctx->vdev_stats);
         // print_byte_pkt_sum(plan, ctx->vdev_stats);
         // print_empty_polls(vdev_list_ptr, plan, ctx->vdev_stats);
-        print_pkts_by_rx_vdev(vdev_list_ptr, plan, ctx->vdev_stats);
+        // print_pkts_by_rx_vdev(vdev_list_ptr, plan, ctx->vdev_stats);
         // print_poll_states(ctx);
     }
 
