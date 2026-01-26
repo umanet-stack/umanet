@@ -21,3 +21,5 @@ perf.data*
 *.folded
 *.svg
 *.data
+*.csv
+.DS_Store
