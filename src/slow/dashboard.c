@@ -27,6 +27,8 @@ void control_dashboard(int rx, int tx, int drops, int vms) {
     fprintf(tty_fp, "\033[2J"); // clear screen
     fprintf(tty_fp, "\033[H");  // move cursor to top-left (1;1)
 
+    fprintf(tty_fp, "slowpath_pkt: %s\n", display_number(global->slowpath_pkt_count));
+
     for (int i = 0; i < config.eth_rx_cores; i++) {
         fprintf(tty_fp, CYAN_PREFIX "ETH RX CORE %d: " RESET_COLOR, i);
         fprintf(tty_fp, "pkt: %s\t", display_number(eth_rx_ctxs[i]->stats->pkt_count));

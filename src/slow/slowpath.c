@@ -33,6 +33,7 @@ void slowpath_loop(struct control_ctx *ctx) {
         uint16_t num = MAX_PKT_BURST;
         struct slow_msg *slow_msgs[num];
         int enq_num = rte_ring_dequeue_burst(global->slowpath_ring, (void **)slow_msgs, num, NULL);
+        STATS_ADD(global, slowpath_pkt_count, enq_num);
         for (int i = 0; i < enq_num; i++) {
             struct slow_msg *slow_msg = slow_msgs[i];
 
