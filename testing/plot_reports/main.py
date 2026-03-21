@@ -9,7 +9,10 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime, timezone, timedelta
 import matplotlib.pyplot as plt
-import numpy as np
+
+# Editable text in PDF/PS (TrueType); avoids Type 3 fonts in vector exports
+plt.rcParams['pdf.fonttype'] = 42
+plt.rcParams['ps.fonttype'] = 42
 
 # Get script directory
 SCRIPT_DIR = Path(__file__).parent.resolve()
