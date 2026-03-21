@@ -10,6 +10,9 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
+plt.rcParams["pdf.fonttype"] = 42
+plt.rcParams["ps.fonttype"] = 42
+
 # Get script directory
 SCRIPT_DIR = Path(__file__).parent.resolve()
 CSV_FILE = SCRIPT_DIR / "aggregated.csv"
