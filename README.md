@@ -24,7 +24,7 @@ UMANet achieves up to 4.7× higher received PPS and 2.2× lower packet loss than
 
 ## Setup UMANet
 > Note: please use Linux (some syscalls in code are Linux-only)
-
+- UMANet is developed on [CloudLab](https://cloudlab.us) c6620 nodes, see specs [here](https://docs.cloudlab.us/hardware.html)
 - `init-dpdk.sh` installs meson-1.5, dpdk-21.11.9, and shared library for IPsec-MB
 ```bash
 # make sure to run this, even if it's TAP, ovs-dpdk (there's CPU settings + Intel NIC config)
