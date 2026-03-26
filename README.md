@@ -6,6 +6,15 @@ UMANet is a prototype L2/L3 switch tailored for microVMs running FaaS workloads,
 3. **Application-Level Performance Gains**: UMANet delivers about 50% higher HTTP throughput with sub-10ms p90 latency, improving stability for serverless-style workloads.
 
 ### Architecture
+A typical DPDK switch architecture has 2 paths: fast path and slow path. The fast path is the dataplane that handles most of the traffic (common-case packet processing), and the slow path handles the other packets (e.g. ARP, MAC learning, etc.). Since DPDK requires dedicated CPU cores for its tight CPU polling, most of the cores are used for the fast path, leaving only 1 core for the slow path.
+
+UMANet further decomposes the fast path into 4 types: ETH RX, ETH TX, vhost RX, vhost TX.
+- ETH RX: Receives packets from the physical NIC and delivers them to the appropriate rings
+- ETH TX: Forwards packets from the `ETH TX rings` to the physical NIC
+- vhost RX: Receives packets from the VMs and delivers them to the appropriate rings
+- vhost TX: Forwards packets from the `vhost TX rings` to the VMs
+
+![Architecture](./docs/architecture.png)
 
 ## Performance
 UMANet achieves up to 4.7× higher received PPS and 2.2× lower packet loss than Linux TAP networking.
