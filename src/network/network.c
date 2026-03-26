@@ -83,7 +83,6 @@ uint16_t rss_reta_size;
 static struct rte_eth_rss_reta_entry64 *rss_reta = NULL;
 static uint16_t *rss_core_buckets = NULL;
 
-static int reta_setup(void);
 static rte_spinlock_t initlock = RTE_SPINLOCK_INITIALIZER;
 
 int network_init() {
@@ -285,161 +284,9 @@ int network_start_eth() {
         fprintf(stderr, "Promiscuous mode enabled for port %d\n", global->eth_port_id);
     }
 
-    /* enable vlan stripping if configured */
-    // if (config.fp_vlan_strip) {
-    //     ret = rte_eth_dev_get_vlan_offload(global->eth_port_id);
-    //     ret |= RTE_ETH_VLAN_STRIP_OFFLOAD;
-    //     if (rte_eth_dev_set_vlan_offload(global->eth_port_id, ret)) {
-    //         fprintf(stderr, "network_thread_init: vlan off set failed\n");
-    //         goto error_tx_queue;
-    //     }
-    // }
-
-    /* setting up RETA - non-fatal if not supported (e.g., safe mode) */
-    // if (config.fp_autoscale) {
-    //     if (reta_setup() != 0) {
-    //         fprintf(stderr, "RETA setup failed - continuing without autoscaling support\n");
-    //         /* Don't treat as fatal error - device may not support RSS/RETA */
-    //     }
-    // }
     start_done = 1;
     return 0;
 
 error_tx_queue:
-    return -1;
-}
-
-// int network_scale_up(uint16_t old, uint16_t new) {
-//     uint16_t i, j, k, c, share = rss_reta_size / new;
-//     uint16_t outer, inner;
-
-//     /* clear mask */
-//     for (k = 0; k < rss_reta_size; k += RTE_RETA_GROUP_SIZE) {
-//         rss_reta[k / RTE_RETA_GROUP_SIZE].mask = 0;
-//     }
-
-//     k = 0;
-//     for (j = old; j < new; j++) {
-//         for (i = 0; i < share; i++) {
-//             c = core_max(old);
-
-//             for (;; k = (k + 1) % rss_reta_size) {
-//                 outer = k / RTE_RETA_GROUP_SIZE;
-//                 inner = k % RTE_RETA_GROUP_SIZE;
-//                 if (rss_reta[outer].reta[inner] == c) {
-//                     rss_reta[outer].mask |= 1ULL << inner;
-//                     rss_reta[outer].reta[inner] = j;
-//                     fp_state->flow_group_steering[k] = j;
-//                     break;
-//                 }
-//             }
-
-//             rss_core_buckets[c]--;
-//             rss_core_buckets[j]++;
-//         }
-//     }
-
-//     if (rte_eth_dev_rss_reta_update(net_port_id, rss_reta, rss_reta_size) != 0) {
-//         fprintf(stderr, "network_scale_up: rte_eth_dev_rss_reta_update failed\n");
-//         return -1;
-//     }
-
-//     return 0;
-// }
-
-// int network_scale_down(uint16_t old, uint16_t new) {
-//     uint16_t i, o_c, n_c, outer, inner;
-
-//     /* clear mask */
-//     for (i = 0; i < rss_reta_size; i += RTE_RETA_GROUP_SIZE) {
-//         rss_reta[i / RTE_RETA_GROUP_SIZE].mask = 0;
-//     }
-
-//     for (i = 0; i < rss_reta_size; i++) {
-//         outer = i / RTE_RETA_GROUP_SIZE;
-//         inner = i % RTE_RETA_GROUP_SIZE;
-
-//         o_c = rss_reta[outer].reta[inner];
-//         if (o_c >= new) {
-//             n_c = core_min(new);
-
-//             rss_reta[outer].reta[inner] = n_c;
-//             rss_reta[outer].mask |= 1ULL << inner;
-
-//             fp_state->flow_group_steering[i] = n_c;
-
-//             rss_core_buckets[o_c]--;
-//             rss_core_buckets[n_c]++;
-//         }
-//     }
-
-//     if (rte_eth_dev_rss_reta_update(net_port_id, rss_reta, rss_reta_size) != 0) {
-//         fprintf(stderr, "network_scale_down: rte_eth_dev_rss_reta_update failed\n");
-//         return -1;
-//     }
-
-//     return 0;
-// }
-
-static int reta_setup() {
-    uint16_t i, c;
-
-    /* Check if RSS/RETA is supported */
-    if (eth_devinfo.reta_size == 0) {
-        fprintf(stderr, "reta_setup: RSS/RETA not supported by this device (e.g., Intel ice in safe mode)\n");
-        fprintf(stderr, "reta_setup: Continuing without RETA setup - autoscaling will be limited\n");
-        rss_reta_size = 0;
-        return 0; /* Not an error, just not supported */
-    }
-
-    /* allocate RSS redirection table and core-bucket count table */
-    rss_reta_size = eth_devinfo.reta_size;
-    rss_reta = rte_calloc("rss reta", ((rss_reta_size + RTE_ETH_RETA_GROUP_SIZE - 1) / RTE_ETH_RETA_GROUP_SIZE),
-                          sizeof(*rss_reta), 0);
-    rss_core_buckets = rte_calloc("rss core buckets", global->fp_cores, sizeof(*rss_core_buckets), 0);
-
-    if (rss_reta == NULL || rss_core_buckets == NULL) {
-        fprintf(stderr, "reta_setup: rss_reta alloc failed\n");
-        goto error_exit;
-    }
-
-    // if (rss_reta_size > FLEXNIC_PL_MAX_FLOWGROUPS) {
-    //     fprintf(stderr,
-    //             "reta_setup: reta size (%u) greater than maximum supported"
-    //             " (%u)\n",
-    //             rss_reta_size, FLEXNIC_PL_MAX_FLOWGROUPS);
-    //     abort();
-    // }
-
-    /* initialize reta */
-    for (i = 0, c = 0; i < rss_reta_size; i++) {
-        rss_core_buckets[c]++;
-        rss_reta[i / RTE_ETH_RETA_GROUP_SIZE].mask = -1ULL;
-        rss_reta[i / RTE_ETH_RETA_GROUP_SIZE].reta[i % RTE_ETH_RETA_GROUP_SIZE] = c;
-        // fp_state->flow_group_steering[i] = c;
-        // c = (c + 1) % fp_cores_cur;
-        c = (c + 1) % config.eth_rx_cores;
-    }
-
-    if (rte_eth_dev_rss_reta_update(global->eth_port_id, rss_reta, rss_reta_size) != 0) {
-        fprintf(stderr, "reta_setup: rte_eth_dev_rss_reta_update failed (RSS/RETA may not be supported)\n");
-        fprintf(stderr, "reta_setup: Continuing without RETA setup - autoscaling will be limited\n");
-        /* Clean up allocated memory */
-        rte_free(rss_core_buckets);
-        rte_free(rss_reta);
-        rss_reta = NULL;
-        rss_core_buckets = NULL;
-        rss_reta_size = 0;
-        return 0; /* Not fatal - continue without RETA */
-    }
-
-    return 0;
-
-error_exit:
-    rte_free(rss_core_buckets);
-    rte_free(rss_reta);
-    rss_reta = NULL;
-    rss_core_buckets = NULL;
-    rss_reta_size = 0;
     return -1;
 }
