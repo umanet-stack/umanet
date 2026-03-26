@@ -6,6 +6,15 @@ UMANet is a prototype L2/L3 switch tailored for microVMs running FaaS workloads,
 3. **Application-Level Performance Gains**: UMANet delivers about 50% higher HTTP throughput with sub-10ms p90 latency, improving stability for serverless-style workloads.
 
 ### Architecture
+A typical DPDK switch architecture has 2 paths: fast path and slow path. The fast path is the dataplane that handles most of the traffic (common-case packet processing), and the slow path handles the other packets (e.g. ARP, MAC learning, etc.). Since DPDK requires dedicated CPU cores for its tight CPU polling, most of the cores are used for the fast path, leaving only 1 core for the slow path.
+
+UMANet further decomposes the fast path into 4 types: ETH RX, ETH TX, vhost RX, vhost TX.
+- ETH RX: Receives packets from the physical NIC and delivers them to the appropriate rings
+- ETH TX: Forwards packets from the `ETH TX rings` to the physical NIC
+- vhost RX: Receives packets from the VMs and delivers them to the appropriate rings
+- vhost TX: Forwards packets from the `vhost TX rings` to the VMs
+
+![Architecture](./docs/architecture.png)
 
 ## Performance
 UMANet achieves up to 4.7× higher received PPS and 2.2× lower packet loss than Linux TAP networking.
@@ -13,29 +22,10 @@ UMANet achieves up to 4.7× higher received PPS and 2.2× lower packet loss than
 ![Performance](./docs/iperf_udp_pps.png)
 
 
-## Running UMANet
-### Prerequisites
-- use Linux (some syscalls in code are Linux-only)
+## Setup UMANet
+> Note: please use Linux (some syscalls in code are Linux-only)
 
-
-
-1. **VM-to-VM communication**: Forwards packets between VMs based on MAC addresses (software switching)
-2. **VM-to-Physical NIC**: Forwards packets from VMs to the physical network interface
-3. **Physical NIC-to-VM**: Receives packets from the physical NIC and delivers them to the appropriate VM
-4. **MAC learning**: Learns VM MAC addresses from the first packet and maintains a forwarding table
-5. **High performance**: Uses DPDK for zero-copy, low-latency packet processing
-
-**Packet flow:**
-- **VM → VM**: Packet from VM1's virtio TX queue → vhost-switch → VM2's virtio RX queue
-- **VM → Physical**: Packet from VM's virtio TX queue → vhost-switch → Physical NIC TX
-- **Physical → VM**: Packet from Physical NIC RX → vhost-switch → VM's virtio RX queue
-
-The switch worker loop continuously:
-- Drains packets from physical NIC RX queues and delivers to VMs
-- Drains packets from VM virtio TX queues and routes them (to other VMs or physical NIC)
-
-## Setup
-- for vm setup, see `setup/setup_vm.md`
+- `init-dpdk.sh` installs meson-1.5, dpdk-21.11.9, and shared library for IPsec-MB
 ```bash
 # make sure to run this, even if it's TAP, ovs-dpdk (there's CPU settings + Intel NIC config)
 ./setup/cpu/slice_cpu.sh tap
@@ -72,9 +62,10 @@ sudo rm -rf /dev/shm/rte_* # remove shm
 sudo rm -f /dev/hugepages/tas_memory
 ```
 
-## Running
+## Running UMANet
 - copy `.env.template` to `.env` and fill in the values
 - `ETH_RX_CORES`, `ETH_TX_CORES`, `VHOST_RX_CORES`, `VHOST_TX_CORES` are the number of cores to use for the fast path, configurable in `.env`
+- please do vm setup first, see `setup/setup_vm.md`
 ```bash
 # debug
 tmux new -s dpdk
@@ -96,23 +87,3 @@ sudo vhost-switch -l 2-3 -n 4 -b 0000:01:00.0 -- --portmask 0x1 --socket-file /m
 ## Development
 - `./build_and_run.sh` to check it builds and runs
 - spin up a CH VM to test the TCP stack works
-
-### VM packets
-eth0/ens4 always send ARP pkt every sec, great for testing vhost connectivity
-- **Linux refuses to send ICMP** until ARP resolves.
-- pretend VM’s gateway is `02:00:00:00:00:01`
-
-```bash
-sudo ip neigh replace 10.10.1.1 lladdr 02:00:00:00:00:01 dev ens4 nud permanent
-# or
-sudo ip neigh del 10.10.1.1 dev ens4
-sudo ip neigh add 10.10.1.1 lladdr 02:00:00:00:00:01 dev ens4 nud permanent
-
-# On node1:
-sudo dpdk-testpmd -l 0-1 -n 4 -a 0000:17:00.0 -- --forward-mode=txonly --tx-first
-   
-# On node2 (in another terminal):
-sudo tcpdump -i enp23s0f0np0 -n
-```
-- vm will now send TCP/UDP pkts asking for 8.8.8.8
-    - pinging pkts will also show
