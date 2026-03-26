@@ -25,7 +25,7 @@ UMANet achieves up to 4.7× higher received PPS and 2.2× lower packet loss than
 ## Setup UMANet
 > Note: please use Linux (some syscalls in code are Linux-only)
 
-- for vm setup, see `setup/setup_vm.md`
+- `init-dpdk.sh` installs meson-1.5, dpdk-21.11.9, and shared library for IPsec-MB
 ```bash
 # make sure to run this, even if it's TAP, ovs-dpdk (there's CPU settings + Intel NIC config)
 ./setup/cpu/slice_cpu.sh tap
@@ -65,6 +65,7 @@ sudo rm -f /dev/hugepages/tas_memory
 ## Running UMANet
 - copy `.env.template` to `.env` and fill in the values
 - `ETH_RX_CORES`, `ETH_TX_CORES`, `VHOST_RX_CORES`, `VHOST_TX_CORES` are the number of cores to use for the fast path, configurable in `.env`
+- please do vm setup first, see `setup/setup_vm.md`
 ```bash
 # debug
 tmux new -s dpdk
