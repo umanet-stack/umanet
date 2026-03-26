@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-Plot comparison graphs from test reports
-Compares tap, dpdk, and ovs-dpdk results for iperf, iperf-udp, and sockperf tests
-"""
-
 import argparse
 import re
 from datetime import datetime, timedelta, timezone
@@ -12,42 +6,32 @@ from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 
-# Editable text in PDF/PS (TrueType); avoids Type 3 fonts in vector exports
 plt.rcParams["pdf.fonttype"] = 42
 plt.rcParams["ps.fonttype"] = 42
 
-# Get script directory
 SCRIPT_DIR = Path(__file__).parent.resolve()
 TESTING_DIR = SCRIPT_DIR.parent
 
-# Consistent color scheme across all plots
-# UMANet: red, green
-COLOR_UMANET_1 = "#2ca02c"  # green
-COLOR_UMANET_2 = "#d62728"  # red
-# Linux: blue, orange
-COLOR_LINUX_1 = "#1f77b4"  # blue
-COLOR_LINUX_2 = "#ff7f0e"  # orange
-# OVS-DPDK: purple, brown
-COLOR_OVS_DPDK_1 = "#9467bd"  # purple
-COLOR_OVS_DPDK_2 = "#8c564b"  # brown
+COLOR_UMANET_1 = "#2ca02c"
+COLOR_UMANET_2 = "#d62728"
+COLOR_LINUX_1 = "#1f77b4"
+COLOR_LINUX_2 = "#ff7f0e"
+COLOR_OVS_DPDK_1 = "#9467bd"
+COLOR_OVS_DPDK_2 = "#8c564b"
 
 
 def extract_number_from_path(path: Path) -> Optional[int]:
-    """Extract number of VMs from report path like 'report-16vm'"""
     match = re.search(r"report-(\d+)vm", str(path))
     return int(match.group(1)) if match else None
 
 
 def parse_iperf_report(report_path: Path) -> Optional[Dict]:
-    """Parse iperf report markdown file"""
     try:
         with open(report_path, "r") as f:
             content = f.read()
 
-        # Extract Total VMs (for x-axis)
         total_vms_match = re.search(r"\*\*Total VMs:\*\* (\d+)", content)
         if not total_vms_match:
-            # Fallback to old format for backward compatibility
             vm_match = re.search(r"\*\*Number of VMs:\*\* (\d+)", content)
             if not vm_match:
                 return None
@@ -55,20 +39,18 @@ def parse_iperf_report(report_path: Path) -> Optional[Dict]:
         else:
             total_vms = int(total_vms_match.group(1))
 
-        # Extract Total Throughput (Gbps)
         total_match = re.search(r"\*\*Total Throughput\*\* \| ([0-9.]+) Gbps", content)
         if not total_match:
             return None
         total_throughput = float(total_match.group(1))
 
-        # Extract Average per VM (Gbps)
         avg_match = re.search(r"\*\*Average per VM\*\* \| ([0-9.]+) Gbps", content)
         if not avg_match:
             return None
         avg_per_vm = float(avg_match.group(1))
 
         return {
-            "num_vms": total_vms,  # Use Total VMs for x-axis
+            "num_vms": total_vms,
             "total_throughput": total_throughput,
             "throughput_per_vm": avg_per_vm,
         }
@@ -78,15 +60,12 @@ def parse_iperf_report(report_path: Path) -> Optional[Dict]:
 
 
 def parse_iperf_udp_report(report_path: Path) -> Optional[Dict]:
-    """Parse iperf-udp report markdown file"""
     try:
         with open(report_path, "r") as f:
             content = f.read()
 
-        # Extract Total VMs (for x-axis)
         total_vms_match = re.search(r"\*\*Total VMs:\*\* (\d+)", content)
         if not total_vms_match:
-            # Fallback to old format for backward compatibility
             vm_match = re.search(r"\*\*Number of VMs:\*\* (\d+)", content)
             if not vm_match:
                 return None
@@ -94,7 +73,6 @@ def parse_iperf_udp_report(report_path: Path) -> Optional[Dict]:
         else:
             total_vms = int(total_vms_match.group(1))
 
-        # Extract Sender PPS (Total)
         sender_pps_match = re.search(
             r"\*\*Sender PPS \(Total\)\*\* \| ([0-9,]+) packets/sec", content
         )
@@ -102,7 +80,6 @@ def parse_iperf_udp_report(report_path: Path) -> Optional[Dict]:
             return None
         sender_pps_total = float(sender_pps_match.group(1).replace(",", ""))
 
-        # Extract Receiver PPS (Total)
         receiver_pps_match = re.search(
             r"\*\*Receiver PPS \(Total\)\*\* \| ([0-9,]+) packets/sec", content
         )
@@ -110,10 +87,8 @@ def parse_iperf_udp_report(report_path: Path) -> Optional[Dict]:
             return None
         receiver_pps_total = float(receiver_pps_match.group(1).replace(",", ""))
 
-        # Calculate lost PPS
         lost_pps_total = sender_pps_total - receiver_pps_total
 
-        # Extract Avg Sender PPS per VM
         avg_sender_pps_match = re.search(
             r"\*\*Avg Sender PPS per VM\*\* \| ([0-9,]+) packets/sec", content
         )
@@ -121,7 +96,6 @@ def parse_iperf_udp_report(report_path: Path) -> Optional[Dict]:
             return None
         avg_sender_pps_per_vm = float(avg_sender_pps_match.group(1).replace(",", ""))
 
-        # Extract Avg Receiver PPS per VM
         avg_receiver_pps_match = re.search(
             r"\*\*Avg Receiver PPS per VM\*\* \| ([0-9,]+) packets/sec", content
         )
@@ -131,11 +105,10 @@ def parse_iperf_udp_report(report_path: Path) -> Optional[Dict]:
             avg_receiver_pps_match.group(1).replace(",", "")
         )
 
-        # Calculate lost PPS per VM
         lost_pps_per_vm = avg_sender_pps_per_vm - avg_receiver_pps_per_vm
 
         return {
-            "num_vms": total_vms,  # Use Total VMs for x-axis
+            "num_vms": total_vms,
             "sender_pps_total": sender_pps_total,
             "receiver_pps_total": receiver_pps_total,
             "lost_pps_total": lost_pps_total,
@@ -149,15 +122,12 @@ def parse_iperf_udp_report(report_path: Path) -> Optional[Dict]:
 
 
 def parse_sockperf_report(report_path: Path) -> Optional[Dict]:
-    """Parse sockperf report markdown file"""
     try:
         with open(report_path, "r") as f:
             content = f.read()
 
-        # Extract Total VMs (for x-axis)
         total_vms_match = re.search(r"\*\*Total VMs:\*\* (\d+)", content)
         if not total_vms_match:
-            # Fallback to old format for backward compatibility
             vm_match = re.search(r"\*\*Number of VMs:\*\* (\d+)", content)
             if not vm_match:
                 return None
@@ -165,13 +135,11 @@ def parse_sockperf_report(report_path: Path) -> Optional[Dict]:
         else:
             total_vms = int(total_vms_match.group(1))
 
-        # Extract Average p99
         p99_match = re.search(r"\*\*Average p99\*\* \| ([0-9.]+) μs", content)
         if not p99_match:
             return None
         p99_latency = float(p99_match.group(1))
 
-        # Extract Total Messages Received
         received_match = re.search(
             r"\*\*Total Messages Received\*\* \| ([0-9,]+)", content
         )
@@ -180,7 +148,7 @@ def parse_sockperf_report(report_path: Path) -> Optional[Dict]:
         total_received = int(received_match.group(1).replace(",", ""))
 
         return {
-            "num_vms": total_vms,  # Use Total VMs for x-axis
+            "num_vms": total_vms,
             "p99_latency": p99_latency,
             "total_received": total_received,
         }
@@ -190,7 +158,6 @@ def parse_sockperf_report(report_path: Path) -> Optional[Dict]:
 
 
 def collect_reports(test_type: str) -> Tuple[List[Dict], List[Dict], List[Dict]]:
-    """Collect reports from tap, dpdk, and ovs-dpdk folders"""
     tap_reports = []
     dpdk_reports = []
     ovs_dpdk_reports = []
@@ -199,7 +166,6 @@ def collect_reports(test_type: str) -> Tuple[List[Dict], List[Dict], List[Dict]]
     dpdk_base = TESTING_DIR / "dpdk" / test_type / "vm-client"
     ovs_dpdk_base = TESTING_DIR / "ovs-dpdk" / test_type / "vm-client"
 
-    # Parse function based on test type
     if test_type == "iperf":
         parse_func = parse_iperf_report
     elif test_type == "iperf-udp":
@@ -209,7 +175,6 @@ def collect_reports(test_type: str) -> Tuple[List[Dict], List[Dict], List[Dict]]
     else:
         raise ValueError(f"Unknown test type: {test_type}")
 
-    # Collect tap reports
     if tap_base.exists():
         for report_dir in tap_base.glob("report-*vm"):
             report_path = report_dir / "report.md"
@@ -218,7 +183,6 @@ def collect_reports(test_type: str) -> Tuple[List[Dict], List[Dict], List[Dict]]
                 if data:
                     tap_reports.append(data)
 
-    # Collect dpdk reports
     if dpdk_base.exists():
         for report_dir in dpdk_base.glob("report-*vm"):
             report_path = report_dir / "report.md"
@@ -227,7 +191,6 @@ def collect_reports(test_type: str) -> Tuple[List[Dict], List[Dict], List[Dict]]
                 if data:
                     dpdk_reports.append(data)
 
-    # Collect ovs-dpdk reports
     if ovs_dpdk_base.exists():
         for report_dir in ovs_dpdk_base.glob("report-*vm"):
             report_path = report_dir / "report.md"
@@ -236,7 +199,6 @@ def collect_reports(test_type: str) -> Tuple[List[Dict], List[Dict], List[Dict]]
                 if data:
                     ovs_dpdk_reports.append(data)
 
-    # Sort by number of VMs
     tap_reports.sort(key=lambda x: x["num_vms"])
     dpdk_reports.sort(key=lambda x: x["num_vms"])
     ovs_dpdk_reports.sort(key=lambda x: x["num_vms"])
@@ -250,10 +212,8 @@ def plot_iperf(
     ovs_dpdk_reports: List[Dict],
     output_dir: Path,
 ):
-    """Plot iperf comparison graphs"""
     fig, ax = plt.subplots(1, 1, figsize=(10, 6))
 
-    # Plot all lines on the same y-axis with log scale
     if tap_reports:
         tap_vms = [r["num_vms"] for r in tap_reports]
         tap_total = [r["total_throughput"] for r in tap_reports]
@@ -329,7 +289,6 @@ def plot_iperf(
     ax.tick_params(axis="both", which="major", labelsize=16)
     ax.legend(fontsize=15, loc="best")
     ax.grid(True, alpha=0.3, which="both")
-    # Add red vertical lines at 32, 48, 64 VMs
     for vm_count in [32, 48, 64]:
         ax.axvline(x=vm_count, color="red", linestyle="--", linewidth=1.5, alpha=0.7)
 
@@ -349,8 +308,6 @@ def plot_sockperf(
     ovs_dpdk_reports: List[Dict],
     output_dir: Path,
 ):
-    """Plot sockperf comparison graphs"""
-    # Plot 1: p99 Latency
     fig1, ax1 = plt.subplots(1, 1, figsize=(8, 5))
 
     if tap_reports:
@@ -392,7 +349,6 @@ def plot_sockperf(
             color=COLOR_OVS_DPDK_1,
         )
 
-    # Add red vertical lines at 32, 48, 64 VMs
     for vm_count in [32, 48, 64]:
         ax1.axvline(x=vm_count, color="red", linestyle="--", linewidth=1.5, alpha=0.7)
 
@@ -412,7 +368,6 @@ def plot_sockperf(
     print(f"Saved: {output_path_pdf}")
     plt.close()
 
-    # Plot 2: Messages Received
     fig2, ax2 = plt.subplots(1, 1, figsize=(8, 5))
 
     if tap_reports:
@@ -454,7 +409,6 @@ def plot_sockperf(
             color=COLOR_OVS_DPDK_1,
         )
 
-    # Add red vertical lines at 32, 48, 64 VMs
     for vm_count in [32, 48, 64]:
         ax2.axvline(x=vm_count, color="red", linestyle="--", linewidth=1.5, alpha=0.7)
 
@@ -480,8 +434,6 @@ def plot_iperf_udp(
     ovs_dpdk_reports: List[Dict],
     output_dir: Path,
 ):
-    """Plot iperf-udp comparison graphs: PPS received vs sent, then packet loss %."""
-    # Plot 1: Total PPS (Received and Sent)
     fig1, ax1 = plt.subplots(1, 1, figsize=(8, 8))
 
     if tap_reports:
@@ -553,7 +505,6 @@ def plot_iperf_udp(
             color=COLOR_OVS_DPDK_1,
         )
 
-    # Add red vertical lines at 32, 48, 64 VMs
     for vm_count in [32, 48, 64]:
         ax1.axvline(x=vm_count, color="red", linestyle="--", linewidth=1.5, alpha=0.7)
 
@@ -572,7 +523,6 @@ def plot_iperf_udp(
     print(f"Saved: {output_path_pdf}")
     plt.close()
 
-    # Plot 2: Packet Loss Percentage
     fig2, ax2 = plt.subplots(1, 1, figsize=(8, 5))
 
     if tap_reports:
@@ -621,7 +571,6 @@ def plot_iperf_udp(
             color=COLOR_UMANET_2,
         )
 
-    # Add red vertical lines at 32, 48, 64 VMs
     for vm_count in [32, 48, 64]:
         ax2.axvline(x=vm_count, color="red", linestyle="--", linewidth=1.5, alpha=0.7)
 
@@ -642,7 +591,6 @@ def plot_iperf_udp(
 
 
 def main():
-    """Main function"""
     parser = argparse.ArgumentParser(
         description="Plot comparison graphs from test reports (tap vs dpdk vs ovs-dpdk)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -661,11 +609,10 @@ Examples:
 
     args = parser.parse_args()
 
-    print(f"📊 Plotting {args.test_type} comparison graphs...")
-    print(f"📁 Testing directory: {TESTING_DIR}")
+    print(f"plotting {args.test_type} comparison graphs...")
+    print(f"testing directory: {TESTING_DIR}")
     print()
 
-    # Collect reports
     tap_reports, dpdk_reports, ovs_dpdk_reports = collect_reports(args.test_type)
 
     print(f"Found {len(tap_reports)} tap reports")
@@ -674,19 +621,17 @@ Examples:
     print()
 
     if not tap_reports and not dpdk_reports and not ovs_dpdk_reports:
-        print("❌ No reports found!")
+        print("no reports found!")
         return
 
-    # Create output directory with timestamp (in plot_reports folder, GMT+7 timezone)
     gmt7 = timezone(timedelta(hours=7))
     now = datetime.now(gmt7)
     timestamp = now.strftime("%Y%m%d_%H")
     output_dir = SCRIPT_DIR / f"plots_{timestamp}"
     output_dir.mkdir(parents=True, exist_ok=True)
-    print(f"📁 Output directory: {output_dir}")
+    print(f"output directory: {output_dir}")
     print()
 
-    # Plot based on test type
     if args.test_type == "iperf":
         plot_iperf(tap_reports, dpdk_reports, ovs_dpdk_reports, output_dir)
     elif args.test_type == "iperf-udp":
@@ -694,8 +639,7 @@ Examples:
     elif args.test_type == "sockperf":
         plot_sockperf(tap_reports, dpdk_reports, ovs_dpdk_reports, output_dir)
 
-    print()
-    print("✅ Done!")
+    print("done!")
 
 
 if __name__ == "__main__":
