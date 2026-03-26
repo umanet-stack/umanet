@@ -1,6 +1,20 @@
 # umanet
-## Prerequisites
+
+## Performance
+UMANet achieves up to 4.7× higher received PPS and 2.2× lower packet loss than Linux TAP networking.
+
+![Performance](./docs/iperf_udp_pps.png)
+
+## What is UMANet?
+
+
+## Running UMANet
+### Prerequisites
 - use Linux (some syscalls in code are Linux-only)
+
+
+## Architecture
+
 
 1. **VM-to-VM communication**: Forwards packets between VMs based on MAC addresses (software switching)
 2. **VM-to-Physical NIC**: Forwards packets from VMs to the physical network interface
