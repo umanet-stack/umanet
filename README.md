@@ -1,19 +1,22 @@
 # umanet
+## What is UMANet?
+UMANet is a prototype L2/L3 switch tailored for microVMs running FaaS workloads, with focus on packet loss resilience.
+1. **Decomposed Shared Dataplane Architecture**: A vhost-user userspace dataplane replaces Linux TAP with a decomposed fast path that cuts packet loss under high PPS across VMs.
+2. **Resilience Under Packet-Rate Stress**: Under concurrent VM load, UMANet cuts TAP's loss (up to 75.71%) by 2.2× and raises received PPS by 4.7× on the same resource budget.
+3. **Application-Level Performance Gains**: UMANet delivers about 50% higher HTTP throughput with sub-10ms p90 latency, improving stability for serverless-style workloads.
+
+### Architecture
 
 ## Performance
 UMANet achieves up to 4.7× higher received PPS and 2.2× lower packet loss than Linux TAP networking.
 
 ![Performance](./docs/iperf_udp_pps.png)
 
-## What is UMANet?
-
 
 ## Running UMANet
 ### Prerequisites
 - use Linux (some syscalls in code are Linux-only)
 
-
-## Architecture
 
 
 1. **VM-to-VM communication**: Forwards packets between VMs based on MAC addresses (software switching)
