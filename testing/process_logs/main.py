@@ -8,13 +8,12 @@ from typing import Dict
 SCRIPT_DIR = Path(__file__).parent.resolve()
 
 
-def load_environment():
+def load_env():
     repo_root = SCRIPT_DIR.parent.parent
     env_sh = repo_root / "env.sh"
 
     if not env_sh.exists():
         print(f"Warning: env.sh not found at {env_sh}")
-        print(f"   You may need to manually set TEST environment variable")
         return
 
     try:
@@ -49,40 +48,38 @@ def load_environment():
         print()
 
 
-def parse_arguments():
+def parse_args():
     parser = argparse.ArgumentParser(
         description="Process test results and generate reports",
-        epilog="Set TEST environment variable to 'iperf', 'iperf-udp', or 'sockperf' to specify test type",
+        epilog="Set TEST env to 'iperf' or 'iperf-udp' or 'sockperf' to specify test type",
     )
     parser.add_argument(
         "folder",
-        choices=["dpdk", "tap", "dpdk-tap", "ovs-dpdk"],
-        help="Folder name: 'dpdk', 'tap', 'dpdk-tap', or 'ovs-dpdk'",
+        choices=["dpdk", "tap", "ovs-dpdk"],
+        help="Folder name: 'dpdk', 'tap', or 'ovs-dpdk'",
     )
     parser.add_argument(
         "mode",
         choices=["vm-vm-internal", "vm-client"],
         help="Processing mode: 'vm-vm-internal' (process only odd VMs) or 'vm-client' (process all VMs)",
     )
+    parser.add_argument(
+        "num_vms",
+        type=int,
+        help="Number of VMs to process",
+    )
     return parser.parse_args()
 
 
-def setup_directories(folder: str, mode: str, test_type: str) -> Dict[str, Path]:
+def setup_directories(folder: str, mode: str, test_type: str, num_vms: int) -> Dict[str, Path]:
     base_dir = SCRIPT_DIR.parent / folder
-    logs_dir = base_dir / "logs"
-    test_env = os.environ.get("TEST", "").lower()
-    if test_type == "iperf" and test_env == "iperf-udp":
-        report_folder = "iperf-udp"
-    else:
-        report_folder = test_type
-    reports_base_dir = base_dir / report_folder / mode
-
+    logs_dir = base_dir / f"logs-{num_vms}"
+    reports_base_dir = base_dir / test_type / mode # e.g. dpdk/iperf/vm-client
     reports_base_dir.mkdir(exist_ok=True, parents=True)
 
     if not logs_dir.exists():
-        print(f"Logs directory not found: {logs_dir}")
-        print(f"   Please ensure log files are in: {logs_dir}/")
-        sys.exit(1)
+        print(f"Error: logs directory not found: {logs_dir}")
+        return
 
     process_all_vms = mode == "vm-client"
     num_vms = 0
@@ -106,36 +103,21 @@ def setup_directories(folder: str, mode: str, test_type: str) -> Dict[str, Path]
 def detect_test_type() -> str:
     test_env = os.environ.get("TEST", "").lower()
 
-    if test_env in ["iperf", "iperf3", "iperf-udp"]:
+    if test_env in ["iperf", "iperf-udp"]:
         return "iperf"
-    elif test_env in ["sockperf", "latency"]:
+    elif test_env in ["sockperf"]:
         return "sockperf"
     else:
-        print(
-            f"ERROR: TEST environment variable must be set to 'iperf', 'iperf-udp', or 'sockperf'"
-        )
+        print(f"ERROR: TEST env must be set to 'iperf' or 'iperf-udp' or 'sockperf'")
         print(f"   Current value: TEST='{os.environ.get('TEST', '(not set)')}'")
-        print()
-        print("Usage:")
-        print("  export TEST=iperf       # For TCP iperf tests")
-        print(
-            "  export TEST=iperf-udp   # For UDP iperf tests (auto-detected from logs)"
-        )
-        print("  python testing/process_logs/main.py dpdk vm-client")
-        print()
-        print("  export TEST=sockperf")
-        print("  python testing/process_logs/main.py tap vm-vm-internal")
         sys.exit(1)
 
 
 def main():
-    load_environment()
-
+    load_env()
     test_type = detect_test_type()
-
-    args = parse_arguments()
-
-    dirs = setup_directories(args.folder, args.mode, test_type)
+    args = parse_args()
+    dirs = setup_directories(args.folder, args.mode, test_type, args.num_vms)
 
     print(f"Processing {test_type} results...")
     print(f"- Base folder: {dirs['base_dir']}")
@@ -145,11 +127,10 @@ def main():
 
     if test_type == "iperf":
         from process_iperf import process_iperf_results
-
         process_iperf_results(dirs["logs_dir"], dirs["reports_dir"], args.mode)
+
     elif test_type == "sockperf":
         from process_sockperf import process_sockperf_results
-
         process_sockperf_results(dirs["logs_dir"], dirs["reports_dir"], args.mode)
 
 
