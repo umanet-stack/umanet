@@ -105,33 +105,16 @@ def parse_iperf_udp_report(report_path: Path) -> Optional[Dict]:
 def parse_sockperf_report(report_path: Path) -> Optional[Dict]:
     try:
         with open(report_path, "r") as f:
-            content = f.read()
+            data = json.load(f)
 
-        total_vms_match = re.search(r"\*\*Total VMs:\*\* (\d+)", content)
-        if not total_vms_match:
-            vm_match = re.search(r"\*\*Number of VMs:\*\* (\d+)", content)
-            if not vm_match:
-                return None
-            total_vms = int(vm_match.group(1))
-        else:
-            total_vms = int(total_vms_match.group(1))
-
-        p99_match = re.search(r"\*\*Average p99\*\* \| ([0-9.]+) μs", content)
-        if not p99_match:
-            return None
-        p99_latency = float(p99_match.group(1))
-
-        received_match = re.search(
-            r"\*\*Total Messages Received\*\* \| ([0-9,]+)", content
-        )
-        if not received_match:
-            return None
-        total_received = int(received_match.group(1).replace(",", ""))
+        num_vms = data["num_vms"]
+        p99_latency = data["avg_p99_usec"]
+        total_received_messages = data["total_received_messages"]
 
         return {
-            "num_vms": total_vms,
+            "num_vms": num_vms,
             "p99_latency": p99_latency,
-            "total_received": total_received,
+            "total_received": total_received_messages,
         }
     except Exception as e:
         print(f"Error parsing {report_path}: {e}")
