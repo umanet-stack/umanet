@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Dict
+from process_iperf import process_iperf_results
+from process_sockperf import process_sockperf_results
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 
@@ -126,11 +128,9 @@ def main():
     print()
 
     if test_type == "iperf":
-        from process_iperf import process_iperf_results
         process_iperf_results(dirs["logs_dir"], dirs["reports_dir"], args.mode)
 
     elif test_type == "sockperf":
-        from process_sockperf import process_sockperf_results
         process_sockperf_results(dirs["logs_dir"], dirs["reports_dir"], args.mode)
 
 

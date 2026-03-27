@@ -260,9 +260,9 @@ def load_results(
                     if sum_recv.get("bits_per_second", 0) > 0:
                         results[vm_name] = udp_result
                     else:
-                        print(f"⚠️  Skipping {vm_name}: Invalid UDP data")
+                        print(f"⚠️  skipping {vm_name}: invalid UDP data")
                 else:
-                    print(f"⚠️  Skipping {vm_name}: Could not parse UDP results")
+                    print(f"⚠️  skipping {vm_name}: could not parse UDP results")
                 continue
 
             # format: [timestamp] start-iperf.sh[pid]: [date time] vm:   Throughput: X Gbps | Bytes: X GB | Retransmits: X | CPU (host): X% | CPU (remote): X%
@@ -283,7 +283,7 @@ def load_results(
                 # skip VMs with invalid data 
                 if throughput_gbps <= 0 or bytes_gb <= 0:
                     print(
-                        f"⚠️  Skipping {vm_name}: Invalid data (throughput={throughput_gbps} Gbps, bytes={bytes_gb} GB)"
+                        f"⚠️  skipping {vm_name}: invalid data (throughput={throughput_gbps} Gbps, bytes={bytes_gb} GB)"
                     )
                     continue
 
@@ -302,9 +302,9 @@ def load_results(
                     },
                 }
             else:
-                print(f"⚠️  Skipping {vm_name}: can't find summary line in {log_file}")
+                print(f"⚠️  skipping {vm_name}: can't find summary line in {log_file}")
         except Exception as e:
-            print(f"⚠️  Error processing {log_file}: {e}")
+            print(f"⚠️  error processing {log_file}: {e}")
 
     return results, total_vms
 
@@ -611,8 +611,7 @@ def process_iperf_results(logs_dir: Path, reports_dir: Path, mode: str):
     )
     results, total_vms = load_results(logs_dir, process_all_vms=process_all_vms)
     print(f"   Found {total_vms} total VM log files")
-    print(f"   Successfully processed {len(results)} VM results")
-    print()
+    print(f"   Successfully processed {len(results)} VM results\n")
 
     if not results:
         print("❌ No results found!")
@@ -622,13 +621,11 @@ def process_iperf_results(logs_dir: Path, reports_dir: Path, mode: str):
     per_vm_stats = extract_per_vm_stats(results)
     overall_stats = calculate_overall_stats(per_vm_stats, total_vms)
     timeseries = extract_timeseries(results)
-    print()
 
     print("generating plots...")
     plot_throughput_timeseries(timeseries, reports_dir / "throughput_timeseries.png")
     plot_per_vm_throughput(per_vm_stats, reports_dir / "throughput_per_vm.png")
     plot_cpu_utilization(per_vm_stats, reports_dir / "cpu_utilization.png")
-    print()
 
     print("generating json report...")
     generate_json_report(overall_stats, reports_dir / "report.json")
