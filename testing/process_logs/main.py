@@ -104,15 +104,12 @@ def setup_directories(folder: str, mode: str, test_type: str, num_vms: int) -> D
 
 def detect_test_type() -> str:
     test_env = os.environ.get("TEST", "").lower()
-
-    if test_env in ["iperf", "iperf-udp"]:
-        return "iperf"
-    elif test_env in ["sockperf"]:
-        return "sockperf"
-    else:
-        print(f"ERROR: TEST env must be set to 'iperf' or 'iperf-udp' or 'sockperf'")
+    if test_env not in ["iperf", "iperf-udp", "sockperf"]:
+        print(f"ERROR: TEST env must be set to 'iperf', 'iperf-udp', or 'sockperf'")
         print(f"   Current value: TEST='{os.environ.get('TEST', '(not set)')}'")
         sys.exit(1)
+
+    return test_env
 
 
 def main():
@@ -127,7 +124,7 @@ def main():
     print(f"- Reports folder: {dirs['reports_dir']}")
     print()
 
-    if test_type == "iperf":
+    if test_type == "iperf" or test_type == "iperf-udp":
         process_iperf_results(dirs["logs_dir"], dirs["reports_dir"], args.mode)
 
     elif test_type == "sockperf":
