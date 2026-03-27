@@ -28,12 +28,11 @@ def parse_udp_results(log_content: str) -> dict:
     """
     result = {"end": {}, "intervals": []}
 
-    # Pattern to match UDP interval lines
-    # Handles: [ID] start-end sec Transfer Bitrate Jitter Lost/Total (percent) [optional receiver/sender]
-    # Example: [  5]   0.00-1.00   sec  4.28 MBytes  35.9 Mbits/sec  0.001 ms  10351/80540 (13%)
     # Also handles kernel log prefixes like: [timestamp] start-iperf.sh[pid]: [  5]   0.00-1.00...
     # Pattern allows for flexible spacing and handles both /sec and /s suffixes
     # Captures optional "receiver" or "sender" suffix at the end
+    # format:  [   31.756220] start-test.sh[1343]: [ID] start-end sec Transfer Bitrate Jitter Lost/Total (percent) [optional receiver/sender]
+    # e.g.   : [  5]   0.00-1.00   sec  4.28 MBytes  35.9 Mbits/sec  0.001 ms  10351/80540 (13%)
     interval_pattern = r"(?:\[.*?\]\s+\S+\[.*?\]:\s+)?\[\s*(\w+)\]\s+([\d.]+)-([\d.]+)\s+sec\s+([\d.]+)\s+(\w+)\s+([\d.]+)\s+(\w+)(?:/sec|/s)\s+([\d.]+)\s+ms\s+(\d+)/(\d+)\s+\(([\d.]+)%\)(?:\s+(receiver|sender))?"
 
     def convert_units(transfer_value, transfer_unit, bitrate_value, bitrate_unit):

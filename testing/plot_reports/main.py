@@ -107,12 +107,12 @@ def parse_sockperf_report(report_path: Path) -> Optional[Dict]:
         with open(report_path, "r") as f:
             data = json.load(f)
 
-        num_vms = data["num_vms"]
+        total_vms = data["total_vms"]
         p99_latency = data["avg_p99_usec"]
         total_received_messages = data["total_received_messages"]
 
         return {
-            "num_vms": num_vms,
+            "num_vms": total_vms,
             "p99_latency": p99_latency,
             "total_received": total_received_messages,
         }
