@@ -2,11 +2,12 @@
 set -eu
 source env.sh
 
-if [ "$#" -ne 3 ]; then
-    echo "Usage: $0 <i> <role> <command>"
+if [ "$#" -ne 4 ]; then
+    echo "Usage: $0 <i> <role> <command> <log_dir>"
     echo "  i: index of the VM"
     echo "  role: server or client"
     echo "  command: test command"
+    echo "  log_dir: log directory"
     exit 1
 fi
 
@@ -18,8 +19,9 @@ fi
 i=$1
 ROLE=$2
 COMMAND=$3
+LOG_DIR=$4
 
-LOG_DIR="$(dirname "$0")/../../testing/ovs-dpdk/logs"
+# LOG_DIR="$(dirname "$0")/../../testing/ovs-dpdk/logs"
 logfile="$LOG_DIR/vm$i.log"
 
 # Base64 encode the command to avoid space issues in kernel cmdline
