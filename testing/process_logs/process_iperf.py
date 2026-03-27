@@ -1,4 +1,5 @@
 import argparse
+import json
 import re
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -236,16 +237,14 @@ def load_results(
     total_vms = 0
 
     for log_file in sorted(logs_dir.glob("vm*.log")):
-        vm_name = log_file.stem  # e.g., "vm1"
+        vm_name = log_file.stem  # "vm1"
         vm_num = int(vm_name[2:])  # "vm1" -> 1
 
-        # count total VMs based on mode
+        # process_all_vms = False -> only count odd ones
         if process_all_vms or vm_num % 2 == 1:
             total_vms += 1
-        vm_name = log_file.stem  # e.g., "vm1"
-        vm_num = int(vm_name[2:])  # "vm1" -> 1
 
-        # only process odd-numbered VMs (clients) if process_all_vms is False
+        # process_all_vms = False -> skip even ones
         if not process_all_vms and vm_num % 2 == 0:
             continue
 
@@ -253,7 +252,6 @@ def load_results(
             with open(log_file, "r") as f:
                 log_content = f.read()
 
-            # check if this is UDP mode
             if is_udp_mode(log_content):
                 udp_result = parse_udp_results(log_content)
                 if udp_result.get("end") and udp_result["end"].get("sum_received"):
@@ -267,10 +265,11 @@ def load_results(
                     print(f"⚠️  Skipping {vm_name}: Could not parse UDP results")
                 continue
 
-            # original TCP parsing logic
-            # Extract the summary line
-            # Format: [timestamp] start-iperf.sh[pid]: [date time] vm:   Throughput: X Gbps | Bytes: X GB | Retransmits: X | CPU (host): X% | CPU (remote): X%
-            # Note: Script name can be start-iperf.sh or start-test.sh depending on test setup
+            # format: [timestamp] start-iperf.sh[pid]: [date time] vm:   Throughput: X Gbps | Bytes: X GB | Retransmits: X | CPU (host): X% | CPU (remote): X%
+            # script name can be start-iperf.sh or start-test.sh
+            # \[.*?\] -> stops at the first closing bracket it finds (.*? is non-greedy)
+            # ([\d.]+) -> parentheses capture digits + dots
+            # \s+ -> one or more spaces
             pattern = r"\[.*?\] start-(?:iperf|test)\.sh\[.*?\]: \[.*?\] vm:\s+Throughput:\s+([\d.]+)\s+Gbps\s+\|\s+Bytes:\s+([\d.]+)\s+GB\s+\|\s+Retransmits:\s+(\d+)\s+\|\s+CPU\s+\(host\):\s+([\d.]+)%\s+\|\s+CPU\s+\(remote\):\s+([\d.]+)%"
             match = re.search(pattern, log_content)
 
@@ -281,52 +280,52 @@ def load_results(
                 cpu_host = float(match.group(4))
                 cpu_remote = float(match.group(5))
 
-                # skip VMs with invalid data (0 throughput, negative values, etc.)
+                # skip VMs with invalid data 
                 if throughput_gbps <= 0 or bytes_gb <= 0:
                     print(
                         f"⚠️  Skipping {vm_name}: Invalid data (throughput={throughput_gbps} Gbps, bytes={bytes_gb} GB)"
                     )
                     continue
 
-                # extract intervals from log text
-                # Format: "[timestamp] start-iperf.sh[pid]:   [0-1.001431s] 10.13 Gbps"
-                # Note: Script name can be start-iperf.sh or start-test.sh
-                intervals = []
-                # find all interval lines after "iperf3 intervals"
-                # Pattern matches lines with kernel timestamp prefix: "[timestamp] start-iperf.sh[pid]:   [0-1.001431s] 10.13 Gbps"
-                # look for lines that contain interval pattern after "iperf3 intervals"
-                interval_section = re.search(
-                    r"iperf3 intervals.*?\n((?:\[.*?\] start-(?:iperf|test)\.sh\[.*?\]:\s+\[[\d.]+-[\d.]+s\]\s+[\d.]+\s+Gbps\n?)+)",
-                    log_content,
-                    re.MULTILINE,
-                )
+                # # extract intervals from log text
+                # # Format: "[timestamp] start-iperf.sh[pid]:   [0-1.001431s] 10.13 Gbps"
+                # # Note: Script name can be start-iperf.sh or start-test.sh
+                # intervals = []
+                # # find all interval lines after "iperf3 intervals"
+                # # Pattern matches lines with kernel timestamp prefix: "[timestamp] start-iperf.sh[pid]:   [0-1.001431s] 10.13 Gbps"
+                # # look for lines that contain interval pattern after "iperf3 intervals"
+                # interval_section = re.search(
+                #     r"iperf3 intervals.*?\n((?:\[.*?\] start-(?:iperf|test)\.sh\[.*?\]:\s+\[[\d.]+-[\d.]+s\]\s+[\d.]+\s+Gbps\n?)+)",
+                #     log_content,
+                #     re.MULTILINE,
+                # )
 
-                if interval_section:
-                    interval_block = interval_section.group(1)
-                    for line in interval_block.strip().split("\n"):
-                        # parse: "[timestamp] start-iperf.sh[pid]:   [0-1.001431s] 10.13 Gbps"
-                        # extract just the interval part: "[0-1.001431s] 10.13 Gbps"
-                        line_match = re.search(
-                            r"\[([\d.]+)-([\d.]+)s\]\s+([\d.]+)\s+Gbps", line
-                        )
-                        if line_match:
-                            start = float(line_match.group(1))
-                            end = float(line_match.group(2))
-                            throughput_gbps_interval = float(line_match.group(3))
-                            intervals.append(
-                                {
-                                    "sum": {
-                                        "start": start,
-                                        "end": end,
-                                        "bits_per_second": throughput_gbps_interval
-                                        * 1e9,
-                                        "bytes": throughput_gbps_interval
-                                        * 1e9
-                                        * (end - start)
-                                        / 8,  # approximate
-                                    }
-                                }
-                            )
+                # if interval_section:
+                #     interval_block = interval_section.group(1)
+                #     for line in interval_block.strip().split("\n"):
+                #         # parse: "[timestamp] start-iperf.sh[pid]:   [0-1.001431s] 10.13 Gbps"
+                #         # extract just the interval part: "[0-1.001431s] 10.13 Gbps"
+                #         line_match = re.search(
+                #             r"\[([\d.]+)-([\d.]+)s\]\s+([\d.]+)\s+Gbps", line
+                #         )
+                #         if line_match:
+                #             start = float(line_match.group(1))
+                #             end = float(line_match.group(2))
+                #             throughput_gbps_interval = float(line_match.group(3))
+                #             intervals.append(
+                #                 {
+                #                     "sum": {
+                #                         "start": start,
+                #                         "end": end,
+                #                         "bits_per_second": throughput_gbps_interval
+                #                         * 1e9,
+                #                         "bytes": throughput_gbps_interval
+                #                         * 1e9
+                #                         * (end - start)
+                #                         / 8,  # approximate
+                #                     }
+                #                 }
+                #             )
 
                 results[vm_name] = {
                     "end": {
@@ -338,19 +337,12 @@ def load_results(
                         },
                         "cpu_utilization_percent": {
                             "host_total": cpu_host,
-                            "host_user": 0.0,  # not available from summary line
-                            "host_system": 0.0,
                             "remote_total": cpu_remote,
-                            "remote_user": 0.0,
-                            "remote_system": 0.0,
                         },
                     },
-                    "intervals": intervals if intervals else [],
                 }
             else:
-                print(
-                    f"⚠️  Skipping {vm_name}: Could not find summary line in {log_file}"
-                )
+                print(f"⚠️  Skipping {vm_name}: can't find summary line in {log_file}")
         except Exception as e:
             print(f"⚠️  Error processing {log_file}: {e}")
 
@@ -359,7 +351,7 @@ def load_results(
 
 def extract_per_vm_stats(results: Dict[str, dict]) -> Dict[str, dict]:
     """
-    extract throughput and CPU stats for each VM (handles both TCP and UDP modes)
+    extract throughput and CPU stats for each VM
     """
     stats = {}
 
@@ -374,9 +366,7 @@ def extract_per_vm_stats(results: Dict[str, dict]) -> Dict[str, dict]:
                 # udp mode
                 stats[vm_name] = {
                     "mode": "udp",
-                    "throughput_bps": sum_received.get("bits_per_second", 0),
                     "throughput_gbps": sum_received.get("bits_per_second", 0) / 1e9,
-                    "throughput_mbps": sum_received.get("bits_per_second", 0) / 1e6,
                     "bytes_received": sum_received.get("bytes", 0),
                     "duration_sec": sum_received.get("seconds", 0),
                     "jitter_ms": sum_received.get("jitter_ms", 0),
@@ -391,29 +381,19 @@ def extract_per_vm_stats(results: Dict[str, dict]) -> Dict[str, dict]:
                     "sender_pps": sum_received.get("sender_pps", 0),
                     "receiver_pps": sum_received.get("receiver_pps", 0),
                     "cpu_host_total": cpu.get("host_total", 0),
-                    "cpu_host_user": cpu.get("host_user", 0),
-                    "cpu_host_system": cpu.get("host_system", 0),
                     "cpu_remote_total": cpu.get("remote_total", 0),
-                    "cpu_remote_user": cpu.get("remote_user", 0),
-                    "cpu_remote_system": cpu.get("remote_system", 0),
                 }
             else:
                 # tcp mode
                 sum_sent = end_data.get("sum_sent", {})
                 stats[vm_name] = {
                     "mode": "tcp",
-                    "throughput_bps": sum_sent.get("bits_per_second", 0),
                     "throughput_gbps": sum_sent.get("bits_per_second", 0) / 1e9,
-                    "throughput_mbps": sum_sent.get("bits_per_second", 0) / 1e6,
                     "bytes_sent": sum_sent.get("bytes", 0),
                     "duration_sec": sum_sent.get("seconds", 0),
                     "retransmits": sum_sent.get("retransmits", 0),
                     "cpu_host_total": cpu.get("host_total", 0),
-                    "cpu_host_user": cpu.get("host_user", 0),
-                    "cpu_host_system": cpu.get("host_system", 0),
                     "cpu_remote_total": cpu.get("remote_total", 0),
-                    "cpu_remote_user": cpu.get("remote_user", 0),
-                    "cpu_remote_system": cpu.get("remote_system", 0),
                 }
         except Exception as e:
             print(f"⚠️  Error processing {vm_name}: {e}")
@@ -436,7 +416,6 @@ def extract_timeseries(results: Dict[str, dict]) -> Dict[str, List[dict]]:
             entry = {
                 "start": sum_data.get("start", 0),
                 "end": sum_data.get("end", 0),
-                "throughput_bps": sum_data.get("bits_per_second", 0),
                 "throughput_gbps": sum_data.get("bits_per_second", 0) / 1e9,
                 "bytes": sum_data.get("bytes", 0),
             }
@@ -458,9 +437,6 @@ def extract_timeseries(results: Dict[str, dict]) -> Dict[str, List[dict]]:
 
 
 def calculate_overall_stats(per_vm_stats: Dict[str, dict], total_vms: int) -> dict:
-    """
-    calculate overall statistics across all VMs (handles both TCP and UDP modes)
-    """
     if not per_vm_stats:
         return {}
 
@@ -469,17 +445,16 @@ def calculate_overall_stats(per_vm_stats: Dict[str, dict], total_vms: int) -> di
     is_udp = first_vm.get("mode") == "udp"
 
     completed_vms = len(per_vm_stats)
-    total_throughput_bps = sum(s["throughput_bps"] for s in per_vm_stats.values())
+    total_throughput_gbps = sum(s["throughput_gbps"] for s in per_vm_stats.values())
     avg_cpu_host = np.mean([s["cpu_host_total"] for s in per_vm_stats.values()])
     avg_cpu_remote = np.mean([s["cpu_remote_total"] for s in per_vm_stats.values()])
 
     stats = {
         "mode": "udp" if is_udp else "tcp",
-        "total_throughput_gbps": total_throughput_bps / 1e9,
-        "total_throughput_mbps": total_throughput_bps / 1e6,
+        "total_throughput_gbps": total_throughput_gbps,
         "total_vms": total_vms,
-        "num_vms": completed_vms,  # number of completed VMs
-        "avg_per_vm_gbps": (total_throughput_bps / 1e9) / completed_vms
+        "num_vms": completed_vms,
+        "avg_per_vm_gbps": total_throughput_gbps / completed_vms
         if completed_vms > 0
         else 0,
         "avg_cpu_host_percent": avg_cpu_host,
@@ -659,157 +634,162 @@ def plot_cpu_utilization(per_vm_stats: Dict[str, dict], output_path: Path):
     print(f"saved plot: {output_path}")
 
 
-def generate_markdown_report(
-    per_vm_stats: Dict[str, dict], overall: dict, output_path: Path
-):
-    """
-    generate a comprehensive markdown report (handles both TCP and UDP modes)
-    """
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    is_udp = overall.get("mode") == "udp"
-    mode_str = "UDP" if is_udp else "TCP"
+# def generate_markdown_report(
+#     per_vm_stats: Dict[str, dict], overall: dict, output_path: Path
+# ):
+#     """
+#     generate a comprehensive markdown report (handles both TCP and UDP modes)
+#     """
+#     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+#     is_udp = overall.get("mode") == "udp"
+#     mode_str = "UDP" if is_udp else "TCP"
 
-    report = f"""# iperf3 Performance Test Report ({mode_str} Mode)
+#     report = f"""# iperf3 Performance Test Report ({mode_str} Mode)
 
-**Generated:** {timestamp}  
-**Test Duration:** ~30 seconds per VM  
-**Total VMs:** {overall["total_vms"]}  
-**Number of Completed VMs:** {overall["num_vms"]}  
-**Parallel Streams:** 4 per VM  
-**Mode:** {mode_str}
+# **Generated:** {timestamp}  
+# **Test Duration:** ~30 seconds per VM  
+# **Total VMs:** {overall["total_vms"]}  
+# **Number of Completed VMs:** {overall["num_vms"]}  
+# **Parallel Streams:** 4 per VM  
+# **Mode:** {mode_str}
 
----
+# ---
 
-## Overall Summary
+# ## Overall Summary
 
-| Metric | Value |
-|--------|-------|
-| **Total Throughput** | {overall["total_throughput_gbps"]:.2f} Gbps ({overall["total_throughput_mbps"]:.2f} Mbps) |
-| **Average per VM** | {overall["avg_per_vm_gbps"]:.2f} Gbps |
-"""
+# | Metric | Value |
+# |--------|-------|
+# | **Total Throughput** | {overall["total_throughput_gbps"]:.2f} Gbps ({overall["total_throughput_mbps"]:.2f} Mbps) |
+# | **Average per VM** | {overall["avg_per_vm_gbps"]:.2f} Gbps |
+# """
 
-    if is_udp:
-        report += f"""| **Total Data Received** | {overall.get("total_bytes_received_gb", 0):.2f} GB |
-| **Total Datagrams** | {overall.get("total_datagrams", 0):,} |
-| **Lost Datagrams** | {overall.get("total_lost_datagrams", 0):,} |
-| **Received Datagrams** | {overall.get("total_received_datagrams", 0):,} |
-| **Loss Percentage** | {overall.get("overall_loss_percent", 0):.2f}% |
-| **Sender PPS (Total)** | {overall.get("total_sender_pps", 0):,.0f} packets/sec |
-| **Avg Sender PPS per VM** | {overall.get("avg_sender_pps_per_vm", 0):,.0f} packets/sec |
-| **Receiver PPS (Total)** | {overall.get("total_receiver_pps", 0):,.0f} packets/sec |
-| **Avg Receiver PPS per VM** | {overall.get("avg_receiver_pps_per_vm", 0):,.0f} packets/sec |
-| **Average Jitter** | {overall.get("avg_jitter_ms", 0):.3f} ms |
-"""
-    else:
-        report += f"""| **Total Data Sent** | {overall.get("total_bytes_sent_gb", 0):.2f} GB |
-| **Total Retransmits** | {overall.get("total_retransmits", 0)} |
-"""
+#     if is_udp:
+#         report += f"""| **Total Data Received** | {overall.get("total_bytes_received_gb", 0):.2f} GB |
+# | **Total Datagrams** | {overall.get("total_datagrams", 0):,} |
+# | **Lost Datagrams** | {overall.get("total_lost_datagrams", 0):,} |
+# | **Received Datagrams** | {overall.get("total_received_datagrams", 0):,} |
+# | **Loss Percentage** | {overall.get("overall_loss_percent", 0):.2f}% |
+# | **Sender PPS (Total)** | {overall.get("total_sender_pps", 0):,.0f} packets/sec |
+# | **Avg Sender PPS per VM** | {overall.get("avg_sender_pps_per_vm", 0):,.0f} packets/sec |
+# | **Receiver PPS (Total)** | {overall.get("total_receiver_pps", 0):,.0f} packets/sec |
+# | **Avg Receiver PPS per VM** | {overall.get("avg_receiver_pps_per_vm", 0):,.0f} packets/sec |
+# | **Average Jitter** | {overall.get("avg_jitter_ms", 0):.3f} ms |
+# """
+#     else:
+#         report += f"""| **Total Data Sent** | {overall.get("total_bytes_sent_gb", 0):.2f} GB |
+# | **Total Retransmits** | {overall.get("total_retransmits", 0)} |
+# """
 
-    report += f"""| **Avg Client CPU** | {overall["avg_cpu_host_percent"]:.2f}% |
-| **Avg Server CPU** | {overall["avg_cpu_remote_percent"]:.2f}% |
+#     report += f"""| **Avg Client CPU** | {overall["avg_cpu_host_percent"]:.2f}% |
+# | **Avg Server CPU** | {overall["avg_cpu_remote_percent"]:.2f}% |
 
----
+# ---
 
-## Per-VM Results
+# ## Per-VM Results
 
-### Throughput
-"""
+# ### Throughput
+# """
 
-    if is_udp:
-        report += """| VM | Throughput (Gbps) | Throughput (Mbps) | Data Received (GB) | Jitter (ms) | Lost Datagrams | Total Datagrams | Loss % | Sender PPS | Receiver PPS |
-|----|-------------------|-------------------|-------------------|-------------|----------------|-----------------|--------|------------|--------------|
-"""
-        for vm in sorted(per_vm_stats.keys(), key=lambda x: int(x[2:])):
-            stats = per_vm_stats[vm]
-            data_key = "bytes_received" if "bytes_received" in stats else "bytes_sent"
-            report += f"| {vm} | {stats['throughput_gbps']:.3f} | {stats['throughput_mbps']:.2f} | {stats.get(data_key, 0) / 1e9:.3f} | {stats.get('jitter_ms', 0):.3f} | {stats.get('lost_datagrams', 0):,} | {stats.get('total_datagrams', 0):,} | {stats.get('loss_percent', 0):.2f}% | {stats.get('sender_pps', 0):,.0f} | {stats.get('receiver_pps', 0):,.0f} |\n"
-    else:
-        report += """| VM | Throughput (Gbps) | Throughput (Mbps) | Data Sent (GB) | Retransmits |
-|----|-------------------|-------------------|----------------|-------------|
-"""
-        for vm in sorted(per_vm_stats.keys(), key=lambda x: int(x[2:])):
-            stats = per_vm_stats[vm]
-            report += f"| {vm} | {stats['throughput_gbps']:.3f} | {stats['throughput_mbps']:.2f} | {stats.get('bytes_sent', 0) / 1e9:.3f} | {stats.get('retransmits', 0)} |\n"
+#     if is_udp:
+#         report += """| VM | Throughput (Gbps) | Throughput (Mbps) | Data Received (GB) | Jitter (ms) | Lost Datagrams | Total Datagrams | Loss % | Sender PPS | Receiver PPS |
+# |----|-------------------|-------------------|-------------------|-------------|----------------|-----------------|--------|------------|--------------|
+# """
+#         for vm in sorted(per_vm_stats.keys(), key=lambda x: int(x[2:])):
+#             stats = per_vm_stats[vm]
+#             data_key = "bytes_received" if "bytes_received" in stats else "bytes_sent"
+#             report += f"| {vm} | {stats['throughput_gbps']:.3f} | {stats['throughput_mbps']:.2f} | {stats.get(data_key, 0) / 1e9:.3f} | {stats.get('jitter_ms', 0):.3f} | {stats.get('lost_datagrams', 0):,} | {stats.get('total_datagrams', 0):,} | {stats.get('loss_percent', 0):.2f}% | {stats.get('sender_pps', 0):,.0f} | {stats.get('receiver_pps', 0):,.0f} |\n"
+#     else:
+#         report += """| VM | Throughput (Gbps) | Throughput (Mbps) | Data Sent (GB) | Retransmits |
+# |----|-------------------|-------------------|----------------|-------------|
+# """
+#         for vm in sorted(per_vm_stats.keys(), key=lambda x: int(x[2:])):
+#             stats = per_vm_stats[vm]
+#             report += f"| {vm} | {stats['throughput_gbps']:.3f} | {stats['throughput_mbps']:.2f} | {stats.get('bytes_sent', 0) / 1e9:.3f} | {stats.get('retransmits', 0)} |\n"
 
-    report += """
-### CPU Utilization
+#     report += """
+# ### CPU Utilization
 
-| VM | Client Total (%) | Client User (%) | Client System (%) | Server Total (%) | Server User (%) | Server System (%) |
-|----|------------------|-----------------|-------------------|------------------|-----------------|-------------------|
-"""
+# | VM | Client Total (%) | Client User (%) | Client System (%) | Server Total (%) | Server User (%) | Server System (%) |
+# |----|------------------|-----------------|-------------------|------------------|-----------------|-------------------|
+# """
 
-    for vm in sorted(per_vm_stats.keys(), key=lambda x: int(x[2:])):
-        stats = per_vm_stats[vm]
-        report += f"| {vm} "
-        report += f"| {stats['cpu_host_total']:.2f} "
-        report += f"| {stats['cpu_host_user']:.2f} "
-        report += f"| {stats['cpu_host_system']:.2f} "
-        report += f"| {stats['cpu_remote_total']:.2f} "
-        report += f"| {stats['cpu_remote_user']:.2f} "
-        report += f"| {stats['cpu_remote_system']:.2f} |\n"
+#     for vm in sorted(per_vm_stats.keys(), key=lambda x: int(x[2:])):
+#         stats = per_vm_stats[vm]
+#         report += f"| {vm} "
+#         report += f"| {stats['cpu_host_total']:.2f} "
+#         report += f"| {stats['cpu_host_user']:.2f} "
+#         report += f"| {stats['cpu_host_system']:.2f} "
+#         report += f"| {stats['cpu_remote_total']:.2f} "
+#         report += f"| {stats['cpu_remote_user']:.2f} "
+#         report += f"| {stats['cpu_remote_system']:.2f} |\n"
 
-    report += """
----
+#     report += """
+# ---
 
-## Visualizations
+# ## Visualizations
 
-See the following plots for detailed analysis:
+# See the following plots for detailed analysis:
 
-- `throughput_timeseries.png` - Throughput over time for all VMs
-- `throughput_per_vm.png` - Bar chart of throughput per VM
-- `cpu_utilization.png` - CPU utilization comparison
-"""
+# - `throughput_timeseries.png` - Throughput over time for all VMs
+# - `throughput_per_vm.png` - Bar chart of throughput per VM
+# - `cpu_utilization.png` - CPU utilization comparison
+# """
 
-    if is_udp:
-        report += """- UDP-specific metrics (jitter, PPS, loss) are included in the per-VM tables above
-"""
+#     if is_udp:
+#         report += """- UDP-specific metrics (jitter, PPS, loss) are included in the per-VM tables above
+# """
 
-    report += """
----
+#     report += """
+# ---
 
-## Notes
+# ## Notes
 
-- **Client** refers to the VM sending data (odd VM numbers: vm1, vm3, vm5, etc.)
-- **Server** refers to the VM receiving data (even VM numbers: vm0, vm2, vm4, etc.)
-- Each client connects to the corresponding server (vm1 → vm0, vm3 → vm2, etc.)
-"""
+# - **Client** refers to the VM sending data (odd VM numbers: vm1, vm3, vm5, etc.)
+# - **Server** refers to the VM receiving data (even VM numbers: vm0, vm2, vm4, etc.)
+# - Each client connects to the corresponding server (vm1 → vm0, vm3 → vm2, etc.)
+# """
 
-    if is_udp:
-        report += """- **Sender PPS** = Packets Per Second sent (calculated from total datagrams / test duration)
-- **Receiver PPS** = Packets Per Second received (calculated from received datagrams / test duration)
-- **Jitter** = Inter-packet delay variation (measured in milliseconds)
-- **Loss %** = Percentage of datagrams lost during transmission (1 - Receiver PPS / Sender PPS)
-"""
+#     if is_udp:
+#         report += """- **Sender PPS** = Packets Per Second sent (calculated from total datagrams / test duration)
+# - **Receiver PPS** = Packets Per Second received (calculated from received datagrams / test duration)
+# - **Jitter** = Inter-packet delay variation (measured in milliseconds)
+# - **Loss %** = Percentage of datagrams lost during transmission (1 - Receiver PPS / Sender PPS)
+# """
 
+#     with open(output_path, "w") as f:
+#         f.write(report)
+
+#     print(f"saved report: {output_path}")
+
+
+# def get_next_report_number(base_dir: Path) -> int:
+#     """
+#     find the next report number by counting existing report-* directories
+#     """
+#     if not base_dir.exists():
+#         return 0
+
+#     existing_reports = []
+#     for item in base_dir.iterdir():
+#         if item.is_dir() and item.name.startswith("report-"):
+#             try:
+#                 # extract last number from directory name (e.g., report-16vm-0 -> 0)
+#                 parts = item.name.split("-")
+#                 if len(parts) >= 3:  # report-{n}vm-{num}
+#                     num = int(parts[-1])
+#                     existing_reports.append(num)
+#             except (ValueError, IndexError):
+#                 continue
+
+#     if not existing_reports:
+#         return 0
+
+#     return max(existing_reports) + 1
+
+def generate_json_report(overall_stats: dict, output_path: Path):
     with open(output_path, "w") as f:
-        f.write(report)
-
+        json.dump(overall_stats, f, indent=4)
     print(f"saved report: {output_path}")
-
-
-def get_next_report_number(base_dir: Path) -> int:
-    """
-    find the next report number by counting existing report-* directories
-    """
-    if not base_dir.exists():
-        return 0
-
-    existing_reports = []
-    for item in base_dir.iterdir():
-        if item.is_dir() and item.name.startswith("report-"):
-            try:
-                # extract last number from directory name (e.g., report-16vm-0 -> 0)
-                parts = item.name.split("-")
-                if len(parts) >= 3:  # report-{n}vm-{num}
-                    num = int(parts[-1])
-                    existing_reports.append(num)
-            except (ValueError, IndexError):
-                continue
-
-    if not existing_reports:
-        return 0
-
-    return max(existing_reports) + 1
 
 
 def process_iperf_results(logs_dir: Path, reports_dir: Path, mode: str):
@@ -843,137 +823,141 @@ def process_iperf_results(logs_dir: Path, reports_dir: Path, mode: str):
     plot_cpu_utilization(per_vm_stats, reports_dir / "cpu_utilization.png")
     print()
 
-    print("generating markdown report...")
-    generate_markdown_report(per_vm_stats, overall_stats, reports_dir / "report.md")
-    print()
+    print("generating json report...")
+    generate_json_report(overall_stats, reports_dir / "report.json")
 
-    print("printing summary...")
-    is_udp = overall_stats.get("mode") == "udp"
-    mode_str = "UDP" if is_udp else "TCP"
 
-    print("=" * 60)
-    print(f"SUMMARY ({mode_str} Mode)")
-    print("=" * 60)
-    print(f"Total Throughput:     {overall_stats['total_throughput_gbps']:.2f} Gbps")
-    print(f"Average per VM:       {overall_stats['avg_per_vm_gbps']:.2f} Gbps")
+    # print("generating markdown report...")
+    # generate_markdown_report(per_vm_stats, overall_stats, reports_dir / "report.md")
+    # print()
 
-    if is_udp:
-        print(
-            f"Total Data Received:  {overall_stats.get('total_bytes_received_gb', 0):.2f} GB"
-        )
-        print(f"Total Datagrams:      {overall_stats.get('total_datagrams', 0):,}")
-        print(f"Lost Datagrams:       {overall_stats.get('total_lost_datagrams', 0):,}")
-        print(
-            f"Received Datagrams:   {overall_stats.get('total_received_datagrams', 0):,}"
-        )
-        print(
-            f"Loss Percentage:      {overall_stats.get('overall_loss_percent', 0):.2f}%"
-        )
-        print(
-            f"Sender PPS (Total):   {overall_stats.get('total_sender_pps', 0):,.0f} packets/sec"
-        )
-        print(
-            f"Avg Sender PPS/VM:    {overall_stats.get('avg_sender_pps_per_vm', 0):,.0f} packets/sec"
-        )
-        print(
-            f"Receiver PPS (Total): {overall_stats.get('total_receiver_pps', 0):,.0f} packets/sec"
-        )
-        print(
-            f"Avg Receiver PPS/VM:  {overall_stats.get('avg_receiver_pps_per_vm', 0):,.0f} packets/sec"
-        )
-        print(f"Average Jitter:       {overall_stats.get('avg_jitter_ms', 0):.3f} ms")
-    else:
-        print(
-            f"Total Data Sent:      {overall_stats.get('total_bytes_sent_gb', 0):.2f} GB"
-        )
-        print(f"Total Retransmits:    {overall_stats.get('total_retransmits', 0)}")
+    # print("printing summary...")
+    # is_udp = overall_stats.get("mode") == "udp"
+    # mode_str = "UDP" if is_udp else "TCP"
 
-    print(f"Avg Client CPU:       {overall_stats['avg_cpu_host_percent']:.2f}%")
-    print(f"Avg Server CPU:       {overall_stats['avg_cpu_remote_percent']:.2f}%")
-    print("=" * 60)
-    print()
+    # print("=" * 60)
+    # print(f"SUMMARY ({mode_str} Mode)")
+    # print("=" * 60)
+    # print(f"Total Throughput:     {overall_stats['total_throughput_gbps']:.2f} Gbps")
+    # print(f"Average per VM:       {overall_stats['avg_per_vm_gbps']:.2f} Gbps")
+
+    # if is_udp:
+    #     print(
+    #         f"Total Data Received:  {overall_stats.get('total_bytes_received_gb', 0):.2f} GB"
+    #     )
+    #     print(f"Total Datagrams:      {overall_stats.get('total_datagrams', 0):,}")
+    #     print(f"Lost Datagrams:       {overall_stats.get('total_lost_datagrams', 0):,}")
+    #     print(
+    #         f"Received Datagrams:   {overall_stats.get('total_received_datagrams', 0):,}"
+    #     )
+    #     print(
+    #         f"Loss Percentage:      {overall_stats.get('overall_loss_percent', 0):.2f}%"
+    #     )
+    #     print(
+    #         f"Sender PPS (Total):   {overall_stats.get('total_sender_pps', 0):,.0f} packets/sec"
+    #     )
+    #     print(
+    #         f"Avg Sender PPS/VM:    {overall_stats.get('avg_sender_pps_per_vm', 0):,.0f} packets/sec"
+    #     )
+    #     print(
+    #         f"Receiver PPS (Total): {overall_stats.get('total_receiver_pps', 0):,.0f} packets/sec"
+    #     )
+    #     print(
+    #         f"Avg Receiver PPS/VM:  {overall_stats.get('avg_receiver_pps_per_vm', 0):,.0f} packets/sec"
+    #     )
+    #     print(f"Average Jitter:       {overall_stats.get('avg_jitter_ms', 0):.3f} ms")
+    # else:
+    #     print(
+    #         f"Total Data Sent:      {overall_stats.get('total_bytes_sent_gb', 0):.2f} GB"
+    #     )
+    #     print(f"Total Retransmits:    {overall_stats.get('total_retransmits', 0)}")
+
+    # # print(f"Avg Client CPU:       {overall_stats['avg_cpu_host_percent']:.2f}%")
+    # # print(f"Avg Server CPU:       {overall_stats['avg_cpu_remote_percent']:.2f}%")
+    # # print("=" * 60)
+    # print()
     print(f"✅ All reports saved to: {reports_dir}/")
-    print()
+    # print()
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="process iperf3 test results and generate reports"
-    )
-    parser.add_argument(
-        "folder",
-        choices=["dpdk", "tap", "dpdk-tap"],
-        help="Folder name: 'dpdk', 'tap', or 'dpdk-tap'",
-    )
-    parser.add_argument(
-        "mode",
-        choices=["vm-vm-internal", "vm-client"],
-        help="Processing mode: 'vm-vm-internal' (process only odd VMs) or 'vm-client' (process all VMs)",
-    )
-    args = parser.parse_args()
+# def main():
+#     parser = argparse.ArgumentParser(
+#         description="process iperf3 test results and generate reports"
+#     )
+#     parser.add_argument(
+#         "folder",
+#         choices=["dpdk", "tap", "dpdk-tap"],
+#         help="Folder name: 'dpdk', 'tap', or 'dpdk-tap'",
+#     )
+#     parser.add_argument(
+#         "mode",
+#         choices=["vm-vm-internal", "vm-client"],
+#         help="Processing mode: 'vm-vm-internal' (process only odd VMs) or 'vm-client' (process all VMs)",
+#     )
+#     args = parser.parse_args()
 
-    # determine if we should process all VMs
-    process_all_vms = args.mode == "vm-client"
+#     # determine if we should process all VMs
+#     process_all_vms = args.mode == "vm-client"
 
-    # set up directories relative to script
-    base_dir = SCRIPT_DIR.parent / args.folder
-    logs_dir = base_dir / "logs"
+#     # set up directories relative to script
+#     base_dir = SCRIPT_DIR.parent / args.folder
+#     logs_dir = base_dir / "logs"
 
-    # check if logs directory exists
-    if not logs_dir.exists():
-        print(f"❌ Logs directory not found: {logs_dir}")
-        return
+#     # check if logs directory exists
+#     if not logs_dir.exists():
+#         print(f"❌ Logs directory not found: {logs_dir}")
+#         return
 
-    # detect udp mode by checking log files
-    is_udp_detected = False
-    for log_file in sorted(logs_dir.glob("vm*.log")):
-        vm_name = log_file.stem
-        vm_num = int(vm_name[2:])
-        if not process_all_vms and vm_num % 2 == 0:
-            continue  # skip even-numbered VMs in vm-vm-internal mode
+#     # # detect udp mode by checking log files
+#     # is_udp_detected = False
+#     # for log_file in sorted(logs_dir.glob("vm*.log")):
+#     #     vm_name = log_file.stem
+#     #     vm_num = int(vm_name[2:])
+#     #     if not process_all_vms and vm_num % 2 == 0:
+#     #         continue  # skip even-numbered VMs in vm-vm-internal mode
 
-        try:
-            with open(log_file, "r") as f:
-                log_content = f.read()
-            if is_udp_mode(log_content):
-                is_udp_detected = True
-                break
-        except Exception:
-            continue
+#     #     try:
+#     #         with open(log_file, "r") as f:
+#     #             log_content = f.read()
+#     #         if is_udp_mode(log_content):
+#     #             is_udp_detected = True
+#     #             break
+#     #     except Exception:
+#     #         continue
 
-    # use 'iperf-udp' folder if udp mode is detected, otherwise 'iperf'
-    report_folder = "iperf-udp" if is_udp_detected else "iperf"
-    reports_base_dir = base_dir / report_folder / args.mode
+#     # # use 'iperf-udp' folder if udp mode is detected, otherwise 'iperf'
+#     # report_folder = "iperf-udp" if is_udp_detected else "iperf"
+#     reports_base_dir = base_dir / report_folder / args.mode
 
-    reports_base_dir.mkdir(exist_ok=True, parents=True)
+#     reports_base_dir.mkdir(exist_ok=True, parents=True)
 
-    # count VMs to determine report directory name
-    num_vms = 0
-    for log_file in sorted(logs_dir.glob("vm*.log")):
-        vm_name = log_file.stem
-        vm_num = int(vm_name[2:])
+#     # count VMs to determine report directory name
+#     num_vms = 0
+#     for log_file in sorted(logs_dir.glob("vm*.log")):
+#         vm_name = log_file.stem
+#         vm_num = int(vm_name[2:])
 
-        # count based on mode
-        if (
-            process_all_vms or vm_num % 2 == 1
-        ):  # all VMs for vm-client, odd VMs for vm-vm-internal
-            num_vms += 1
+#         # count based on mode
+#         if (
+#             process_all_vms or vm_num % 2 == 1
+#         ):  # all VMs for vm-client, odd VMs for vm-vm-internal
+#             num_vms += 1
 
-    # get next report number to avoid overwriting existing reports
-    report_num = get_next_report_number(reports_base_dir)
+#     # get next report number to avoid overwriting existing reports
+#     report_num = get_next_report_number(reports_base_dir)
 
-    # create report directory: {report_folder}/{mode}/report-{n}vm-{num}
-    reports_dir = reports_base_dir / f"report-{num_vms}vm-{report_num}"
-    reports_dir.mkdir(exist_ok=True, parents=True)
+#     # create report directory: {report_folder}/{mode}/report-{n}vm-{num}
+#     reports_dir = reports_base_dir / f"report-{num_vms}vm-{report_num}"
+#     reports_dir.mkdir(exist_ok=True, parents=True)
 
-    print("processing iperf3 results...")
-    print(f"- base folder: {base_dir}")
-    print(f"- logs folder: {logs_dir}")
-    print(f"- reports folder: {reports_dir}")
-    print()
+#     print("processing iperf3 results...")
+#     print(f"- base folder: {base_dir}")
+#     print(f"- logs folder: {logs_dir}")
+#     print(f"- reports folder: {reports_dir}")
+#     print()
 
-    process_iperf_results(logs_dir, reports_dir, args.mode)
+#     process_iperf_results(logs_dir, reports_dir, args.mode)
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
