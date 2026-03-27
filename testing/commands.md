@@ -196,3 +196,8 @@ htop
 # canonical: 1 core uses 1TX + 1RX
 ethtool -l enp23s0f0np0
 ```
+
+### ownership
+```bash
+sudo chown -R username ~/code/umanet/testing/tap/iperf
+```
