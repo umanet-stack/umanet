@@ -75,7 +75,7 @@ def parse_args():
 
 def setup_directories(folder: str, mode: str, test_type: str, num_vms: int) -> Dict[str, Path]:
     base_dir = SCRIPT_DIR.parent / folder
-    logs_dir = base_dir / f"logs-{num_vms}"
+    logs_dir = base_dir / test_type / mode / "logs" / f"logs-{num_vms}"
     reports_base_dir = base_dir / test_type / mode # e.g. dpdk/iperf/vm-client
     reports_base_dir.mkdir(exist_ok=True, parents=True)
 

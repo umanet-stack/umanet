@@ -52,7 +52,7 @@ if ! in_array "$TEST" "${VALID_TESTS[@]}"; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOG_DIR="$(dirname "$0")/../../testing/$NETWORK/logs-$NUM_VMS"
+LOG_DIR="$(dirname "$0")/../../testing/$NETWORK/$TEST/vm-client/logs/logs-$NUM_VMS"
 
 # Create log directory
 rm -rf "$LOG_DIR"/*
