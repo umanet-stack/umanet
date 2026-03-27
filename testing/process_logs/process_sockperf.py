@@ -1,4 +1,5 @@
 import argparse
+import json
 import re
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -17,9 +18,6 @@ SCRIPT_DIR = Path(__file__).parent.resolve()
 def load_results(
     logs_dir: Path, process_all_vms: bool = False
 ) -> Tuple[Dict[str, dict], int]:
-    """
-    extract results from VM log files
-    """
     results = {}
     total_vms = 0
 
@@ -36,24 +34,20 @@ def load_results(
             with open(log_file, "r") as f:
                 log_content = f.read()
 
-            # extract metrics from sockperf output
-            # Format: sockperf: ====> avg-latency=32.472 (std-dev=24.530)
+            # format: sockperf: ====> avg-latency=32.472 (std-dev=24.530)
+            # .*? = non-greedy wildcard (match as few characters as possible)
             avg_latency_pattern = (
                 r"sockperf:.*?avg-latency=([\d.]+)\s+\(std-dev=([\d.]+)\)"
             )
             avg_match = re.search(avg_latency_pattern, log_content)
-
             if not avg_match:
-                print(
-                    f"⚠️  Skipping {vm_name}: Could not find avg-latency in {log_file}"
-                )
+                print(f"⚠️  skipping {vm_name}: could not find avg-latency in {log_file}")
                 continue
 
             avg_latency = float(avg_match.group(1))
             std_dev = float(avg_match.group(2))
 
-            # extract percentiles
-            # Format: sockperf: ---> percentile 50.000 =   29.526
+            # format: sockperf: ---> percentile 50.000 =   29.526
             percentiles = {}
             percentile_pattern = r"sockperf:.*?percentile\s+([\d.]+)\s+=\s+([\d.]+)"
             for match in re.finditer(percentile_pattern, log_content):
@@ -61,8 +55,7 @@ def load_results(
                 value = float(match.group(2))
                 percentiles[p] = value
 
-            # extract min/max
-            # Format: sockperf: ---> <MIN> observation =   18.061
+            # format: sockperf: ---> <MIN> observation =   18.061
             min_pattern = r"sockperf:.*?<MIN>\s+observation\s+=\s+([\d.]+)"
             max_pattern = r"sockperf:.*?<MAX>\s+observation\s+=\s+([\d.]+)"
             min_match = re.search(min_pattern, log_content)
@@ -71,8 +64,7 @@ def load_results(
             min_latency = float(min_match.group(1)) if min_match else 0
             max_latency = float(max_match.group(1)) if max_match else 0
 
-            # extract message counts
-            # Format: sockperf: [Total Run] RunTime=29.978 sec; Warm up time=400 msec; SentMessages=459153; ReceivedMessages=459152
+            # format: sockperf: [Total Run] RunTime=29.978 sec; Warm up time=400 msec; SentMessages=459153; ReceivedMessages=459152
             total_run_pattern = r"sockperf:.*?\[Total Run\].*?SentMessages=(\d+);\s+ReceivedMessages=(\d+)"
             total_match = re.search(total_run_pattern, log_content)
 
@@ -86,9 +78,7 @@ def load_results(
 
             # skip VMs with invalid data
             if avg_latency <= 0 or sent_messages == 0:
-                print(
-                    f"⚠️  Skipping {vm_name}: Invalid data (avg_latency={avg_latency}, sent={sent_messages})"
-                )
+                print( f"⚠️  skipping {vm_name}: invalid data (avg_latency={avg_latency}, sent={sent_messages})")
                 continue
 
             results[vm_name] = {
@@ -104,13 +94,12 @@ def load_results(
             }
 
         except Exception as e:
-            print(f"⚠️  Error processing {log_file}: {e}")
+            print(f"⚠️  error processing {log_file}: {e}")
 
     return results, total_vms
 
 
 def extract_per_vm_stats(results: Dict[str, dict]) -> Dict[str, dict]:
-    """extract latency stats for each VM"""
     stats = {}
 
     for vm_name, data in results.items():
@@ -334,119 +323,121 @@ def plot_message_stats(per_vm_stats: Dict[str, dict], output_path: Path):
     print(f"saved plot: {output_path}")
 
 
-def generate_markdown_report(
-    per_vm_stats: Dict[str, dict], overall: dict, output_path: Path
-):
-    """generate a comprehensive markdown report"""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+# def generate_markdown_report(
+#     per_vm_stats: Dict[str, dict], overall: dict, output_path: Path
+# ):
+#     """generate a comprehensive markdown report"""
+#     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    report = f"""# sockperf Latency Test Report
+#     report = f"""# sockperf Latency Test Report
 
-**Generated:** {timestamp}  
-**Test Duration:** ~30 seconds per VM  
-**Total VMs:** {overall["total_vms"]}  
-**Number of Completed VMs:** {overall["num_vms"]}  
-**Test Type:** UDP ping-pong latency
+# **Generated:** {timestamp}  
+# **Test Duration:** ~30 seconds per VM  
+# **Total VMs:** {overall["total_vms"]}  
+# **Number of Completed VMs:** {overall["num_vms"]}  
+# **Test Type:** UDP ping-pong latency
 
----
+# ---
 
-## Overall Summary
+# ## Overall Summary
 
-| Metric | Value |
-|--------|-------|
-| **Average Latency** | {overall["avg_latency_usec"]:.2f} μs |
-| **Average p50** | {overall["avg_p50_usec"]:.2f} μs |
-| **Average p90** | {overall["avg_p90_usec"]:.2f} μs |
-| **Average p99** | {overall["avg_p99_usec"]:.2f} μs |
-| **Average p99.9** | {overall["avg_p99_9_usec"]:.2f} μs |
-| **Total Messages Sent** | {overall["total_sent_messages"]:,} |
-| **Total Messages Received** | {overall["total_received_messages"]:,} |
-| **Total Dropped** | {overall["total_dropped_messages"]:,} |
-| **Drop Rate** | {overall["drop_rate_percent"]:.4f}% |
+# | Metric | Value |
+# |--------|-------|
+# | **Average Latency** | {overall["avg_latency_usec"]:.2f} μs |
+# | **Average p50** | {overall["avg_p50_usec"]:.2f} μs |
+# | **Average p90** | {overall["avg_p90_usec"]:.2f} μs |
+# | **Average p99** | {overall["avg_p99_usec"]:.2f} μs |
+# | **Average p99.9** | {overall["avg_p99_9_usec"]:.2f} μs |
+# | **Total Messages Sent** | {overall["total_sent_messages"]:,} |
+# | **Total Messages Received** | {overall["total_received_messages"]:,} |
+# | **Total Dropped** | {overall["total_dropped_messages"]:,} |
+# | **Drop Rate** | {overall["drop_rate_percent"]:.4f}% |
 
----
+# ---
 
-## Per-VM Results
+# ## Per-VM Results
 
-### Latency Metrics
+# ### Latency Metrics
 
-| VM | Avg (μs) | Std Dev (μs) | Min (μs) | Max (μs) | p50 (μs) | p90 (μs) | p99 (μs) | p99.9 (μs) |
-|----|----------|--------------|----------|----------|----------|----------|----------|------------|
-"""
+# | VM | Avg (μs) | Std Dev (μs) | Min (μs) | Max (μs) | p50 (μs) | p90 (μs) | p99 (μs) | p99.9 (μs) |
+# |----|----------|--------------|----------|----------|----------|----------|----------|------------|
+# """
 
-    for vm in sorted(per_vm_stats.keys(), key=lambda x: int(x[2:])):
-        stats = per_vm_stats[vm]
-        report += f"| {vm} "
-        report += f"| {stats['avg_latency_usec']:.2f} "
-        report += f"| {stats['std_dev_usec']:.2f} "
-        report += f"| {stats['min_latency_usec']:.2f} "
-        report += f"| {stats['max_latency_usec']:.2f} "
-        report += f"| {stats['p50_usec']:.2f} "
-        report += f"| {stats['p90_usec']:.2f} "
-        report += f"| {stats['p99_usec']:.2f} "
-        report += f"| {stats['p99_9_usec']:.2f} |\n"
+#     for vm in sorted(per_vm_stats.keys(), key=lambda x: int(x[2:])):
+#         stats = per_vm_stats[vm]
+#         report += f"| {vm} "
+#         report += f"| {stats['avg_latency_usec']:.2f} "
+#         report += f"| {stats['std_dev_usec']:.2f} "
+#         report += f"| {stats['min_latency_usec']:.2f} "
+#         report += f"| {stats['max_latency_usec']:.2f} "
+#         report += f"| {stats['p50_usec']:.2f} "
+#         report += f"| {stats['p90_usec']:.2f} "
+#         report += f"| {stats['p99_usec']:.2f} "
+#         report += f"| {stats['p99_9_usec']:.2f} |\n"
 
-    report += """
-### Message Statistics
+#     report += """
+# ### Message Statistics
 
-| VM | Sent | Received | Dropped | Drop Rate (%) |
-|----|------|----------|---------|---------------|
-"""
+# | VM | Sent | Received | Dropped | Drop Rate (%) |
+# |----|------|----------|---------|---------------|
+# """
 
-    for vm in sorted(per_vm_stats.keys(), key=lambda x: int(x[2:])):
-        stats = per_vm_stats[vm]
-        drop_rate = (
-            (stats["dropped_messages"] / stats["sent_messages"] * 100)
-            if stats["sent_messages"] > 0
-            else 0
-        )
-        report += f"| {vm} "
-        report += f"| {stats['sent_messages']:,} "
-        report += f"| {stats['received_messages']:,} "
-        report += f"| {stats['dropped_messages']:,} "
-        report += f"| {drop_rate:.4f} |\n"
+#     for vm in sorted(per_vm_stats.keys(), key=lambda x: int(x[2:])):
+#         stats = per_vm_stats[vm]
+#         drop_rate = (
+#             (stats["dropped_messages"] / stats["sent_messages"] * 100)
+#             if stats["sent_messages"] > 0
+#             else 0
+#         )
+#         report += f"| {vm} "
+#         report += f"| {stats['sent_messages']:,} "
+#         report += f"| {stats['received_messages']:,} "
+#         report += f"| {stats['dropped_messages']:,} "
+#         report += f"| {drop_rate:.4f} |\n"
 
-    report += """
----
+#     report += """
+# ---
 
-## Visualizations
+# ## Visualizations
 
-See the following plots for detailed analysis:
+# See the following plots for detailed analysis:
 
-- `latency_percentiles.png` - p50, p90, p99, p99.9 latency for all VMs (dot plot)
-- `latency_avg_per_vm.png` - Average latency bar chart per VM
-- `message_stats.png` - Message send/receive/drop statistics
+# - `latency_percentiles.png` - p50, p90, p99, p99.9 latency for all VMs (dot plot)
+# - `latency_avg_per_vm.png` - Average latency bar chart per VM
+# - `message_stats.png` - Message send/receive/drop statistics
 
----
+# ---
 
-## Notes
+# ## Notes
 
-- **Client** refers to the VM sending/receiving ping-pong messages (odd VM numbers: vm1, vm3, vm5, etc. in vm-vm-internal mode)
-- **Server** refers to the VM responding to ping-pong (even VM numbers: vm0, vm2, vm4, etc.)
-- Each client connects to the corresponding server (vm1 → vm0, vm3 → vm2, etc.)
-- Lower latency values are better
-- Latency is measured in microseconds (μs)
-"""
+# - **Client** refers to the VM sending/receiving ping-pong messages (odd VM numbers: vm1, vm3, vm5, etc. in vm-vm-internal mode)
+# - **Server** refers to the VM responding to ping-pong (even VM numbers: vm0, vm2, vm4, etc.)
+# - Each client connects to the corresponding server (vm1 → vm0, vm3 → vm2, etc.)
+# - Lower latency values are better
+# - Latency is measured in microseconds (μs)
+# """
 
+#     with open(output_path, "w") as f:
+#         f.write(report)
+
+#     print(f"saved report: {output_path}")
+
+def generate_json_report(overall_stats: dict, output_path: Path):
     with open(output_path, "w") as f:
-        f.write(report)
-
+        json.dump(overall_stats, f, indent=4)
     print(f"saved report: {output_path}")
-
 
 def process_sockperf_results(logs_dir: Path, reports_dir: Path, mode: str):
     """process sockperf results and generate reports"""
     process_all_vms = mode == "vm-client"
 
-    # load results
-    print("📂 Loading results...")
+    print("loading results...")
     print(
         f"   Mode: {mode} ({'processing all VMs' if process_all_vms else 'processing odd VMs only'})"
     )
     results, total_vms = load_results(logs_dir, process_all_vms=process_all_vms)
     print(f"   Found {total_vms} total VM log files")
     print(f"   Successfully processed {len(results)} VM results")
-    print()
 
     if not results:
         print("❌ No results found!")
@@ -455,87 +446,84 @@ def process_sockperf_results(logs_dir: Path, reports_dir: Path, mode: str):
     print("extracting statistics...")
     per_vm_stats = extract_per_vm_stats(results)
     overall_stats = calculate_overall_stats(per_vm_stats, total_vms)
-    print()
 
     print("generating plots...")
     plot_latency_percentiles(per_vm_stats, reports_dir / "latency_percentiles.png")
     plot_latency_bar_chart(per_vm_stats, reports_dir / "latency_avg_per_vm.png")
     plot_message_stats(per_vm_stats, reports_dir / "message_stats.png")
-    print()
 
-    print("generating markdown report...")
-    generate_markdown_report(per_vm_stats, overall_stats, reports_dir / "report.md")
-    print()
+    print("generating json report...")
+    generate_json_report(overall_stats, reports_dir / "report.json")
 
-    print("=" * 60)
-    print("SUMMARY")
-    print("=" * 60)
-    print(f"Number of VMs:        {overall_stats['num_vms']}")
-    print(f"Average Latency:      {overall_stats['avg_latency_usec']:.2f} μs")
-    print(f"Average p50:          {overall_stats['avg_p50_usec']:.2f} μs")
-    print(f"Average p90:          {overall_stats['avg_p90_usec']:.2f} μs")
-    print(f"Average p99:          {overall_stats['avg_p99_usec']:.2f} μs")
-    print(f"Average p99.9:        {overall_stats['avg_p99_9_usec']:.2f} μs")
-    print(f"Total Messages Sent:  {overall_stats['total_sent_messages']:,}")
-    print(f"Total Dropped:        {overall_stats['total_dropped_messages']:,}")
-    print(f"Drop Rate:            {overall_stats['drop_rate_percent']:.4f}%")
-    print("=" * 60)
-    print()
+    # print("=" * 60)
+    # print("SUMMARY")
+    # print("=" * 60)
+    # print(f"Number of VMs:        {overall_stats['num_vms']}")
+    # print(f"Average Latency:      {overall_stats['avg_latency_usec']:.2f} μs")
+    # print(f"Average p50:          {overall_stats['avg_p50_usec']:.2f} μs")
+    # print(f"Average p90:          {overall_stats['avg_p90_usec']:.2f} μs")
+    # print(f"Average p99:          {overall_stats['avg_p99_usec']:.2f} μs")
+    # print(f"Average p99.9:        {overall_stats['avg_p99_9_usec']:.2f} μs")
+    # print(f"Total Messages Sent:  {overall_stats['total_sent_messages']:,}")
+    # print(f"Total Dropped:        {overall_stats['total_dropped_messages']:,}")
+    # print(f"Drop Rate:            {overall_stats['drop_rate_percent']:.4f}%")
+    # print("=" * 60)
+    # print()
     print(f"✅ All reports saved to: {reports_dir}/")
-    print()
+    # print()
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Process sockperf test results and generate reports"
-    )
-    parser.add_argument(
-        "folder",
-        choices=["dpdk", "tap", "dpdk-tap"],
-        help="Folder name: 'dpdk', 'tap', or 'dpdk-tap'",
-    )
-    parser.add_argument(
-        "mode",
-        choices=["vm-vm-internal", "vm-client"],
-        help="Processing mode: 'vm-vm-internal' (process only odd VMs) or 'vm-client' (process all VMs)",
-    )
-    args = parser.parse_args()
+# def main():
+#     parser = argparse.ArgumentParser(
+#         description="Process sockperf test results and generate reports"
+#     )
+#     parser.add_argument(
+#         "folder",
+#         choices=["dpdk", "tap", "dpdk-tap"],
+#         help="Folder name: 'dpdk', 'tap', or 'dpdk-tap'",
+#     )
+#     parser.add_argument(
+#         "mode",
+#         choices=["vm-vm-internal", "vm-client"],
+#         help="Processing mode: 'vm-vm-internal' (process only odd VMs) or 'vm-client' (process all VMs)",
+#     )
+#     args = parser.parse_args()
 
-    process_all_vms = args.mode == "vm-client"
+#     process_all_vms = args.mode == "vm-client"
 
-    base_dir = SCRIPT_DIR.parent / args.folder
-    logs_dir = base_dir / "logs"
-    reports_base_dir = base_dir / "sockperf" / args.mode
+#     base_dir = SCRIPT_DIR.parent / args.folder
+#     logs_dir = base_dir / "logs"
+#     reports_base_dir = base_dir / "sockperf" / args.mode
 
-    reports_base_dir.mkdir(exist_ok=True, parents=True)
+#     reports_base_dir.mkdir(exist_ok=True, parents=True)
 
-    if not logs_dir.exists():
-        print(f"❌ Logs directory not found: {logs_dir}")
-        print(f"   Please ensure log files are in: {logs_dir}/")
-        return
+#     if not logs_dir.exists():
+#         print(f"❌ Logs directory not found: {logs_dir}")
+#         print(f"   Please ensure log files are in: {logs_dir}/")
+#         return
 
-    num_vms = 0
-    for log_file in sorted(logs_dir.glob("vm*.log")):
-        vm_name = log_file.stem
-        vm_num = int(vm_name[2:])
+#     num_vms = 0
+#     for log_file in sorted(logs_dir.glob("vm*.log")):
+#         vm_name = log_file.stem
+#         vm_num = int(vm_name[2:])
 
-        if (
-            process_all_vms or vm_num % 2 == 1
-        ):  # All VMs for vm-client, odd VMs for vm-vm-internal
-            num_vms += 1
+#         if (
+#             process_all_vms or vm_num % 2 == 1
+#         ):  # All VMs for vm-client, odd VMs for vm-vm-internal
+#             num_vms += 1
 
-    # report directory: sockperf/{mode}/report-{n}vm
-    reports_dir = reports_base_dir / f"report-{num_vms}vm"
-    reports_dir.mkdir(exist_ok=True, parents=True)
+#     # report directory: sockperf/{mode}/report-{n}vm
+#     reports_dir = reports_base_dir / f"report-{num_vms}vm"
+#     reports_dir.mkdir(exist_ok=True, parents=True)
 
-    print("processing sockperf results...")
-    print(f"- base folder: {base_dir}")
-    print(f"- logs folder: {logs_dir}")
-    print(f"- reports folder: {reports_dir}")
-    print()
+#     print("processing sockperf results...")
+#     print(f"- base folder: {base_dir}")
+#     print(f"- logs folder: {logs_dir}")
+#     print(f"- reports folder: {reports_dir}")
+#     print()
 
-    process_sockperf_results(logs_dir, reports_dir, args.mode)
+#     process_sockperf_results(logs_dir, reports_dir, args.mode)
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
