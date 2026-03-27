@@ -106,9 +106,9 @@ sudo ./setup/ovs/setup_interfaces.sh 1 4
 
 ## Overall Report
 ```bash
-./testing/plot_reports/main.py iperf
-./testing/plot_reports/main.py iperf-udp
-./testing/plot_reports/main.py sockperf
+python ./testing/plot_reports/main.py iperf
+python ./testing/plot_reports/main.py iperf-udp
+python ./testing/plot_reports/main.py sockperf
 ```
 
 ## manual
