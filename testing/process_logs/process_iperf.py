@@ -28,12 +28,21 @@ def parse_udp_results(log_content: str) -> dict:
     """
     result = {"end": {}, "intervals": []}
 
-    # Also handles kernel log prefixes like: [timestamp] start-iperf.sh[pid]: [  5]   0.00-1.00...
-    # Pattern allows for flexible spacing and handles both /sec and /s suffixes
-    # Captures optional "receiver" or "sender" suffix at the end
+    # \w = alphanumeric character (no spaces/symbols)
+    # \s = whitespace, \S = non-whitespace
     # format:  [   31.756220] start-test.sh[1343]: [ID]   start-end   sec  Transfer     Bitrate         Jitter    Lost/Total (percent) [optional receiver/sender]
     # e.g.   : [   31.756345] start-test.sh[1343]: [  9]  0.00-30.00  sec  5.56 GBytes  1.59 Gbits/sec  0.000 ms  0/4058628  (0%)       sender
     interval_pattern = r"(?:\[.*?\]\s+\S+\[.*?\]:\s+)?\[\s*(\w+)\]\s+([\d.]+)-([\d.]+)\s+sec\s+([\d.]+)\s+(\w+)\s+([\d.]+)\s+(\w+)(?:/sec|/s)\s+([\d.]+)\s+ms\s+(\d+)/(\d+)\s+\(([\d.]+)%\)(?:\s+(receiver|sender))?"
+    # (?:\[.*?\]\s+\S+\[.*?\]:\s+)? = optional prefix: [timestamp] start-test.sh[pid]:
+    #     (?: ) = group these characters so i can make them optional, but do NOT save the text
+    # \[\s*(\w+)\] = id (group 1)
+    # \s+([\d.]+)-([\d.]+)\s+sec = start-end sec (group 2 and 3)
+    # \s+([\d.]+)\s+(\w+) = transfer (group 4 and 5)
+    # \s+([\d.]+)\s+(\w+)(?:/sec|/s) = bitrate (group 6 and 7)
+    # \s+([\d.]+)\s+ms = jitter (group 8)
+    # \s+(\d+)/(\d+) = lost/total (group 9 and 10)
+    # \s+\(([\d.]+)%\) = percent (group 11)
+    # (?:\s+(receiver|sender))? = optional receiver/sender (group 12)
 
     def convert_units(transfer_value, transfer_unit, bitrate_value, bitrate_unit):
         if transfer_unit == "MBytes":
