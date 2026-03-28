@@ -52,7 +52,7 @@ if ! in_array "$TEST" "${VALID_TESTS[@]}"; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOG_DIR="$(dirname "$0")/../../testing/$NETWORK/logs"
+LOG_DIR="$(dirname "$0")/../../testing/$NETWORK/$TEST/$TEST_MODE/logs/logs-$NUM_VMS"
 
 # Create log directory
 rm -rf "$LOG_DIR"/*
@@ -64,12 +64,12 @@ spawn_vm() {
     local TEST_COMMAND=$3
 
     if [ "$NETWORK" = "tap" ]; then
-        $SCRIPT_DIR/spawn_tap_vm.sh "$i" "$VM_ROLE" "$TEST_COMMAND"
+        $SCRIPT_DIR/spawn_tap_vm.sh "$i" "$VM_ROLE" "$TEST_COMMAND" "$LOG_DIR"
     elif [ "$NETWORK" = "dpdk" ] || [ "$NETWORK" = "dpdk-tap" ]; then
-        $SCRIPT_DIR/spawn_dpdk_vm.sh "$i" "$VM_ROLE" "$TEST_COMMAND"
+        $SCRIPT_DIR/spawn_dpdk_vm.sh "$i" "$VM_ROLE" "$TEST_COMMAND" "$LOG_DIR"
     elif [ "$NETWORK" = "ovs-dpdk" ]; then
         SET_MTU="sudo ip link set ens5 mtu 9000 &&"
-        $SCRIPT_DIR/spawn_ovs_dpdk_vm.sh "$i" "$VM_ROLE" "$SET_MTU $TEST_COMMAND"
+        $SCRIPT_DIR/spawn_ovs_dpdk_vm.sh "$i" "$VM_ROLE" "$SET_MTU $TEST_COMMAND" "$LOG_DIR"
     fi
 }
 

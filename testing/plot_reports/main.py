@@ -1,4 +1,5 @@
 import argparse
+import json
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -20,37 +21,17 @@ COLOR_OVS_DPDK_1 = "#9467bd"
 COLOR_OVS_DPDK_2 = "#8c564b"
 
 
-def extract_number_from_path(path: Path) -> Optional[int]:
-    match = re.search(r"report-(\d+)vm", str(path))
-    return int(match.group(1)) if match else None
-
-
 def parse_iperf_report(report_path: Path) -> Optional[Dict]:
     try:
         with open(report_path, "r") as f:
-            content = f.read()
+            data = json.load(f)
 
-        total_vms_match = re.search(r"\*\*Total VMs:\*\* (\d+)", content)
-        if not total_vms_match:
-            vm_match = re.search(r"\*\*Number of VMs:\*\* (\d+)", content)
-            if not vm_match:
-                return None
-            total_vms = int(vm_match.group(1))
-        else:
-            total_vms = int(total_vms_match.group(1))
-
-        total_match = re.search(r"\*\*Total Throughput\*\* \| ([0-9.]+) Gbps", content)
-        if not total_match:
-            return None
-        total_throughput = float(total_match.group(1))
-
-        avg_match = re.search(r"\*\*Average per VM\*\* \| ([0-9.]+) Gbps", content)
-        if not avg_match:
-            return None
-        avg_per_vm = float(avg_match.group(1))
+        num_vms = data["total_vms"]
+        total_throughput = data["total_throughput_gbps"]
+        avg_per_vm = data["avg_per_vm_gbps"]
 
         return {
-            "num_vms": total_vms,
+            "num_vms": num_vms,
             "total_throughput": total_throughput,
             "throughput_per_vm": avg_per_vm,
         }
@@ -62,59 +43,18 @@ def parse_iperf_report(report_path: Path) -> Optional[Dict]:
 def parse_iperf_udp_report(report_path: Path) -> Optional[Dict]:
     try:
         with open(report_path, "r") as f:
-            content = f.read()
+            data = json.load(f)
 
-        total_vms_match = re.search(r"\*\*Total VMs:\*\* (\d+)", content)
-        if not total_vms_match:
-            vm_match = re.search(r"\*\*Number of VMs:\*\* (\d+)", content)
-            if not vm_match:
-                return None
-            total_vms = int(vm_match.group(1))
-        else:
-            total_vms = int(total_vms_match.group(1))
-
-        sender_pps_match = re.search(
-            r"\*\*Sender PPS \(Total\)\*\* \| ([0-9,]+) packets/sec", content
-        )
-        if not sender_pps_match:
-            return None
-        sender_pps_total = float(sender_pps_match.group(1).replace(",", ""))
-
-        receiver_pps_match = re.search(
-            r"\*\*Receiver PPS \(Total\)\*\* \| ([0-9,]+) packets/sec", content
-        )
-        if not receiver_pps_match:
-            return None
-        receiver_pps_total = float(receiver_pps_match.group(1).replace(",", ""))
-
+        total_vms = data["total_vms"]
+        sender_pps_total = data["total_sender_pps"]
+        receiver_pps_total = data["total_receiver_pps"]
         lost_pps_total = sender_pps_total - receiver_pps_total
-
-        avg_sender_pps_match = re.search(
-            r"\*\*Avg Sender PPS per VM\*\* \| ([0-9,]+) packets/sec", content
-        )
-        if not avg_sender_pps_match:
-            return None
-        avg_sender_pps_per_vm = float(avg_sender_pps_match.group(1).replace(",", ""))
-
-        avg_receiver_pps_match = re.search(
-            r"\*\*Avg Receiver PPS per VM\*\* \| ([0-9,]+) packets/sec", content
-        )
-        if not avg_receiver_pps_match:
-            return None
-        avg_receiver_pps_per_vm = float(
-            avg_receiver_pps_match.group(1).replace(",", "")
-        )
-
-        lost_pps_per_vm = avg_sender_pps_per_vm - avg_receiver_pps_per_vm
 
         return {
             "num_vms": total_vms,
             "sender_pps_total": sender_pps_total,
             "receiver_pps_total": receiver_pps_total,
             "lost_pps_total": lost_pps_total,
-            "sender_pps_per_vm": avg_sender_pps_per_vm,
-            "receiver_pps_per_vm": avg_receiver_pps_per_vm,
-            "lost_pps_per_vm": lost_pps_per_vm,
         }
     except Exception as e:
         print(f"Error parsing {report_path}: {e}")
@@ -124,33 +64,16 @@ def parse_iperf_udp_report(report_path: Path) -> Optional[Dict]:
 def parse_sockperf_report(report_path: Path) -> Optional[Dict]:
     try:
         with open(report_path, "r") as f:
-            content = f.read()
+            data = json.load(f)
 
-        total_vms_match = re.search(r"\*\*Total VMs:\*\* (\d+)", content)
-        if not total_vms_match:
-            vm_match = re.search(r"\*\*Number of VMs:\*\* (\d+)", content)
-            if not vm_match:
-                return None
-            total_vms = int(vm_match.group(1))
-        else:
-            total_vms = int(total_vms_match.group(1))
-
-        p99_match = re.search(r"\*\*Average p99\*\* \| ([0-9.]+) μs", content)
-        if not p99_match:
-            return None
-        p99_latency = float(p99_match.group(1))
-
-        received_match = re.search(
-            r"\*\*Total Messages Received\*\* \| ([0-9,]+)", content
-        )
-        if not received_match:
-            return None
-        total_received = int(received_match.group(1).replace(",", ""))
+        total_vms = data["total_vms"]
+        p99_latency = data["avg_p99_usec"]
+        total_received_messages = data["total_received_messages"]
 
         return {
             "num_vms": total_vms,
             "p99_latency": p99_latency,
-            "total_received": total_received,
+            "total_received": total_received_messages,
         }
     except Exception as e:
         print(f"Error parsing {report_path}: {e}")
@@ -177,27 +100,33 @@ def collect_reports(test_type: str) -> Tuple[List[Dict], List[Dict], List[Dict]]
 
     if tap_base.exists():
         for report_dir in tap_base.glob("report-*vm"):
-            report_path = report_dir / "report.md"
+            report_path = report_dir / "report.json"
             if report_path.exists():
                 data = parse_func(report_path)
                 if data:
                     tap_reports.append(data)
+            else:
+                print(f"⚠️ warning: tap report not found: {report_path}")
 
     if dpdk_base.exists():
         for report_dir in dpdk_base.glob("report-*vm"):
-            report_path = report_dir / "report.md"
+            report_path = report_dir / "report.json"
             if report_path.exists():
                 data = parse_func(report_path)
                 if data:
                     dpdk_reports.append(data)
+            else:
+                print(f"⚠️ warning: dpdk report not found: {report_path}")
 
     if ovs_dpdk_base.exists():
         for report_dir in ovs_dpdk_base.glob("report-*vm"):
-            report_path = report_dir / "report.md"
+            report_path = report_dir / "report.json"
             if report_path.exists():
                 data = parse_func(report_path)
                 if data:
                     ovs_dpdk_reports.append(data)
+            else:
+                print(f"⚠️ warning: ovs-dpdk report not found: {report_path}")
 
     tap_reports.sort(key=lambda x: x["num_vms"])
     dpdk_reports.sort(key=lambda x: x["num_vms"])
@@ -592,10 +521,8 @@ def plot_iperf_udp(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Plot comparison graphs from test reports (tap vs dpdk vs ovs-dpdk)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
   ./main.py iperf
   ./main.py iperf-udp
   ./main.py sockperf
@@ -604,21 +531,17 @@ Examples:
     parser.add_argument(
         "test_type",
         choices=["iperf", "iperf-udp", "sockperf"],
-        help="Test type to plot",
     )
 
     args = parser.parse_args()
 
     print(f"plotting {args.test_type} comparison graphs...")
-    print(f"testing directory: {TESTING_DIR}")
-    print()
+    print(f"testing directory: {TESTING_DIR}\n")
 
     tap_reports, dpdk_reports, ovs_dpdk_reports = collect_reports(args.test_type)
-
     print(f"Found {len(tap_reports)} tap reports")
     print(f"Found {len(dpdk_reports)} dpdk reports")
-    print(f"Found {len(ovs_dpdk_reports)} ovs-dpdk reports")
-    print()
+    print(f"Found {len(ovs_dpdk_reports)} ovs-dpdk reports\n")
 
     if not tap_reports and not dpdk_reports and not ovs_dpdk_reports:
         print("no reports found!")

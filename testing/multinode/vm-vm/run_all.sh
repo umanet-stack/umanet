@@ -53,7 +53,7 @@ for VMS in $(seq 1 $NUM_VMS); do
   log "  started $VMS VMs on node 0" 
   sleep 45
 
-  python testing/process_logs/main.py $NETWORK vm-client &>> "$LOG_DIR/report.log"
+  python testing/process_logs/main.py $NETWORK vm-client $VMS &>> "$LOG_DIR/report.log"
   log "  processed logs"
 
   ITERATION=$((ITERATION + 1))
