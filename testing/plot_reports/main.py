@@ -26,7 +26,7 @@ def parse_iperf_report(report_path: Path) -> Optional[Dict]:
         with open(report_path, "r") as f:
             data = json.load(f)
 
-        num_vms = data["num_vms"]
+        num_vms = data["total_vms"]
         total_throughput = data["total_throughput_gbps"]
         avg_per_vm = data["avg_per_vm_gbps"]
 
@@ -146,6 +146,8 @@ def collect_reports(test_type: str) -> Tuple[List[Dict], List[Dict], List[Dict]]
                 data = parse_func(report_path)
                 if data:
                     tap_reports.append(data)
+            else:
+                print(f"⚠️ warning: tap report not found: {report_path}")
 
     if dpdk_base.exists():
         for report_dir in dpdk_base.glob("report-*vm"):
@@ -154,6 +156,8 @@ def collect_reports(test_type: str) -> Tuple[List[Dict], List[Dict], List[Dict]]
                 data = parse_func(report_path)
                 if data:
                     dpdk_reports.append(data)
+            else:
+                print(f"⚠️ warning: dpdk report not found: {report_path}")
 
     if ovs_dpdk_base.exists():
         for report_dir in ovs_dpdk_base.glob("report-*vm"):
@@ -162,6 +166,8 @@ def collect_reports(test_type: str) -> Tuple[List[Dict], List[Dict], List[Dict]]
                 data = parse_func(report_path)
                 if data:
                     ovs_dpdk_reports.append(data)
+            else:
+                print(f"⚠️ warning: ovs-dpdk report not found: {report_path}")
 
     tap_reports.sort(key=lambda x: x["num_vms"])
     dpdk_reports.sort(key=lambda x: x["num_vms"])

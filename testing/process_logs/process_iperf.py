@@ -22,7 +22,7 @@ def is_udp_mode(log_content: str) -> bool:
 def parse_udp_results(log_content: str) -> dict:
     """
     parses lines like:
-    [  5]   0.00-1.00   sec  4.28 MBytes  35.9 Mbits/sec  0.001 ms  10351/80540 (13%)
+    [  5]   0.00-1.00   sec  4.28 MBytes  35.9 Mbits/sec  0.001 ms  10351/80540 (13%)  sender
     [SUM]   0.00-10.01  sec   176 MBytes   148 Mbits/sec  0.001 ms  627759/3518290 (18%)  receiver
 
     """
@@ -31,8 +31,8 @@ def parse_udp_results(log_content: str) -> dict:
     # Also handles kernel log prefixes like: [timestamp] start-iperf.sh[pid]: [  5]   0.00-1.00...
     # Pattern allows for flexible spacing and handles both /sec and /s suffixes
     # Captures optional "receiver" or "sender" suffix at the end
-    # format:  [   31.756220] start-test.sh[1343]: [ID] start-end sec Transfer Bitrate Jitter Lost/Total (percent) [optional receiver/sender]
-    # e.g.   : [  5]   0.00-1.00   sec  4.28 MBytes  35.9 Mbits/sec  0.001 ms  10351/80540 (13%)
+    # format:  [   31.756220] start-test.sh[1343]: [ID]   start-end   sec  Transfer     Bitrate         Jitter    Lost/Total (percent) [optional receiver/sender]
+    # e.g.   : [   31.756345] start-test.sh[1343]: [  9]  0.00-30.00  sec  5.56 GBytes  1.59 Gbits/sec  0.000 ms  0/4058628  (0%)       sender
     interval_pattern = r"(?:\[.*?\]\s+\S+\[.*?\]:\s+)?\[\s*(\w+)\]\s+([\d.]+)-([\d.]+)\s+sec\s+([\d.]+)\s+(\w+)\s+([\d.]+)\s+(\w+)(?:/sec|/s)\s+([\d.]+)\s+ms\s+(\d+)/(\d+)\s+\(([\d.]+)%\)(?:\s+(receiver|sender))?"
 
     def convert_units(transfer_value, transfer_unit, bitrate_value, bitrate_unit):
