@@ -43,59 +43,18 @@ def parse_iperf_report(report_path: Path) -> Optional[Dict]:
 def parse_iperf_udp_report(report_path: Path) -> Optional[Dict]:
     try:
         with open(report_path, "r") as f:
-            content = f.read()
+            data = json.load(f)
 
-        total_vms_match = re.search(r"\*\*Total VMs:\*\* (\d+)", content)
-        if not total_vms_match:
-            vm_match = re.search(r"\*\*Number of VMs:\*\* (\d+)", content)
-            if not vm_match:
-                return None
-            total_vms = int(vm_match.group(1))
-        else:
-            total_vms = int(total_vms_match.group(1))
-
-        sender_pps_match = re.search(
-            r"\*\*Sender PPS \(Total\)\*\* \| ([0-9,]+) packets/sec", content
-        )
-        if not sender_pps_match:
-            return None
-        sender_pps_total = float(sender_pps_match.group(1).replace(",", ""))
-
-        receiver_pps_match = re.search(
-            r"\*\*Receiver PPS \(Total\)\*\* \| ([0-9,]+) packets/sec", content
-        )
-        if not receiver_pps_match:
-            return None
-        receiver_pps_total = float(receiver_pps_match.group(1).replace(",", ""))
-
+        total_vms = data["total_vms"]
+        sender_pps_total = data["total_sender_pps"]
+        receiver_pps_total = data["total_receiver_pps"]
         lost_pps_total = sender_pps_total - receiver_pps_total
-
-        avg_sender_pps_match = re.search(
-            r"\*\*Avg Sender PPS per VM\*\* \| ([0-9,]+) packets/sec", content
-        )
-        if not avg_sender_pps_match:
-            return None
-        avg_sender_pps_per_vm = float(avg_sender_pps_match.group(1).replace(",", ""))
-
-        avg_receiver_pps_match = re.search(
-            r"\*\*Avg Receiver PPS per VM\*\* \| ([0-9,]+) packets/sec", content
-        )
-        if not avg_receiver_pps_match:
-            return None
-        avg_receiver_pps_per_vm = float(
-            avg_receiver_pps_match.group(1).replace(",", "")
-        )
-
-        lost_pps_per_vm = avg_sender_pps_per_vm - avg_receiver_pps_per_vm
 
         return {
             "num_vms": total_vms,
             "sender_pps_total": sender_pps_total,
             "receiver_pps_total": receiver_pps_total,
             "lost_pps_total": lost_pps_total,
-            "sender_pps_per_vm": avg_sender_pps_per_vm,
-            "receiver_pps_per_vm": avg_receiver_pps_per_vm,
-            "lost_pps_per_vm": lost_pps_per_vm,
         }
     except Exception as e:
         print(f"Error parsing {report_path}: {e}")
