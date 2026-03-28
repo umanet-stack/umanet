@@ -57,29 +57,13 @@ def parse_udp_results(log_content: str) -> dict:
             bytes_transferred = transfer_value
 
         # bitrate to bits per second
-        if (
-            bitrate_unit == "Mbits"
-            or bitrate_unit == "Mbits/sec"
-            or bitrate_unit == "Mbits/s"
-        ):
-            bits_per_second = bitrate_value * 1e6
-        elif (
-            bitrate_unit == "Gbits"
-            or bitrate_unit == "Gbits/sec"
-            or bitrate_unit == "Gbits/s"
-        ):
+        if bitrate_unit in ["Gbits", "Gbits/sec", "Gbits/s"]:
             bits_per_second = bitrate_value * 1e9
-        elif (
-            bitrate_unit == "Kbits"
-            or bitrate_unit == "Kbits/sec"
-            or bitrate_unit == "Kbits/s"
-        ):
+        elif bitrate_unit in ["Mbits", "Mbits/sec", "Mbits/s"]:
+            bits_per_second = bitrate_value * 1e6
+        elif bitrate_unit in ["Kbits", "Kbits/sec", "Kbits/s"]:
             bits_per_second = bitrate_value * 1e3
-        elif (
-            bitrate_unit == "bits"
-            or bitrate_unit == "bits/sec"
-            or bitrate_unit == "bits/s"
-        ):
+        elif bitrate_unit in ["bits", "bits/sec", "bits/s"]:
             bits_per_second = bitrate_value
         else:
             # assume bits per second
@@ -99,7 +83,7 @@ def parse_udp_results(log_content: str) -> dict:
 
     for match in all_matches:
         stream_id = match.group(1)
-        # Group 12 is the optional receiver/sender suffix (returns None if not matched)
+        # optional receiver/sender suffix (returns None if not matched)
         role = match.group(12)
 
         if stream_id == "SUM":
@@ -166,14 +150,6 @@ def parse_udp_results(log_content: str) -> dict:
                 "sender_pps": sender_pps,
                 "receiver_pps": receiver_pps,
             },
-            "cpu_utilization_percent": {
-                "host_total": 0.0,
-                "host_user": 0.0,
-                "host_system": 0.0,
-                "remote_total": 0.0,
-                "remote_user": 0.0,
-                "remote_system": 0.0,
-            },
         }
 
     # extract all interval data (including SUM intervals for time series)
@@ -194,10 +170,10 @@ def parse_udp_results(log_content: str) -> dict:
         total_datagrams = int(match.group(10))
 
         bytes_transferred, _ = convert_units(
-            transfer_value,
-            transfer_unit,
-            0,
-            "",  # calculate throughput from bytes
+            transfer_value, # 5.58 
+            transfer_unit, # GBytes
+            0, # 1.60 
+            "",  # Gbits/sec, calculate throughput from bytes
         )
 
         interval_duration = interval_end - interval_start
@@ -430,7 +406,6 @@ def calculate_overall_stats(per_vm_stats: Dict[str, dict], total_vms: int) -> di
     }
 
     if is_udp:
-        # udp-specific stats
         total_bytes = sum(s.get("bytes_received", 0) for s in per_vm_stats.values())
         total_lost = sum(s.get("lost_datagrams", 0) for s in per_vm_stats.values())
         total_datagrams = sum(
