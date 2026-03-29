@@ -463,10 +463,25 @@ def plot_iperf_udp(
             tap_vms,
             tap_loss_pct,
             "o-",
-            label="TAP",
+            label="Linux",
             linewidth=2,
             markersize=5,
             color=COLOR_LINUX_2,
+        )
+
+    if dpdk_reports:
+        dpdk_vms = [r["num_vms"] for r in dpdk_reports]
+        dpdk_loss_pct = [
+            (r["lost_pps_total"] / r["sender_pps_total"]) * 100 for r in dpdk_reports
+        ]
+        ax2.plot(
+            dpdk_vms,
+            dpdk_loss_pct,
+            "s-",
+            label="UMANet",
+            linewidth=2,
+            markersize=5,
+            color=COLOR_UMANET_2,
         )
 
     if ovs_dpdk_reports:
@@ -483,21 +498,6 @@ def plot_iperf_udp(
             linewidth=2,
             markersize=5,
             color=COLOR_OVS_DPDK_2,
-        )
-
-    if dpdk_reports:
-        dpdk_vms = [r["num_vms"] for r in dpdk_reports]
-        dpdk_loss_pct = [
-            (r["lost_pps_total"] / r["sender_pps_total"]) * 100 for r in dpdk_reports
-        ]
-        ax2.plot(
-            dpdk_vms,
-            dpdk_loss_pct,
-            "s-",
-            label="UMANet",
-            linewidth=2,
-            markersize=5,
-            color=COLOR_UMANET_2,
         )
 
     for vm_count in [32, 48, 64]:
