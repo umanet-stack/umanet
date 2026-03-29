@@ -463,7 +463,7 @@ def plot_iperf_udp(
             tap_vms,
             tap_loss_pct,
             "o-",
-            label="TAP",
+            label="Linux",
             linewidth=2,
             markersize=5,
             color=COLOR_LINUX_2,
