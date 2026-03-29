@@ -48,7 +48,7 @@ def plot_latency(plot_type="mean"):
     filtered_data = [d for d in data if d["type"] == plot_type]
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 5), sharex=True)
-    systems = ["UMANet", "Linux", "OVS-DPDK"]
+    systems = ["Linux", "UMANet", "OVS-DPDK"]
 
     plot_data = defaultdict(lambda: defaultdict(list))
 
