@@ -17,7 +17,7 @@ UMANet further decomposes the fast path into 4 types: ETH RX, ETH TX, vhost RX, 
 ![Architecture](./docs/architecture.png)
 
 ## Performance
-UMANet achieves up to 4.7× higher received PPS and 2.2× lower packet loss than Linux TAP networking.
+UMANet achieves up to 4.7× higher received PPS and 2.0× lower packet loss than Linux TAP networking.
 
 ![Performance](./docs/iperf_udp_pps.png)
 
