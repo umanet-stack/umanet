@@ -24,6 +24,7 @@ sources = files(
 	'src/fast/eth_tx.c',
 	'src/fast/vhost_rx.c',
 	'src/fast/vhost_tx.c',
+	'src/fast/fastpath.c',
 	'src/network/flow.c',
 	'src/network/network.c',
 	'src/vhost/device.c',

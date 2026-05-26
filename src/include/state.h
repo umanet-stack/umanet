@@ -13,10 +13,11 @@
 #define MAX_VHOSTS 64
 
 extern struct dataplane_topology *global;
-extern struct eth_rx_ctx **eth_rx_ctxs;
-extern struct eth_tx_ctx **eth_tx_ctxs;
-extern struct vhost_rx_ctx **vhost_rx_ctxs;
-extern struct vhost_tx_ctx **vhost_tx_ctxs;
+// extern struct eth_rx_ctx **eth_rx_ctxs;
+// extern struct eth_tx_ctx **eth_tx_ctxs;
+// extern struct vhost_rx_ctx **vhost_rx_ctxs;
+// extern struct vhost_tx_ctx **vhost_tx_ctxs;
+extern struct fp_ctx **fp_ctxs;
 extern struct control_ctx *control_ctx;
 extern _Atomic(struct vdev_list *) vdev_list;
 extern _Atomic(struct vhost_plan *) *vhost_rx_plans;
@@ -38,6 +39,14 @@ struct dataplane_topology {
     // vhost/eth_rx_core i => vhost_tx_rings[j] => vhost_tx_core k (i:j:k mapping)
     struct rte_ring *vhost_tx_rings[MAX_VHOSTS];
     struct rte_ring *slowpath_ring;
+};
+
+struct fp_ctx {
+    uint16_t core_id;
+    struct eth_rx_ctx *eth_rx_ctx;
+    struct eth_tx_ctx *eth_tx_ctx;
+    struct vhost_rx_ctx *vhost_rx_ctx;
+    struct vhost_tx_ctx *vhost_tx_ctx;
 };
 
 struct eth_rx_ctx {

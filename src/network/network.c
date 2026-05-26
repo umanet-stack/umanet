@@ -124,10 +124,10 @@ int network_init() {
     eth_devinfo.default_txconf.offloads = port_conf.txmode.offloads;
     eth_devinfo.default_rxconf.offloads = port_conf.rxmode.offloads;
 
-    if (eth_devinfo.max_rx_queues < config.eth_rx_cores || eth_devinfo.max_tx_queues < config.eth_tx_cores) {
+    if (eth_devinfo.max_rx_queues < global->fp_cores || eth_devinfo.max_tx_queues < global->fp_cores) {
         LOG_ERROR("Error: NIC does not support enough hw queues (rx=%u tx=%u)"
                   " for the requested number of cores (%u)\n",
-                  eth_devinfo.max_rx_queues, eth_devinfo.max_tx_queues, config.eth_rx_cores);
+                  eth_devinfo.max_rx_queues, eth_devinfo.max_tx_queues, global->fp_cores);
         goto error_exit;
     }
 
@@ -207,7 +207,7 @@ static volatile uint32_t start_done = 0;
 
 int network_tx_queue_init(struct eth_tx_ctx *ctx) {
     int ret;
-    for (int i = ctx->eth_tx_queue_r; i < config.eth_tx_queues; i += config.eth_tx_cores) {
+    for (int i = ctx->eth_tx_queue_r; i < config.eth_tx_queues; i += global->fp_cores) {
         rte_spinlock_lock(&initlock);
         ret = rte_eth_tx_queue_setup(global->eth_port_id, i, TX_DESCRIPTORS, rte_socket_id(),
                                      &eth_devinfo.default_txconf);
@@ -226,11 +226,11 @@ int network_tx_queue_init(struct eth_tx_ctx *ctx) {
 }
 
 int network_rx_queue_init(struct eth_rx_ctx *ctx) {
-    while (tx_init_done < config.eth_tx_cores)
+    while (tx_init_done < global->fp_cores)
         ;
 
     int ret;
-    for (int i = ctx->eth_rx_queue_r; i < config.eth_rx_queues; i += config.eth_rx_cores) {
+    for (int i = ctx->eth_rx_queue_r; i < config.eth_rx_queues; i += global->fp_cores) {
         rte_spinlock_lock(&initlock);
         ret = rte_eth_rx_queue_setup(global->eth_port_id, i, RX_DESCRIPTORS, rte_socket_id(),
                                      &eth_devinfo.default_rxconf, ctx->mempool);
@@ -249,7 +249,7 @@ int network_rx_queue_init(struct eth_rx_ctx *ctx) {
 }
 
 int network_start_eth() {
-    while (rx_init_done < config.eth_rx_cores)
+    while (rx_init_done < global->fp_cores)
         ;
 
     int ret;
